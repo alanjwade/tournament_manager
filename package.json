@@ -1,0 +1,69 @@
+{
+  "name": "tournament-manager",
+  "version": "1.0.0",
+  "description": "Martial Arts Tournament Management Application",
+  "main": "dist/src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"npm run build:watch\" \"wait-on dist/src/main/index.js && electron .\"",
+    "build": "tsc && vite build",
+    "build:watch": "tsc && concurrently \"tsc --watch\" \"vite build --watch\"",
+    "package": "electron-builder"
+  },
+  "keywords": [
+    "tournament",
+    "martial-arts",
+    "electron"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^3.1.14",
+    "jspdf": "^2.5.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "uuid": "^9.0.1",
+    "xlsx": "^0.18.5",
+    "zustand": "^4.5.7"
+  },
+  "build": {
+    "appId": "com.tournament.manager",
+    "productName": "Tournament Manager",
+    "icon": "src/renderer/assets/icons/app-icon.png",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}
