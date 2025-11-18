@@ -137,26 +137,27 @@ function ParticipantEditor() {
               <th>Height</th>
               <th>School</th>
               <th>Branch</th>
-              <th>Forms Division</th>
-              <th>Sparring Division</th>
-              <th>Forms Cohort</th>
-              <th>Sparring Cohort</th>
-              <th>Forms Ring</th>
-              <th>Sparring Ring</th>
+              <th className="forms-column">Forms Division</th>
+              <th className="forms-column">Forms Cohort</th>
+              <th className="forms-column">Forms Ring</th>
+              <th className="sparring-column">Sparring Division</th>
+              <th className="sparring-column">Sparring Cohort</th>
+              <th className="sparring-column">Sparring Ring</th>
+              <th className="sparring-alt-column">Sparring Alt Ring</th>
               <th>Forms Order</th>
               <th>Sparring Order</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredParticipants.map((p) => {
+            {filteredParticipants.map((p, idx) => {
               const isEditing = editingId === p.id;
               const formsRing = competitionRings.find(r => r.id === p.formsRingId);
               const sparringRing = competitionRings.find(r => r.id === p.sparringRingId);
               const formsCohort = cohorts.find(c => c.id === p.formsCohortId);
               const sparringCohort = cohorts.find(c => c.id === p.sparringCohortId);
               
-              // Debug: Check if participant is in multiple rings
+              // Check if participant is in multiple rings
               const allFormsRings = competitionRings.filter(
                 r => r.type === 'forms' && r.participantIds.includes(p.id)
               );
@@ -251,19 +252,16 @@ function ParticipantEditor() {
                       />
                     ) : p.branch || '-'}
                   </td>
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                  {/* Forms Division */}
+                  <td className="forms-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
                     {p.formsDivision || '-'}
                   </td>
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                    {p.sparringDivision || '-'}
-                  </td>
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                  {/* Forms Cohort */}
+                  <td className="forms-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
                     {formsCohort?.name || (p.competingForms ? <span style={{ color: '#999' }}>Not assigned</span> : '-')}
                   </td>
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                    {sparringCohort?.name || (p.competingSparring ? <span style={{ color: '#999' }}>Not assigned</span> : '-')}
-                  </td>
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                  {/* Forms Ring */}
+                  <td className="forms-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
                     {p.competingForms ? (
                       allFormsRings.length > 0 ? (
                         <span style={{ color: allFormsRings.length > 1 ? '#d9534f' : 'inherit' }}>
@@ -273,7 +271,16 @@ function ParticipantEditor() {
                       ) : <span style={{ color: '#999' }}>Not assigned</span>
                     ) : <span style={{ color: '#999' }}>Not competing</span>}
                   </td>
-                  <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                  {/* Sparring Division */}
+                  <td className="sparring-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                    {p.sparringDivision || '-'}
+                  </td>
+                  {/* Sparring Cohort */}
+                  <td className="sparring-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                    {sparringCohort?.name || (p.competingSparring ? <span style={{ color: '#999' }}>Not assigned</span> : '-')}
+                  </td>
+                  {/* Sparring Ring */}
+                  <td className="sparring-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
                     {p.competingSparring ? (
                       allSparringRings.length > 0 ? (
                         <span style={{ color: allSparringRings.length > 1 ? '#d9534f' : 'inherit' }}>
@@ -283,11 +290,31 @@ function ParticipantEditor() {
                       ) : <span style={{ color: '#999' }}>Not assigned</span>
                     ) : <span style={{ color: '#999' }}>Not competing</span>}
                   </td>
-                  <td style={{ fontSize: '12px', textAlign: 'center' }}>
-                    {p.formsRankOrder ? p.formsRankOrder * 10 : '-'}
+                  {/* Sparring Alt Ring */}
+                  <td className="sparring-alt-column" style={{ fontSize: '12px', textAlign: 'center' }}>
+                    {isEditing ? (
+                      p.competingSparring ? (
+                        <select
+                          value={editForm.sparringAltRing || ''}
+                          onChange={(e) => setEditForm({ ...editForm, sparringAltRing: e.target.value as '' | 'a' | 'b' })}
+                          style={{ width: '100%', padding: '4px' }}
+                        >
+                          <option value="">-</option>
+                          <option value="a">a</option>
+                          <option value="b">b</option>
+                        </select>
+                      ) : '-'
+                    ) : (
+                      p.competingSparring ? (p.sparringAltRing || '-') : '-'
+                    )}
                   </td>
+                  {/* Forms Order */}
                   <td style={{ fontSize: '12px', textAlign: 'center' }}>
-                    {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
+                    {p.competingForms ? (p.formsRankOrder || <span style={{ color: '#999' }}>Not assigned</span>) : '-'}
+                  </td>
+                  {/* Sparring Order */}
+                  <td style={{ fontSize: '12px', textAlign: 'center' }}>
+                    {p.competingSparring ? (p.sparringRankOrder || <span style={{ color: '#999' }}>Not assigned</span>) : '-'}
                   </td>
                   <td>
                     {isEditing ? (

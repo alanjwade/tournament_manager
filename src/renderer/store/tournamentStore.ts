@@ -22,6 +22,8 @@ interface TournamentState {
   setDivisions: (divisions: Division[]) => void;
   setPhysicalRings: (rings: PhysicalRing[]) => void;
   setWatermark: (image: string) => void;
+  setPdfOutputDirectory: (directory: string) => void;
+  setSchoolAbbreviations: (abbreviations: { [schoolName: string]: string }) => void;
   saveState: () => Promise<void>;
   loadState: () => Promise<void>;
   autoSave: () => void;
@@ -38,6 +40,38 @@ const initialConfig: TournamentConfig = {
   ],
   physicalRings: [],
   watermarkImage: undefined,
+  pdfOutputDirectory: undefined,
+  schoolAbbreviations: {
+    // Branch-based abbreviations (exact matches from GAS code)
+    'Longmont': 'REMA LM',
+    'Broomfield': 'REMA BF',
+    'Fort Collins': 'REMA FC',
+    'Johnstown': 'REMA JT',
+    'Littleton': 'EMA LT',
+    'Lakewood': 'EMA LW',
+    'Personal Achievement': 'PAMA',
+    'Success': 'SMA',
+    // Variations with hyphens
+    'exclusive-littleton': 'EMA LT',
+    'exclusive-lakewood': 'EMA LW',
+    'personal-achievement': 'PAMA',
+    'ripple-effect-longmont': 'REMA LM',
+    'ripple-effect-broomfield': 'REMA BF',
+    'ripple-effect-ft-collins': 'REMA FC',
+    'ripple-effect-johnstown': 'REMA JT',
+    'success': 'SMA',
+    // Full name variations
+    'Exclusive Martial Arts - Littleton': 'EMA LT',
+    'Exclusive Martial Arts - Lakewood': 'EMA LW',
+    'Exclusive Littleton': 'EMA LT',
+    'Exclusive Lakewood': 'EMA LW',
+    'Personal Achievement Martial Arts': 'PAMA',
+    'Ripple Effect Martial Arts - Longmont': 'REMA LM',
+    'Ripple Effect Martial Arts - Broomfield': 'REMA BF',
+    'Ripple Effect Martial Arts - Fort Collins': 'REMA FC',
+    'Ripple Effect Martial Arts - Johnstown': 'REMA JT',
+    'Success Martial Arts': 'SMA',
+  },
 };
 
 export const useTournamentStore = create<TournamentState>((set) => ({
@@ -49,7 +83,9 @@ export const useTournamentStore = create<TournamentState>((set) => ({
   cohortRingMappings: [],
 
   setParticipants: (participants) => {
-    set({ participants });
+    // Normalize participant objects to include newer fields with defaults
+    const normalized = participants.map(p => ({ ...p, sparringAltRing: (p as any).sparringAltRing || '' }));
+    set({ participants: normalized });
     setTimeout(() => useTournamentStore.getState().autoSave(), 100);
   },
   
@@ -130,10 +166,26 @@ export const useTournamentStore = create<TournamentState>((set) => ({
     setTimeout(() => useTournamentStore.getState().autoSave(), 100);
   },
 
-  setWatermark: (image) =>
+  setWatermark: (image) => {
     set((state) => ({
       config: { ...state.config, watermarkImage: image },
-    })),
+    }));
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+  },
+
+  setPdfOutputDirectory: (directory) => {
+    set((state) => ({
+      config: { ...state.config, pdfOutputDirectory: directory },
+    }));
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+  },
+
+  setSchoolAbbreviations: (abbreviations) => {
+    set((state) => ({
+      config: { ...state.config, schoolAbbreviations: abbreviations },
+    }));
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+  },
 
   saveState: async () => {
     const state = useTournamentStore.getState();
@@ -172,18 +224,24 @@ export const useTournamentStore = create<TournamentState>((set) => ({
     }
   },
 
-  autoSave: () => {
+  autoSave: async () => {
     const state = useTournamentStore.getState();
     const tournamentState: SavedState = {
       participants: state.participants,
       cohorts: state.cohorts,
-      // competitionRings: REMOVED - now computed from participants
       config: state.config,
       physicalRingMappings: state.physicalRingMappings,
       cohortRingMappings: state.cohortRingMappings,
       lastSaved: new Date().toISOString(),
     };
-    localStorage.setItem('tournament-autosave', JSON.stringify(tournamentState));
+    console.log('Saving autosave - participants count:', state.participants.length);
+    
+    try {
+      const result = await window.electronAPI.saveAutosave(JSON.stringify(tournamentState));
+      console.log('Autosave result:', result.success ? 'success' : result.error);
+    } catch (error) {
+      console.error('Failed to save autosave:', error);
+    }
   },
 
   reset: () =>

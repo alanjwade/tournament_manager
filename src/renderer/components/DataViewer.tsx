@@ -36,6 +36,7 @@ function DataViewer() {
     sparringRing: '',
     formsPhysicalRing: '',
     sparringPhysicalRing: '',
+    sparringAltRing: '',
     formsOrder: '',
     sparringOrder: '',
   });
@@ -247,6 +248,7 @@ function DataViewer() {
         sparringRingName.toLowerCase().includes(filters.sparringRing.toLowerCase()) &&
         formsPhysicalRingName.toLowerCase().includes(filters.formsPhysicalRing.toLowerCase()) &&
         sparringPhysicalRingName.toLowerCase().includes(filters.sparringPhysicalRing.toLowerCase()) &&
+        (p.sparringAltRing || '').toLowerCase().includes(filters.sparringAltRing.toLowerCase()) &&
         formsOrder.includes(filters.formsOrder) &&
         sparringOrder.includes(filters.sparringOrder)
       );
@@ -277,6 +279,7 @@ function DataViewer() {
       sparringRing: '',
       formsPhysicalRing: '',
       sparringPhysicalRing: '',
+      sparringAltRing: '',
       formsOrder: '',
       sparringOrder: '',
     });
@@ -381,7 +384,7 @@ function DataViewer() {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+              <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
                 Forms Division
                 <input
                   type="text"
@@ -391,17 +394,7 @@ function DataViewer() {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
-                Sparring Division
-                <input
-                  type="text"
-                  placeholder="Filter..."
-                  value={filters.sparringDivision}
-                  onChange={(e) => updateFilter('sparringDivision', e.target.value)}
-                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
-                />
-              </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+              <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
                 Forms Cohort
                 <input
                   type="text"
@@ -411,17 +404,7 @@ function DataViewer() {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
-                Sparring Cohort
-                <input
-                  type="text"
-                  placeholder="Filter..."
-                  value={filters.sparringCohort}
-                  onChange={(e) => updateFilter('sparringCohort', e.target.value)}
-                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
-                />
-              </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+              <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
                 Forms Ring
                 <input
                   type="text"
@@ -431,33 +414,13 @@ function DataViewer() {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
-                Sparring Ring
-                <input
-                  type="text"
-                  placeholder="Filter..."
-                  value={filters.sparringRing}
-                  onChange={(e) => updateFilter('sparringRing', e.target.value)}
-                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
-                />
-              </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
+              <th className="forms-physical-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
                 Forms Physical Ring
                 <input
                   type="text"
                   placeholder="Filter..."
                   value={filters.formsPhysicalRing}
                   onChange={(e) => updateFilter('formsPhysicalRing', e.target.value)}
-                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
-                />
-              </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
-                Sparring Physical Ring
-                <input
-                  type="text"
-                  placeholder="Filter..."
-                  value={filters.sparringPhysicalRing}
-                  onChange={(e) => updateFilter('sparringPhysicalRing', e.target.value)}
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
@@ -468,6 +431,56 @@ function DataViewer() {
                   placeholder="Filter..."
                   value={filters.formsOrder}
                   onChange={(e) => updateFilter('formsOrder', e.target.value)}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                />
+              </th>
+              <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+                Sparring Division
+                <input
+                  type="text"
+                  placeholder="Filter..."
+                  value={filters.sparringDivision}
+                  onChange={(e) => updateFilter('sparringDivision', e.target.value)}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                />
+              </th>
+              <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+                Sparring Cohort
+                <input
+                  type="text"
+                  placeholder="Filter..."
+                  value={filters.sparringCohort}
+                  onChange={(e) => updateFilter('sparringCohort', e.target.value)}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                />
+              </th>
+              <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+                Sparring Ring
+                <input
+                  type="text"
+                  placeholder="Filter..."
+                  value={filters.sparringRing}
+                  onChange={(e) => updateFilter('sparringRing', e.target.value)}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                />
+              </th>
+              <th className="sparring-physical-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
+                Sparring Physical Ring
+                <input
+                  type="text"
+                  placeholder="Filter..."
+                  value={filters.sparringPhysicalRing}
+                  onChange={(e) => updateFilter('sparringPhysicalRing', e.target.value)}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                />
+              </th>
+              <th className="sparring-alt-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '80px' }}>
+                Sparring Alt Ring
+                <input
+                  type="text"
+                  placeholder="Filter..."
+                  value={filters.sparringAltRing || ''}
+                  onChange={(e) => updateFilter('sparringAltRing', e.target.value)}
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
@@ -512,7 +525,7 @@ function DataViewer() {
                 <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{p.heightInches}</td>
                 <td style={{ padding: '8px', border: '1px solid #ddd' }}>{p.school}</td>
                 <td style={{ padding: '8px', border: '1px solid #ddd' }}>{p.branch || ''}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="forms-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
                   <select
                     value={p.formsDivision}
                     onChange={(e) => updateParticipantDivision(p.id, 'formsDivision', e.target.value)}
@@ -531,26 +544,7 @@ function DataViewer() {
                     ))}
                   </select>
                 </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                  <select
-                    value={p.sparringDivision}
-                    onChange={(e) => updateParticipantDivision(p.id, 'sparringDivision', e.target.value)}
-                    style={{ 
-                      width: '100%', 
-                      padding: '4px',
-                      border: '1px solid #ccc',
-                      borderRadius: '3px',
-                      fontSize: '13px',
-                      background: p.sparringDivision === 'not participating' ? '#fff3cd' : 
-                                  p.sparringDivision === 'same as forms' ? '#d1ecf1' : 'white'
-                    }}
-                  >
-                    {sparringOptions.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="forms-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
                   {p.competingForms ? (
                     <select
                       value={p.formsCohortId || ''}
@@ -571,28 +565,7 @@ function DataViewer() {
                     </select>
                   ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                  {p.competingSparring ? (
-                    <select
-                      value={p.sparringCohortId || ''}
-                      onChange={(e) => updateParticipantCohort(p.id, 'sparringCohortId', e.target.value)}
-                      style={{ 
-                        width: '100%', 
-                        padding: '4px',
-                        border: '1px solid #ccc',
-                        borderRadius: '3px',
-                        fontSize: '12px',
-                        background: p.sparringCohortId ? 'white' : '#fff3cd'
-                      }}
-                    >
-                      <option value="">Not assigned</option>
-                      {sparringCohortOptions.map(option => (
-                        <option key={option.id} value={option.id}>{option.name}</option>
-                      ))}
-                    </select>
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
-                </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="forms-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
                   {p.competingForms ? (
                     <input
                       type="text"
@@ -610,25 +583,7 @@ function DataViewer() {
                     />
                   ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                  {p.competingSparring ? (
-                    <input
-                      type="text"
-                      value={p.sparringCohortRing || ''}
-                      onChange={(e) => updateParticipantCohortRing(p.id, 'sparringCohortRing', e.target.value)}
-                      placeholder="e.g. R1"
-                      style={{ 
-                        width: '100%', 
-                        padding: '4px',
-                        border: '1px solid #ccc',
-                        borderRadius: '3px',
-                        fontSize: '12px',
-                        background: p.sparringCohortRing ? 'white' : '#fff3cd'
-                      }}
-                    />
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
-                </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="forms-physical-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
                   {p.competingForms ? (
                     <select
                       value={formsPhysicalMapping?.physicalRingName || ''}
@@ -650,6 +605,82 @@ function DataViewer() {
                   ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                  {p.competingForms ? (
+                    <input
+                      type="number"
+                      value={p.formsRankOrder ? p.formsRankOrder * 10 : ''}
+                      onChange={(e) => updateParticipantOrder(p.id, 'formsRankOrder', e.target.value)}
+                      placeholder="Order"
+                      style={{ 
+                        width: '100%', 
+                        padding: '4px',
+                        border: '1px solid #ccc',
+                        borderRadius: '3px',
+                        fontSize: '12px',
+                        textAlign: 'center'
+                      }}
+                    />
+                  ) : <span style={{ color: '#999', fontSize: '12px' }}>-</span>}
+                </td>
+                <td className="sparring-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                  <select
+                    value={p.sparringDivision}
+                    onChange={(e) => updateParticipantDivision(p.id, 'sparringDivision', e.target.value)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid #ccc',
+                      borderRadius: '3px',
+                      fontSize: '13px',
+                      background: p.sparringDivision === 'not participating' ? '#fff3cd' : 
+                                  p.sparringDivision === 'same as forms' ? '#d1ecf1' : 'white'
+                    }}
+                  >
+                    {sparringOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </td>
+                <td className="sparring-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                  {p.competingSparring ? (
+                    <select
+                      value={p.sparringCohortId || ''}
+                      onChange={(e) => updateParticipantCohort(p.id, 'sparringCohortId', e.target.value)}
+                      style={{ 
+                        width: '100%', 
+                        padding: '4px',
+                        border: '1px solid #ccc',
+                        borderRadius: '3px',
+                        fontSize: '12px',
+                        background: p.sparringCohortId ? 'white' : '#fff3cd'
+                      }}
+                    >
+                      <option value="">Not assigned</option>
+                      {sparringCohortOptions.map(option => (
+                        <option key={option.id} value={option.id}>{option.name}</option>
+                      ))}
+                    </select>
+                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
+                </td>
+                <td className="sparring-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                  {p.competingSparring ? (
+                    <input
+                      type="text"
+                      value={p.sparringCohortRing || ''}
+                      onChange={(e) => updateParticipantCohortRing(p.id, 'sparringCohortRing', e.target.value)}
+                      placeholder="e.g. R1"
+                      style={{ 
+                        width: '100%', 
+                        padding: '4px',
+                        border: '1px solid #ccc',
+                        borderRadius: '3px',
+                        fontSize: '12px',
+                        background: p.sparringCohortRing ? 'white' : '#fff3cd'
+                      }}
+                    />
+                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
+                </td>
+                <td className="sparring-physical-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
                   {p.competingSparring ? (
                     <select
                       value={sparringPhysicalMapping?.physicalRingName || ''}
@@ -670,23 +701,25 @@ function DataViewer() {
                     </select>
                   ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd', fontSize: '12px' }}>
-                  {p.competingForms ? (
-                    formsRing?.name || <span style={{ color: '#999' }}>Not assigned</span>
-                  ) : <span style={{ color: '#999' }}>Not competing</span>}
-                </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd', fontSize: '12px' }}>
+                <td className="sparring-alt-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
                   {p.competingSparring ? (
-                    sparringRing?.name || <span style={{ color: '#999' }}>Not assigned</span>
-                  ) : <span style={{ color: '#999' }}>Not competing</span>}
-                </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                  {p.competingForms ? (
                     <input
-                      type="number"
-                      value={p.formsRankOrder ? p.formsRankOrder * 10 : ''}
-                      onChange={(e) => updateParticipantOrder(p.id, 'formsRankOrder', e.target.value)}
-                      placeholder="Order"
+                      type="text"
+                      value={p.sparringAltRing || ''}
+                      onChange={(e) => {
+                        const value = e.target.value.toLowerCase();
+                        const validValue: '' | 'a' | 'b' = 
+                          value === 'a' ? 'a' : 
+                          value === 'b' ? 'b' : '';
+                        const updatedParticipants = participants.map(participant => 
+                          participant.id === p.id 
+                            ? { ...participant, sparringAltRing: validValue }
+                            : participant
+                        );
+                        setParticipants(updatedParticipants);
+                      }}
+                      placeholder="a/b"
+                      maxLength={1}
                       style={{ 
                         width: '100%', 
                         padding: '4px',

@@ -27,8 +27,7 @@ code {
 }
 
 .container {
-  max-width: 1400px;
-  margin: 0 auto;
+  margin: 0;
   padding: 20px;
   height: 100%;
   display: flex;
@@ -49,6 +48,27 @@ code {
 .btn-primary {
   background-color: #007bff;
   color: white;
+}
+
+/* ParticipantEditor column backgrounds */
+.forms-column {
+  background-color: #d6ebf5;
+}
+
+.forms-physical-column {
+  background-color: #b3d9f2;
+}
+
+.sparring-column {
+  background-color: #ffd6d6;
+}
+
+.sparring-physical-column {
+  background-color: #ffb3b3;
+}
+
+.sparring-alt-column {
+  background-color: #ff9999;
 }
 
 .btn-primary:hover {
@@ -197,7 +217,8 @@ code {
 
 .tab-content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }

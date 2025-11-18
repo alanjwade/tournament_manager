@@ -2,21 +2,21 @@ import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing } from '../../../types/tournament';
 
 export interface NameTagConfig {
-  width: number; // in mm
-  height: number; // in mm
-  marginX: number; // horizontal margin
-  marginY: number; // vertical margin
+  width: number; // in inches
+  height: number; // in inches
+  marginX: number; // horizontal margin in inches
+  marginY: number; // vertical margin in inches
   fontSize: number;
   columns: number;
   rows: number;
 }
 
 const DEFAULT_CONFIG: NameTagConfig = {
-  width: 95, // ~half of A4 width
-  height: 65, // for 4 rows
-  marginX: 10,
-  marginY: 10,
-  fontSize: 14,
+  width: 3.375, // 3 3/8 inches
+  height: 2.333, // 2 1/3 inches
+  marginX: 0.875, // 7/8 inch left margin
+  marginY: 0.75, // 3/4 inch top margin
+  fontSize: 24,
   columns: 2,
   rows: 4,
 };
@@ -28,8 +28,11 @@ export function generateNameTags(
   divisionName: string,
   config: NameTagConfig = DEFAULT_CONFIG
 ): jsPDF {
-  const pdf = new jsPDF('portrait', 'mm', 'a4');
+  const pdf = new jsPDF('portrait', 'in', 'letter'); // Use inches and letter format
   let currentTag = 0;
+  
+  const columnSpacing = 0.375; // 3/8 inch between columns
+  const rowSpacing = 0.1875; // 3/16 inch between rows
 
   participants.forEach((participant) => {
     // Find the ring for this participant
@@ -45,8 +48,8 @@ export function generateNameTags(
       pdf.addPage();
     }
 
-    const x = config.marginX + col * config.width;
-    const y = config.marginY + row * config.height;
+    const x = config.marginX + col * (config.width + columnSpacing);
+    const y = config.marginY + row * (config.height + rowSpacing);
 
     // Draw border
     pdf.rect(x, y, config.width, config.height);

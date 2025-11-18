@@ -8,6 +8,7 @@ import PDFExport from './components/PDFExport';
 import DataViewer from './components/DataViewer';
 import RingMapEditor from './components/RingMapEditor';
 import OrderRings from './components/OrderRings';
+import Configuration from './components/Configuration';
 
 type Tab = 'import' | 'cohorts' | 'rings' | 'editor' | 'overview' | 'ringmap' | 'order' | 'export';
 
@@ -17,21 +18,34 @@ function App() {
 
   // Load autosave on mount
   useEffect(() => {
-    const autosave = localStorage.getItem('tournament-autosave');
-    if (autosave) {
+    const loadAutosave = async () => {
+      console.log('App mounted - checking for autosave');
       try {
-        const state = JSON.parse(autosave);
-        useTournamentStore.setState({
-          participants: state.participants || [],
-          cohorts: state.cohorts || [],
-          competitionRings: state.competitionRings || [],
-          config: state.config || useTournamentStore.getState().config,
-        });
-        console.log('Loaded autosave from localStorage');
+        const result = await window.electronAPI.loadAutosave();
+        console.log('Autosave exists:', !!result?.data);
+        
+        if (result?.success && result.data) {
+          const state = JSON.parse(result.data);
+          console.log('Loading autosave - participants count:', state.participants?.length || 0);
+          const defaultConfig = useTournamentStore.getState().config;
+          useTournamentStore.setState({
+            participants: (state.participants || []).map((p: any) => ({ ...p, sparringAltRing: p.sparringAltRing || '' })),
+            cohorts: state.cohorts || [],
+            competitionRings: state.competitionRings || [],
+            config: { ...defaultConfig, ...state.config },
+            physicalRingMappings: state.physicalRingMappings || [],
+            cohortRingMappings: state.cohortRingMappings || [],
+          });
+          console.log('Loaded autosave - final participants count:', useTournamentStore.getState().participants.length);
+        } else {
+          console.log('No autosave found');
+        }
       } catch (error) {
         console.error('Failed to load autosave:', error);
       }
-    }
+    };
+    
+    loadAutosave();
   }, []);
 
   return (
@@ -99,7 +113,14 @@ function App() {
       </div>
 
       <div className="tab-content">
-        {activeTab === 'import' && <DataImport />}
+        {activeTab === 'import' && (
+          <>
+            <DataImport />
+            <div style={{ marginTop: '20px' }}>
+              <Configuration />
+            </div>
+          </>
+        )}
         {activeTab === 'cohorts' && <CohortManagement />}
         {activeTab === 'rings' && <RingManagement />}
         {activeTab === 'ringmap' && <RingMapEditor />}

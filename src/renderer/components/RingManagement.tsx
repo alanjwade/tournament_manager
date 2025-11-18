@@ -73,6 +73,10 @@ function RingManagement() {
   };
 
   const handleAssignRings = (type: 'forms' | 'sparring') => {
+    console.log('=== handleAssignRings called ===');
+    console.log('Selected division:', selectedDivision);
+    console.log('Type:', type);
+    
     if (!selectedDivision) {
       alert('Please select a division first');
       return;
@@ -80,24 +84,58 @@ function RingManagement() {
 
     // We only allow a single unified assign flow: forms then map sparring
     const targetCohorts = formsCohorts;
+    console.log('Forms cohorts:', targetCohorts);
+    console.log('Forms cohorts length:', targetCohorts.length);
 
     if (targetCohorts.length === 0) {
       alert(`No forms cohorts found for ${selectedDivision}`);
       return;
     }
 
+    // Check if participants competing in sparring have sparring cohort assignments
+    const sparringParticipants = participants.filter(p => p.competingSparring);
+    const sparringWithCohorts = participants.filter(p => p.competingSparring && p.sparringCohortId);
+    
+    if (sparringParticipants.length > 0 && sparringWithCohorts.length === 0) {
+      alert(
+        `⚠️ Warning: ${sparringParticipants.length} participants are marked as competing in sparring, but NONE are assigned to sparring cohorts!\n\n` +
+        `Sparring rings will NOT be created.\n\n` +
+        `To fix this:\n` +
+        `1. Go to the "Cohort Management" tab\n` +
+        `2. Create or verify sparring cohorts exist\n` +
+        `3. Assign participants to sparring cohorts\n` +
+        `4. Then return here to assign rings\n\n` +
+        `Do you want to continue with Forms ring assignment only?`
+      );
+      // Don't return - let them continue with forms if they want
+    } else if (sparringParticipants.length > 0 && sparringWithCohorts.length < sparringParticipants.length) {
+      const unassigned = sparringParticipants.length - sparringWithCohorts.length;
+      alert(
+        `⚠️ Warning: ${unassigned} of ${sparringParticipants.length} sparring participants are NOT assigned to sparring cohorts.\n\n` +
+        `These participants will not be included in sparring rings.\n\n` +
+        `Consider going to Cohort Management to assign them before continuing.`
+      );
+    }
+
+    console.log('About to show confirm dialog');
     if (!confirm(`This will assign Forms rings for ${selectedDivision} and map Sparring participants into the same rings. Continue?`)) {
+      console.log('User cancelled');
       return;
     }
 
+    console.log('User confirmed, proceeding with ring assignment');
     try {
       // Create temporary physical rings based on user input
       const maxRingsNeeded = Math.max(...targetCohorts.map(c => c.numRings), numPhysicalRings);
+      console.log('Max rings needed:', maxRingsNeeded);
+      console.log('Num physical rings:', numPhysicalRings);
+      
       const tempPhysicalRings = Array.from({ length: maxRingsNeeded }, (_, i) => ({
         id: `temp-ring-${i}`,
         name: `Ring ${i + 1}`,
         color: config.physicalRings[i % config.physicalRings.length]?.color || `Color ${i + 1}`
       }));
+      console.log('Created temp physical rings:', tempPhysicalRings.length);
 
       // Assign forms rings
       const formsResult = assignRingsForAllCohorts(

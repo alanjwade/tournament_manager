@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { getEffectiveDivision } from '../utils/excelParser';
+import { PhysicalRing } from '../types/tournament';
 
 interface RingAssignmentRow {
   cohortRingName: string;
@@ -11,6 +12,24 @@ interface RingAssignmentRow {
   physicalRingName: string;
 }
 
+// Color map for physical rings (matching Configuration component)
+const RING_COLOR_MAP: { [key: number]: string } = {
+  1: '#ff0000',  // Red
+  2: '#ffa500',  // Orange
+  3: '#ffff00',  // Yellow
+  4: '#34a853',  // Green
+  5: '#0000ff',  // Blue
+  6: '#fd2670',  // Pink
+  7: '#8441be',  // Purple
+  8: '#999999',  // Gray
+  9: '#000000',  // Black
+  10: '#b68a46', // Brown
+  11: '#f78db3', // Light Pink
+  12: '#6fa8dc', // Light Blue
+  13: '#b6d7a8', // Light Green
+  14: '#b4a7d6', // Light Purple
+};
+
 function RingMapEditor() {
   const participants = useTournamentStore((state) => state.participants);
   const cohorts = useTournamentStore((state) => state.cohorts);
@@ -18,6 +37,7 @@ function RingMapEditor() {
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const setPhysicalRingMappings = useTournamentStore((state) => state.setPhysicalRingMappings);
   const updatePhysicalRingMapping = useTournamentStore((state) => state.updatePhysicalRingMapping);
+  const setPhysicalRings = useTournamentStore((state) => state.setPhysicalRings);
   const config = useTournamentStore((state) => state.config);
   
   // Compute competition rings from participant data
@@ -153,6 +173,17 @@ function RingMapEditor() {
       physicalRingName: a.physicalRingName,
     }));
     setPhysicalRingMappings(mappings);
+    
+    // Also create the physical ring objects with colors
+    const physicalRings: PhysicalRing[] = [];
+    for (let i = 1; i <= numPhysicalRings; i++) {
+      physicalRings.push({
+        id: `ring-${i}`,
+        name: `Ring ${i}`,
+        color: RING_COLOR_MAP[i] || '#cccccc',
+      });
+    }
+    setPhysicalRings(physicalRings);
   };
 
   // Initialize assignments from existing mappings when division changes
@@ -168,7 +199,7 @@ function RingMapEditor() {
       };
     });
     setAssignments(newAssignments);
-  }, [sortedCohortRings, selectedDivision]);
+  }, [sortedCohortRings, selectedDivision, physicalRingMappings]);
 
   // Handle manual edit of physical ring assignment
   const handlePhysicalRingChange = (cohortRingName: string, newPhysicalRing: string) => {

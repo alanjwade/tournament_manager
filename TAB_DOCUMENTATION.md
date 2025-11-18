@@ -16,12 +16,17 @@ The application has 8 tabs that guide you through the tournament setup process:
 - Parses participant data including name, age, division, rank, etc.
 - Loads tournament configuration settings from Excel
 - Initializes the tournament state
+- Provides access to tournament configuration settings:
+  - Division setup
+  - Physical ring configuration
+  - Watermark image for PDFs
+  - **PDF output directory** (optional default save location for all PDFs)
 
 **Data Modified:**
 - `participants` - Array of all tournament participants
-- `config` - Tournament configuration (divisions, age groups, ring settings)
+- `config` - Tournament configuration (divisions, age groups, ring settings, PDF directory)
 
-**Typical workflow:** Start here to load your participant roster
+**Typical workflow:** Start here to load your participant roster and configure settings
 
 ---
 
@@ -131,9 +136,15 @@ The application has 8 tabs that guide you through the tournament setup process:
 - Produces sparring brackets (single/double elimination)
 - Generates participant name tags
 - Exports documents organized by division and ring
+- Uses configured PDF output directory if set (otherwise prompts for location)
 
 **Data Modified:**
 - None (generates PDF files based on current data)
+
+**Configuration:**
+- PDF output directory can be set in the Import Data tab's Configuration section
+- When configured, all PDFs will default to saving in this directory
+- If not configured, you'll be prompted to choose a location each time
 
 **Typical workflow:** Final step - export all documents needed for tournament day
 

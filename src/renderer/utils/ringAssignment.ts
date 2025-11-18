@@ -128,6 +128,11 @@ export function mapSparringToForms(
   participants: Participant[],
   formsCompetitionRings: CompetitionRing[]
 ): { updatedParticipants: Participant[]; competitionRings: CompetitionRing[] } {
+  console.log('[mapSparringToForms] FUNCTION START');
+  console.log('[mapSparringToForms] cohorts:', cohorts.length);
+  console.log('[mapSparringToForms] participants:', participants.length);
+  console.log('[mapSparringToForms] formsCompetitionRings:', formsCompetitionRings.length);
+  
   const updatedParticipants = [...participants];
   const sparringRings: CompetitionRing[] = [];
 
@@ -142,12 +147,53 @@ export function mapSparringToForms(
   // CRITICAL FIX: Only process rings from FORMS cohorts, not sparring cohorts
   // Get all Forms cohort IDs
   const formsCohortIds = new Set(cohorts.filter(c => c.type === 'forms').map(c => c.id));
+  console.log('[mapSparringToForms] formsCohortIds:', formsCohortIds.size);
   
   // Filter to only process Forms cohort rings
   const actualFormsRings = formsCompetitionRings.filter(ring => formsCohortIds.has(ring.cohortId));
+  console.log('[mapSparringToForms] actualFormsRings:', actualFormsRings.length, 'of', formsCompetitionRings.length);
+
+  // Debugging: log participant/sparring counts to help trace mapping issues
+  try {
+    console.log('[mapSparringToForms] total participants:', participants.length);
+    const totalSparring = participants.filter(p => p.competingSparring).length;
+    const totalWithSparringCohort = participants.filter(p => !!p.sparringCohortId).length;
+    const totalWithFormsCohortRing = participants.filter(p => !!p.formsCohortRing).length;
+    const sparringWithFormsCohortRing = participants.filter(p => p.competingSparring && !!p.formsCohortRing).length;
+    const sparringWithSparringCohortAndFormsCohortRing = participants.filter(p => p.competingSparring && !!p.sparringCohortId && !!p.formsCohortRing).length;
+    console.log('[mapSparringToForms] competingSparring=', totalSparring, 'with sparringCohortId=', totalWithSparringCohort);
+    console.log('[mapSparringToForms] totalWithFormsCohortRing=', totalWithFormsCohortRing);
+    console.log('[mapSparringToForms] sparringWithFormsCohortRing=', sparringWithFormsCohortRing);
+    console.log('[mapSparringToForms] sparringWithSparringCohortAndFormsCohortRing=', sparringWithSparringCohortAndFormsCohortRing);
+    
+    // Warn if participants are competing in sparring but not assigned to sparring cohorts
+    if (totalSparring > 0 && totalWithSparringCohort === 0) {
+      console.warn('⚠️ WARNING: Participants are marked as competing in sparring, but NONE are assigned to sparring cohorts!');
+      console.warn('⚠️ Please go to Cohort Management tab and assign participants to sparring cohorts first.');
+    }
+  } catch (e) {
+    console.warn('[mapSparringToForms] debug logging failed', e);
+  }
   
   actualFormsRings.forEach((formsRing) => {
     const physicalId = formsRing.physicalRingId;
+    // Debug: count how many participants in this forms ring are eligible for sparring mapping
+    try {
+      const ringSize = formsRing.participantIds.length;
+      let qualified = 0;
+      let hasFormsCohortRing = 0;
+      formsRing.participantIds.forEach((pid) => {
+        const participant = participants.find((p) => p.id === pid);
+        if (participant) {
+          if (participant.formsCohortRing) hasFormsCohortRing++;
+          if (participant.competingSparring && participant.sparringCohortId) qualified++;
+        }
+      });
+      console.log(`[mapSparringToForms] formsRing ${formsRing.id} (${formsRing.name}) participants=${ringSize} hasFormsCohortRing=${hasFormsCohortRing} qualifiedForSparring=${qualified}`);
+    } catch (e) {
+      console.warn('[mapSparringToForms] ring-level debug failed', e);
+    }
+
     formsRing.participantIds.forEach((pid) => {
       const participant = participants.find((p) => p.id === pid);
       if (!participant) return;
@@ -158,7 +204,16 @@ export function mapSparringToForms(
         
         // Use the participant's forms cohort ring to determine their sparring cohort ring
         const formsCohortRing = participant.formsCohortRing;
-        if (!formsCohortRing) return; // Skip if they don't have a forms ring assigned
+        if (!formsCohortRing) {
+          console.log('[mapSparringToForms] SKIPPING participant - no formsCohortRing', pid, 'competingForms=', participant.competingForms, 'formsCohortId=', participant.formsCohortId, 'formsCohortRing=', participant.formsCohortRing);
+          return; // Skip if they don't have a forms ring assigned
+        }
+
+        // Debug: log when a participant is skipped due to missing sparring cohort or not competing
+        if (!participant.competingSparring || !participant.sparringCohortId) {
+          console.log('[mapSparringToForms] skipping participant for sparring mapping', pid, 'competingSparring=', participant.competingSparring, 'sparringCohortId=', participant.sparringCohortId);
+          return;
+        }
         
         if (!grouping.has(scId)) grouping.set(scId, new Map());
         const byCohortRing = grouping.get(scId)!;
@@ -218,5 +273,6 @@ export function mapSparringToForms(
     });
   });
 
+  console.log('[mapSparringToForms] FUNCTION END - created', sparringRings.length, 'sparring rings');
   return { updatedParticipants, competitionRings: sparringRings };
 }

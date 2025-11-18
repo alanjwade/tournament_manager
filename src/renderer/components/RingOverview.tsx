@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
+import { checkSparringAltRingStatus } from '../utils/ringOrdering';
 
 interface RingPair {
   cohortRingName: string;
@@ -113,6 +114,177 @@ function RingOverview() {
         }
       });
 
+    // Check for alt ring status in sparring rings
+    let altStatus = null;
+    if (type === 'sparring' && cohort) {
+      // Extract cohort ring from ring name (e.g., "R1" from "Mixed 8-10_R1")
+      const cohortRing = ring.name?.match(/_R(\d+)$/)?.[0]?.substring(1); // Get "_R1" then remove "_" to get "R1"
+      console.log('[RingOverview] Checking alt ring status for', ring.name, 'cohortRing:', cohortRing);
+      if (cohortRing) {
+        altStatus = checkSparringAltRingStatus(participants, cohort.id, cohortRing);
+        console.log('[RingOverview] altStatus:', altStatus);
+      }
+    }
+
+    // If sparring ring has mixed alt ring assignments, show warning
+    if (altStatus?.status === 'mixed') {
+      return (
+        <div>
+          <h5
+            style={{
+              marginBottom: '8px',
+              color: '#dc3545',
+              fontSize: '13px',
+              fontWeight: '600',
+            }}
+          >
+            Sparring
+          </h5>
+          <div style={{ 
+            padding: '10px', 
+            backgroundColor: '#fff3cd', 
+            border: '1px solid #ffc107',
+            borderRadius: '4px',
+            marginBottom: '10px',
+            fontSize: '12px'
+          }}>
+            ⚠️ <strong>Mixed Alt Ring Assignments:</strong> {altStatus.countA} in 'a', {altStatus.countB} in 'b', {altStatus.countEmpty} unassigned. 
+            All participants must have the same alt ring setting or all be unassigned.
+          </div>
+        </div>
+      );
+    }
+
+    // If sparring ring is split into 'a' and 'b', render two separate sections
+    if (altStatus?.status === 'all') {
+      const participantsA = ringParticipants.filter(p => p.sparringAltRing === 'a');
+      const participantsB = ringParticipants.filter(p => p.sparringAltRing === 'b');
+      console.log('[RingOverview] Split ring - participantsA:', participantsA.length, 'participantsB:', participantsB.length);
+
+      return (
+        <div>
+          <h5
+            style={{
+              marginBottom: '8px',
+              color: '#dc3545',
+              fontSize: '13px',
+              fontWeight: '600',
+            }}
+          >
+            Sparring
+          </h5>
+          <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
+            <div>
+              <strong>Cohort:</strong> {cohort?.gender}, Ages {cohort?.minAge}-{cohort?.maxAge}
+            </div>
+            <div>
+              <strong>Division:</strong> {ring.division}
+            </div>
+            <div style={{ color: '#5cb85c', fontWeight: 'bold' }}>
+              Split into Alt Rings: {participantsA.length} in 'a', {participantsB.length} in 'b'
+            </div>
+          </div>
+
+          {/* Alt Ring A */}
+          {participantsA.length > 0 && (
+            <div style={{ marginBottom: '15px' }}>
+              <h6 style={{ 
+                fontSize: '12px', 
+                fontWeight: 'bold', 
+                marginBottom: '5px',
+                color: '#0056b3'
+              }}>
+                Alt Ring A ({participantsA.length} participants)
+              </h6>
+              <table
+                style={{
+                  width: '100%',
+                  fontSize: '11px',
+                  borderCollapse: 'collapse',
+                }}
+              >
+                <thead>
+                  <tr style={{ backgroundColor: '#f8f9fa' }}>
+                    <th style={{ padding: '4px' }}>Position</th>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
+                    <th style={{ padding: '4px' }}>Age</th>
+                    <th style={{ padding: '4px' }}>Gender</th>
+                    <th style={{ padding: '4px' }}>Height</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {participantsA.map((p) => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                        {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
+                      </td>
+                      <td style={{ padding: '4px' }}>
+                        {p.firstName} {p.lastName}
+                      </td>
+                      <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
+                      <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
+                      <td style={{ padding: '4px', textAlign: 'center' }}>
+                        {p.heightFeet}'{p.heightInches}"
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Alt Ring B */}
+          {participantsB.length > 0 && (
+            <div>
+              <h6 style={{ 
+                fontSize: '12px', 
+                fontWeight: 'bold', 
+                marginBottom: '5px',
+                color: '#0056b3'
+              }}>
+                Alt Ring B ({participantsB.length} participants)
+              </h6>
+              <table
+                style={{
+                  width: '100%',
+                  fontSize: '11px',
+                  borderCollapse: 'collapse',
+                }}
+              >
+                <thead>
+                  <tr style={{ backgroundColor: '#f8f9fa' }}>
+                    <th style={{ padding: '4px' }}>Position</th>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
+                    <th style={{ padding: '4px' }}>Age</th>
+                    <th style={{ padding: '4px' }}>Gender</th>
+                    <th style={{ padding: '4px' }}>Height</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {participantsB.map((p) => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                        {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
+                      </td>
+                      <td style={{ padding: '4px' }}>
+                        {p.firstName} {p.lastName}
+                      </td>
+                      <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
+                      <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
+                      <td style={{ padding: '4px', textAlign: 'center' }}>
+                        {p.heightFeet}'{p.heightInches}"
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Normal rendering (no split or forms ring)
     return (
       <div>
         <h5

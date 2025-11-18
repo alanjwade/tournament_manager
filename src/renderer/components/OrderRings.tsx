@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
-import { orderFormsRing, orderSparringRing } from '../utils/ringOrdering';
+import { orderFormsRing, orderSparringRing, checkSparringAltRingStatus } from '../utils/ringOrdering';
 import { computeCompetitionRings } from '../utils/computeRings';
 
 interface RingPair {
@@ -95,9 +95,10 @@ function OrderRings() {
     
     // Order all forms rings
     formsRings.forEach(ring => {
-      // Extract cohortRing from ring ID (format: "forms-{cohortId}-{cohortRing}")
-      const parts = ring.id.split('-');
-      const cohortRing = parts.length >= 3 ? parts.slice(2).join('-') : undefined;
+      // Extract cohortRing from ring ID
+      // Format: "forms-{UUID}-{cohortRing}"
+      const prefix = `forms-${ring.cohortId}-`;
+      const cohortRing = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;
       
       if (cohortRing) {
         // New approach: use cohortId and cohortRing
@@ -110,9 +111,10 @@ function OrderRings() {
     
     // Order all sparring rings
     sparringRings.forEach(ring => {
-      // Extract cohortRing from ring ID (format: "sparring-{cohortId}-{cohortRing}")
-      const parts = ring.id.split('-');
-      const cohortRing = parts.length >= 3 ? parts.slice(2).join('-') : undefined;
+      // Extract cohortRing from ring ID
+      // Format: "sparring-{UUID}-{cohortRing}"
+      const prefix = `sparring-${ring.cohortId}-`;
+      const cohortRing = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;
       
       if (cohortRing) {
         // New approach: use cohortId and cohortRing
@@ -128,20 +130,27 @@ function OrderRings() {
   };
 
   const handleOrderFormsRing = (ringId: string, cohortId: string) => {
-    // Extract cohortRing from ring ID (format: "forms-{cohortId}-{cohortRing}")
-    const parts = ringId.split('-');
-    const cohortRing = parts.length >= 3 ? parts.slice(2).join('-') : undefined;
+    console.log('handleOrderFormsRing called:', { ringId, cohortId });
+    
+    // Extract cohortRing from ring ID
+    // Format: "forms-{UUID}-{cohortRing}"
+    // Since UUID contains dashes, we need to remove "forms-{UUID}-" prefix
+    const prefix = `forms-${cohortId}-`;
+    const cohortRing = ringId.startsWith(prefix) ? ringId.substring(prefix.length) : undefined;
     
     const updatedParticipants = cohortRing 
       ? orderFormsRing(participants, cohortId, cohortRing)
       : orderFormsRing(participants, ringId);
+      
     setParticipants(updatedParticipants);
   };
 
   const handleOrderSparringRing = (ringId: string, cohortId: string) => {
-    // Extract cohortRing from ring ID (format: "sparring-{cohortId}-{cohortRing}")
-    const parts = ringId.split('-');
-    const cohortRing = parts.length >= 3 ? parts.slice(2).join('-') : undefined;
+    // Extract cohortRing from ring ID
+    // Format: "sparring-{UUID}-{cohortRing}"
+    // Since UUID contains dashes, we need to remove "sparring-{UUID}-" prefix
+    const prefix = `sparring-${cohortId}-`;
+    const cohortRing = ringId.startsWith(prefix) ? ringId.substring(prefix.length) : undefined;
     
     const updatedParticipants = cohortRing
       ? orderSparringRing(participants, cohortId, cohortRing)
@@ -205,6 +214,23 @@ function OrderRings() {
           <div>
             <strong>Participants:</strong> {ringParticipants.length}
           </div>
+          {type === 'sparring' && (() => {
+            const altStatus = checkSparringAltRingStatus(participants, ring.cohortId, ring.name?.split('_').pop() || '');
+            if (altStatus.status === 'mixed') {
+              return (
+                <div style={{ color: '#d9534f', fontWeight: 'bold', marginTop: '4px' }}>
+                  ⚠️ Mixed alt ring assignments: {altStatus.countA} in 'a', {altStatus.countB} in 'b', {altStatus.countEmpty} unassigned
+                </div>
+              );
+            } else if (altStatus.status === 'all') {
+              return (
+                <div style={{ color: '#5cb85c', marginTop: '4px' }}>
+                  Split into alt rings: {altStatus.countA} in 'a', {altStatus.countB} in 'b'
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         <table
@@ -221,15 +247,28 @@ function OrderRings() {
               <th style={{ padding: '4px' }}>Age</th>
               <th style={{ padding: '4px' }}>Gender</th>
               {type === 'sparring' && <th style={{ padding: '4px' }}>Height</th>}
+              {type === 'sparring' && <th style={{ padding: '4px' }}>Alt</th>}
             </tr>
           </thead>
           <tbody>
-            {ringParticipants.map((p) => {
+            {ringParticipants.map((p, idx) => {
               const position = type === 'forms' ? p.formsRankOrder : p.sparringRankOrder;
+              
+              // Debug logging
+              if (idx === 0) {
+                console.log(`OrderRings ${type} - First participant:`, {
+                  name: `${p.firstName} ${p.lastName}`,
+                  formsRankOrder: p.formsRankOrder,
+                  sparringRankOrder: p.sparringRankOrder,
+                  position,
+                  displayValue: position || '-'
+                });
+              }
+              
               return (
                 <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
                   <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
-                    {position ? position * 10 : '-'}
+                    {position || '-'}
                   </td>
                   <td style={{ padding: '4px' }}>
                     {p.firstName} {p.lastName}
@@ -241,6 +280,11 @@ function OrderRings() {
                   {type === 'sparring' && (
                     <td style={{ padding: '4px', textAlign: 'center' }}>
                       {p.heightFeet}'{p.heightInches}"
+                    </td>
+                  )}
+                  {type === 'sparring' && (
+                    <td style={{ padding: '4px', textAlign: 'center' }}>
+                      {p.sparringAltRing || '-'}
                     </td>
                   )}
                 </tr>

@@ -161,34 +161,13 @@ function PhysicalRingAssignment() {
           </p>
         </div>
 
-        <div className="grid grid-2">
-          <div className="form-group">
-            <label className="form-label">Number of Physical Rings Available</label>
-            <input
-              type="number"
-              className="form-control"
-              min={1}
-              max={14}
-              value={numPhysicalRings}
-              onChange={(e) => setNumPhysicalRings(parseInt(e.target.value) || 1)}
-              style={{ fontSize: '16px', padding: '8px' }}
-            />
-            <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
-              Maximum 14 physical rings
-            </small>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button
-              className="btn btn-primary"
-              onClick={handleAssignPhysicalRings}
-              disabled={sortedCohortRings.length === 0}
-              style={{ height: 'fit-content' }}
-            >
-              Assign to Physical Rings
-            </button>
-          </div>
-        </div>
+        <button
+          className="btn btn-primary"
+          onClick={handleAssignPhysicalRings}
+          disabled={sortedCohortRings.length === 0}
+        >
+          Assign to Physical Rings
+        </button>
       </div>
 
       {assignments.length > 0 && (

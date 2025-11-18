@@ -18,6 +18,7 @@ export interface Participant {
   // NEW: Simple ring identifiers within cohort (e.g., "R1", "R2", "R3")
   formsCohortRing?: string; // Which ring within their forms cohort
   sparringCohortRing?: string; // Which ring within their sparring cohort
+  sparringAltRing?: '' | 'a' | 'b'; // Subdivide sparring rings into 'a' and 'b' groups
   
   // DEPRECATED: Legacy ring IDs - kept for backward compatibility, will be removed in future
   formsRingId?: string; // Use formsCohortId + formsCohortRing instead
@@ -83,6 +84,8 @@ export interface TournamentConfig {
   divisions: Division[];
   physicalRings: PhysicalRing[];
   watermarkImage?: string;
+  pdfOutputDirectory?: string; // Directory where PDFs will be saved
+  schoolAbbreviations?: { [schoolName: string]: string }; // Map of school names to abbreviations
 }
 
 export interface PhysicalRingMapping {

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { PhysicalRing, Division } from '../types/tournament';
+import defaultWatermark from '../assets/logos/watermark.png';
 
 // Color map from your original Google Sheets script
 const RING_COLOR_MAP: { [key: number]: string } = {
@@ -42,10 +43,35 @@ function Configuration() {
   const setDivisions = useTournamentStore((state) => state.setDivisions);
   const setPhysicalRings = useTournamentStore((state) => state.setPhysicalRings);
   const setWatermark = useTournamentStore((state) => state.setWatermark);
+  const setPdfOutputDirectory = useTournamentStore((state) => state.setPdfOutputDirectory);
+  const setSchoolAbbreviations = useTournamentStore((state) => state.setSchoolAbbreviations);
   const saveState = useTournamentStore((state) => state.saveState);
   const loadState = useTournamentStore((state) => state.loadState);
 
   const [divisionName, setDivisionName] = useState('');
+  const [newSchoolName, setNewSchoolName] = useState('');
+  const [newAbbreviation, setNewAbbreviation] = useState('');
+  const [showAbbreviations, setShowAbbreviations] = useState(false);
+
+  // Load default watermark if none is set
+  useEffect(() => {
+    if (!config.watermarkImage && defaultWatermark) {
+      // Convert the imported image URL to base64
+      fetch(defaultWatermark)
+        .then(res => res.blob())
+        .then(blob => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            setWatermark(base64);
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(err => {
+          console.log('Could not load default watermark:', err);
+        });
+    }
+  }, []); // Only run once on mount
 
   const handleAddDivision = () => {
     if (!divisionName.trim()) return;
@@ -96,6 +122,31 @@ function Configuration() {
       );
       setWatermark(`data:image/png;base64,${base64}`);
     }
+  };
+
+  const handlePdfDirectorySelect = async () => {
+    const directory = await window.electronAPI.selectDirectory();
+    if (directory) {
+      setPdfOutputDirectory(directory);
+    }
+  };
+
+  const handleAddAbbreviation = () => {
+    if (!newSchoolName.trim() || !newAbbreviation.trim()) return;
+    
+    const updatedAbbreviations = {
+      ...config.schoolAbbreviations,
+      [newSchoolName.trim()]: newAbbreviation.trim(),
+    };
+    setSchoolAbbreviations(updatedAbbreviations);
+    setNewSchoolName('');
+    setNewAbbreviation('');
+  };
+
+  const handleRemoveAbbreviation = (schoolName: string) => {
+    const updatedAbbreviations = { ...config.schoolAbbreviations };
+    delete updatedAbbreviations[schoolName];
+    setSchoolAbbreviations(updatedAbbreviations);
   };
 
   return (
@@ -242,6 +293,102 @@ function Configuration() {
           <p style={{ marginTop: '10px', color: '#2e7d32' }}>
             ✓ Watermark image loaded
           </p>
+        )}
+      </div>
+
+      <div style={{ marginTop: '30px' }}>
+        <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
+          PDF Output Directory (Optional)
+        </h3>
+        <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
+          Select a default directory where all PDFs will be saved. If not set,
+          you'll be prompted to choose a location each time you export a PDF.
+        </p>
+        <button className="btn btn-secondary" onClick={handlePdfDirectorySelect}>
+          Select PDF Directory
+        </button>
+        {config.pdfOutputDirectory && (
+          <p style={{ marginTop: '10px', color: '#2e7d32', fontSize: '14px' }}>
+            ✓ PDFs will be saved to: <code style={{ backgroundColor: '#f5f5f5', padding: '2px 6px', borderRadius: '3px' }}>{config.pdfOutputDirectory}</code>
+          </p>
+        )}
+      </div>
+
+      <div style={{ marginTop: '30px' }}>
+        <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
+          School Abbreviations (for Name Tags)
+        </h3>
+        <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
+          Configure short abbreviations for school names to fit better on name tags.
+          If no abbreviation is set, the full school name will be used.
+        </p>
+        
+        <button 
+          className="btn btn-secondary" 
+          onClick={() => setShowAbbreviations(!showAbbreviations)}
+          style={{ marginBottom: '15px' }}
+        >
+          {showAbbreviations ? '▼' : '▶'} {showAbbreviations ? 'Hide' : 'Show'} Abbreviations ({Object.keys(config.schoolAbbreviations || {}).length})
+        </button>
+
+        {showAbbreviations && (
+          <>
+            <div className="form-group" style={{ marginBottom: '15px' }}>
+              <label className="form-label">Add School Abbreviation</label>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={newSchoolName}
+                  onChange={(e) => setNewSchoolName(e.target.value)}
+                  placeholder="School name (e.g., exclusive-littleton)"
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontWeight: 'bold' }}>→</span>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={newAbbreviation}
+                  onChange={(e) => setNewAbbreviation(e.target.value)}
+                  placeholder="Abbreviation (e.g., EMA LT)"
+                  style={{ flex: 1 }}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddAbbreviation()}
+                />
+                <button className="btn btn-primary" onClick={handleAddAbbreviation}>
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {config.schoolAbbreviations && Object.keys(config.schoolAbbreviations).length > 0 && (
+              <table className="table" style={{ fontSize: '13px' }}>
+                <thead>
+                  <tr>
+                    <th>School Name</th>
+                    <th>Abbreviation</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(config.schoolAbbreviations).map(([schoolName, abbrev]) => (
+                    <tr key={schoolName}>
+                      <td>{schoolName}</td>
+                      <td><strong>{abbrev}</strong></td>
+                      <td>
+                        <button
+                          className="btn btn-danger"
+                          onClick={() => handleRemoveAbbreviation(schoolName)}
+                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -1,22 +1,59 @@
 import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing } from '../../types/tournament';
+import { getFullyQualifiedRingName, getPhysicalRingId, formatPdfTimestamp } from '../ringNameFormatter';
 
 export function generateFormsScoringSheets(
   participants: Participant[],
   competitionRings: CompetitionRing[],
   physicalRings: PhysicalRing[],
   division: string,
-  watermark?: string
+  watermark?: string,
+  physicalRingMappings?: { cohortRingName: string; physicalRingName: string }[]
 ): jsPDF {
   const doc = new jsPDF({
-    orientation: 'landscape',
-    unit: 'mm',
+    orientation: 'portrait',
+    unit: 'in',
     format: 'letter',
   });
 
-  const divisionRings = competitionRings.filter(
-    (r) => r.division === division && r.type === 'forms'
-  );
+  const pageWidth = 8.5; // Letter width in inches
+  const pageHeight = 11; // Letter height in inches
+  const margin = 0.5; // 1/2 inch margins
+  const timestamp = formatPdfTimestamp(); // Generate once for all pages
+
+  const divisionRings = competitionRings
+    .filter((r) => r.division === division && r.type === 'forms')
+    .sort((a, b) => {
+      // Extract physical ring IDs for sorting
+      const physicalRingIdA = a.name && physicalRingMappings 
+        ? getPhysicalRingId(a.name, physicalRingMappings)
+        : null;
+      const physicalRingIdB = b.name && physicalRingMappings 
+        ? getPhysicalRingId(b.name, physicalRingMappings)
+        : null;
+      
+      // If no physical rings, fall back to ring name
+      if (!physicalRingIdA && !physicalRingIdB) return 0;
+      if (!physicalRingIdA) return 1;
+      if (!physicalRingIdB) return -1;
+      
+      // Extract number and letter from physical ring ID (e.g., "PR4b" -> 4, "b")
+      const matchA = physicalRingIdA.match(/(\d+)([a-z]?)/i);
+      const matchB = physicalRingIdB.match(/(\d+)([a-z]?)/i);
+      
+      if (!matchA || !matchB) return 0;
+      
+      const numA = parseInt(matchA[1], 10);
+      const numB = parseInt(matchB[1], 10);
+      const letterA = matchA[2] || '';
+      const letterB = matchB[2] || '';
+      
+      // Sort by number first
+      if (numA !== numB) return numA - numB;
+      
+      // Then by letter (a before b, etc.)
+      return letterA.localeCompare(letterB);
+    });
 
   let firstPage = true;
 
@@ -26,38 +63,94 @@ export function generateFormsScoringSheets(
     }
     firstPage = false;
 
-    const physicalRing = physicalRings.find((r) => r.id === ring.physicalRingId);
-    const ringName = physicalRing ? physicalRing.color : 'Unknown';
+    // Get physical ring ID from mapping using the cohort ring name
+    const physicalRingId = ring.name && physicalRingMappings 
+      ? getPhysicalRingId(ring.name, physicalRingMappings)
+      : null;
+    
+    const fullyQualifiedRingName = getFullyQualifiedRingName(division, physicalRingId, physicalRings);
 
-    // Add watermark if provided
+    // Add watermark if provided - centered, as large as possible without cutting off
     if (watermark) {
       try {
-        doc.addImage(watermark, 'PNG', 40, 40, 200, 150, undefined, 'NONE', 0.1);
+        console.log('Adding watermark to forms scoring sheet, length:', watermark.length);
+        console.log('Watermark starts with:', watermark.substring(0, 50));
+        
+        // Get image dimensions to maintain aspect ratio
+        const img = new Image();
+        img.src = watermark;
+        
+        const imgWidth = img.width || 1;
+        const imgHeight = img.height || 1;
+        const imgAspectRatio = imgWidth / imgHeight;
+        
+        // Calculate maximum size that fits with 0.5" margins while maintaining aspect ratio
+        const maxWidth = pageWidth - (2 * margin);
+        const maxHeight = pageHeight - (2 * margin);
+        const maxAspectRatio = maxWidth / maxHeight;
+        
+        let wmWidth, wmHeight;
+        if (imgAspectRatio > maxAspectRatio) {
+          // Image is wider than available space
+          wmWidth = maxWidth;
+          wmHeight = maxWidth / imgAspectRatio;
+        } else {
+          // Image is taller than available space
+          wmHeight = maxHeight;
+          wmWidth = maxHeight * imgAspectRatio;
+        }
+        
+        // Center the watermark
+        const wmX = margin + (maxWidth - wmWidth) / 2;
+        const wmY = margin + (maxHeight - wmHeight) / 2;
+        
+        // Set opacity for watermark
+        doc.saveGraphicsState();
+        (doc as any).setGState(new (doc as any).GState({ opacity: 0.3 })); // 30% opacity
+        
+        // Add watermark behind everything
+        doc.addImage(watermark, 'PNG', wmX, wmY, wmWidth, wmHeight, undefined, 'FAST');
+        
+        // Restore opacity for rest of content
+        doc.restoreGraphicsState();
+        console.log('Watermark added successfully');
       } catch (e) {
         console.error('Error adding watermark:', e);
       }
+    } else {
+      console.log('No watermark provided');
     }
 
     // Title
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Forms Scoring Sheet - ${division} - ${ringName} Ring`, 15, 15);
+    doc.text(`${fullyQualifiedRingName} Forms Scoring Sheet`, margin, margin + 0.3);
 
     // Table
-    let y = 30;
+    let y = margin + 0.8; // Start below title
     const colWidths = {
-      name: 60,
-      school: 50,
-      judge1: 20,
-      judge2: 20,
-      judge3: 20,
-      final: 20,
+      name: 2.5,
+      school: 2.0,
+      judge1: 0.8,
+      judge2: 0.8,
+      judge3: 0.8,
+      final: 0.8,
     };
+    
+    const tableWidth = colWidths.name + colWidths.school + colWidths.judge1 + 
+                       colWidths.judge2 + colWidths.judge3 + colWidths.final;
 
     // Headers
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    let x = 15;
+    let x = margin;
+    
+    // Shade the Final column header
+    const finalX = margin + colWidths.name + colWidths.school + colWidths.judge1 + 
+                   colWidths.judge2 + colWidths.judge3;
+    doc.setFillColor(220, 220, 220); // Light gray
+    doc.rect(finalX, y - 0.15, colWidths.final, 0.2, 'F');
+    
     doc.text('Participant', x, y);
     x += colWidths.name;
     doc.text('School', x, y);
@@ -71,12 +164,12 @@ export function generateFormsScoringSheets(
     doc.text('Final', x, y);
 
     // Header line
-    y += 2;
-    doc.setLineWidth(0.5);
-    doc.line(15, y, 15 + colWidths.name + colWidths.school + colWidths.judge1 + colWidths.judge2 + colWidths.judge3 + colWidths.final, y);
+    y += 0.05;
+    doc.setLineWidth(0.02);
+    doc.line(margin, y, margin + tableWidth, y);
 
     // Participants
-    y += 8;
+    y += 0.25;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
 
@@ -85,50 +178,117 @@ export function generateFormsScoringSheets(
       .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
 
     ringParticipants.forEach((participant) => {
-      if (y > 180) {
+      // Check if we need a new page (leave room for placement table)
+      if (y > pageHeight - 2.5) {
         doc.addPage();
-        y = 20;
+        y = margin + 0.3;
+        
+        // Add watermark to new page
+        if (watermark) {
+          try {
+            // Get image dimensions to maintain aspect ratio
+            const img = new Image();
+            img.src = watermark;
+            
+            const imgWidth = img.width || 1;
+            const imgHeight = img.height || 1;
+            const imgAspectRatio = imgWidth / imgHeight;
+            
+            // Calculate maximum size that fits with 0.5" margins while maintaining aspect ratio
+            const maxWidth = pageWidth - (2 * margin);
+            const maxHeight = pageHeight - (2 * margin);
+            const maxAspectRatio = maxWidth / maxHeight;
+            
+            let wmWidth, wmHeight;
+            if (imgAspectRatio > maxAspectRatio) {
+              // Image is wider than available space
+              wmWidth = maxWidth;
+              wmHeight = maxWidth / imgAspectRatio;
+            } else {
+              // Image is taller than available space
+              wmHeight = maxHeight;
+              wmWidth = maxHeight * imgAspectRatio;
+            }
+            
+            // Center the watermark
+            const wmX = margin + (maxWidth - wmWidth) / 2;
+            const wmY = margin + (maxHeight - wmHeight) / 2;
+            
+            doc.saveGraphicsState();
+            (doc as any).setGState(new (doc as any).GState({ opacity: 0.3 })); // 30% opacity
+            doc.addImage(watermark, 'PNG', wmX, wmY, wmWidth, wmHeight, undefined, 'FAST');
+            doc.restoreGraphicsState();
+          } catch (e) {
+            console.error('Error adding watermark:', e);
+          }
+        }
         
         // Repeat title
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Forms Scoring Sheet - ${division} - ${ringName} Ring (cont.)`, 15, y);
-        y += 15;
+        doc.text(`${fullyQualifiedRingName} Forms Scoring Sheet (cont.)`, margin, y);
+        y += 0.5;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
       }
 
-      x = 15;
+      x = margin;
+      
+      // Shade the Final column for this row
+      const finalX = margin + colWidths.name + colWidths.school + colWidths.judge1 + 
+                     colWidths.judge2 + colWidths.judge3;
+      doc.setFillColor(240, 240, 240); // Very light gray for data rows
+      doc.rect(finalX, y - 0.12, colWidths.final, 0.3, 'F');
+      
       doc.text(`${participant.firstName} ${participant.lastName}`, x, y);
       x += colWidths.name;
       doc.text(participant.school.substring(0, 25), x, y);
       x += colWidths.school;
       
-      // Draw score boxes
+      // Draw score boxes for judges and final
       for (let i = 0; i < 4; i++) {
-        doc.rect(x + 2, y - 4, 15, 6);
-        x += i < 3 ? colWidths.judge1 : colWidths.final;
+        doc.setLineWidth(0.01);
+        doc.rect(x + 0.05, y - 0.12, 0.6, 0.2);
+        x += i < 3 ? (i === 0 ? colWidths.judge1 : colWidths.judge2) : colWidths.final;
       }
 
-      y += 10;
+      // Draw thin line under each row for easy following
+      y += 0.18;
+      doc.setLineWidth(0.005);
+      doc.setDrawColor(200, 200, 200); // Light gray line
+      doc.line(margin, y, margin + tableWidth, y);
+      doc.setDrawColor(0, 0, 0); // Reset to black
+      
+      y += 0.12;
     });
 
     // Placement table
-    y += 10;
+    y += 0.3;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('Placements:', 15, y);
+    doc.text('Placements:', margin, y);
     
-    y += 8;
+    y += 0.25;
     doc.setFontSize(10);
     const placements = ['1st Place:', '2nd Place:', '3rd Place:'];
     placements.forEach((place) => {
-      doc.text(place, 15, y);
-      doc.setLineWidth(0.3);
-      doc.line(45, y, 120, y);
-      y += 10;
+      doc.text(place, margin, y);
+      doc.setLineWidth(0.01);
+      doc.line(margin + 1.0, y, margin + 4.5, y);
+      y += 0.3;
     });
   });
+
+  // Add timestamp to all pages
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(128, 128, 128); // Gray text
+    doc.text(timestamp, margin, pageHeight - 0.25);
+    doc.setTextColor(0, 0, 0); // Reset to black
+  }
 
   return doc;
 }

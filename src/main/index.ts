@@ -73,10 +73,58 @@ ipcMain.handle('select-file', async () => {
   };
 });
 
-ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint8Array }) => {
+// Autosave handlers
+ipcMain.handle('save-autosave', async (event, data: string) => {
+  try {
+    const autosavePath = path.join(app.getPath('userData'), 'tournament-autosave.json');
+    fs.writeFileSync(autosavePath, data, 'utf8');
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving autosave:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('load-autosave', async () => {
+  try {
+    const autosavePath = path.join(app.getPath('userData'), 'tournament-autosave.json');
+    if (fs.existsSync(autosavePath)) {
+      const data = fs.readFileSync(autosavePath, 'utf8');
+      return { success: true, data };
+    }
+    return { success: true, data: null };
+  } catch (error) {
+    console.error('Error loading autosave:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint8Array; outputDirectory?: string }) => {
   if (!mainWindow) {
     throw new Error('Main window not available');
   }
+  
+  // If outputDirectory is provided, save directly without dialog
+  if (pdfData.outputDirectory) {
+    const filePath = path.join(pdfData.outputDirectory, pdfData.fileName);
+    
+    try {
+      // Ensure the directory exists
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      // Write file directly, overwriting if exists
+      fs.writeFileSync(filePath, Buffer.from(pdfData.data));
+      return { success: true, path: filePath };
+    } catch (error) {
+      console.error('Error saving PDF:', error);
+      return { success: false, error: String(error) };
+    }
+  }
+  
+  // If no outputDirectory, show save dialog (fallback)
   const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: pdfData.fileName,
     filters: [
@@ -90,6 +138,12 @@ ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint
   }
 
   try {
+    // Ensure the directory exists
+    const dir = path.dirname(result.filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
     fs.writeFileSync(result.filePath, Buffer.from(pdfData.data));
     return { success: true, path: result.filePath };
   } catch (error) {
@@ -120,6 +174,21 @@ ipcMain.handle('select-image', async () => {
     path: filePath,
     data: Array.from(fileData)
   };
+});
+
+ipcMain.handle('select-directory', async () => {
+  if (!mainWindow) {
+    throw new Error('Main window not available');
+  }
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory']
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return result.filePaths[0];
 });
 
 ipcMain.handle('save-tournament-state', async (event, state: any) => {

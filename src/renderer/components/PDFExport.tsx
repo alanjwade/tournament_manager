@@ -1,16 +1,36 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { generateNameTags } from '../utils/pdfGenerators/nameTags';
 import { generateCheckInSheet } from '../utils/pdfGenerators/checkInSheet';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
 import { computeCompetitionRings } from '../utils/computeRings';
+import logoImage from '../assets/logos/logo_orig_dark_letters.png';
 
 function PDFExport() {
   const participants = useTournamentStore((state) => state.participants);
   const cohorts = useTournamentStore((state) => state.cohorts);
   const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
+  
+  const [logoDataUrl, setLogoDataUrl] = useState<string>('');
+  
+  // Load logo as data URL
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        setLogoDataUrl(canvas.toDataURL('image/png'));
+      }
+    };
+    img.src = logoImage;
+  }, []);
   
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -18,7 +38,7 @@ function PDFExport() {
     [participants, cohorts, cohortRingMappings]
   );
   
-  const [selectedDivision, setSelectedDivision] = useState<string>('');
+  const [selectedDivision, setSelectedDivision] = useState<string>('Black Belt');
   const [exporting, setExporting] = useState(false);
 
   const savePDF = async (pdf: any, filename: string) => {
@@ -28,13 +48,14 @@ function PDFExport() {
       const result = await window.electronAPI.savePDF({
         fileName: filename,
         data: new Uint8Array(pdfBlob),
+        outputDirectory: config.pdfOutputDirectory,
       });
 
-      if (result.success) {
-        alert(`PDF saved successfully to: ${result.path}`);
-      } else {
+      if (!result.success && result.error) {
+        // Only show alert on error
         alert(`Error saving PDF: ${result.error}`);
       }
+      // Success: no dialog, file saved silently
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -52,7 +73,12 @@ function PDFExport() {
       participants,
       selectedDivision,
       config.physicalRings,
-      config.watermarkImage
+      config.watermarkImage,
+      undefined, // use default config
+      physicalRingMappings,
+      config.schoolAbbreviations,
+      logoDataUrl,
+      cohorts
     );
     await savePDF(pdf, `name-tags-${selectedDivision}.pdf`);
   };
@@ -66,7 +92,9 @@ function PDFExport() {
     const pdf = generateCheckInSheet(
       participants,
       selectedDivision,
-      config.physicalRings
+      config.physicalRings,
+      physicalRingMappings,
+      cohorts
     );
     await savePDF(pdf, `check-in-${selectedDivision}.pdf`);
   };
@@ -82,7 +110,8 @@ function PDFExport() {
       competitionRings,
       config.physicalRings,
       selectedDivision,
-      config.watermarkImage
+      config.watermarkImage,
+      physicalRingMappings
     );
     await savePDF(pdf, `forms-scoring-${selectedDivision}.pdf`);
   };
@@ -98,7 +127,8 @@ function PDFExport() {
       competitionRings,
       config.physicalRings,
       selectedDivision,
-      config.watermarkImage
+      config.watermarkImage,
+      physicalRingMappings
     );
     await savePDF(pdf, `sparring-brackets-${selectedDivision}.pdf`);
   };

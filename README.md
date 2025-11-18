@@ -69,6 +69,7 @@ The input Excel file should have the following columns (case-insensitive):
    - Set up divisions (default: Black Belt, Level 1-3, Beginner)
    - Add physical rings with names and colors
    - Optionally add a watermark image for PDFs
+   - Optionally set a default PDF output directory (PDFs will be saved here by default)
 3. **Cohort Management**: 
    - Auto-assign participants to cohorts based on division, gender, and age
    - Adjust ring counts per cohort as needed
@@ -76,7 +77,7 @@ The input Excel file should have the following columns (case-insensitive):
    - Assign forms and sparring rings
    - Order participants within each ring
 5. **Ring Overview**: Review all ring assignments
-6. **Export PDFs**: Generate and save tournament documents
+6. **Export PDFs**: Generate and save tournament documents (will use configured directory if set)
 
 ## Project Structure
 

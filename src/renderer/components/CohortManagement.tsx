@@ -287,24 +287,37 @@ function CohortManagement() {
     if (!confirm('Remove this cohort? Participants will become unassigned.')) {
       return;
     }
-
-    // Find the cohort to determine its type
+    // Remove the selected cohort and any matching opposite cohort(s)
     const cohortToRemove = cohorts.find((c) => c.id === cohortId);
     if (!cohortToRemove) return;
 
-    setCohorts(cohorts.filter((c) => c.id !== cohortId));
+    // Find all cohorts that match the same name/division/gender/age range (both/forms/sparring variants)
+    const cohortsToRemove = cohorts.filter((c) =>
+      c.name === cohortToRemove.name &&
+      c.division === cohortToRemove.division &&
+      c.gender === cohortToRemove.gender &&
+      c.minAge === cohortToRemove.minAge &&
+      c.maxAge === cohortToRemove.maxAge
+    );
 
+    const removeIds = new Set(cohortsToRemove.map(c => c.id));
+
+    // Update cohorts list by removing all matching cohorts
+    setCohorts(cohorts.filter((c) => !removeIds.has(c.id)));
+
+    // Clear any cohort IDs on participants that referenced any of these removed cohorts
     const updatedParticipants = participants.map((p) => {
-      // Clear the appropriate cohort ID based on the cohort type
-      if (cohortToRemove.type === 'forms' && p.formsCohortId === cohortId) {
-        return { ...p, formsCohortId: undefined, cohortId: undefined };
-      } else if (cohortToRemove.type === 'sparring' && p.sparringCohortId === cohortId) {
-        return { ...p, sparringCohortId: undefined };
-      } else if (p.cohortId === cohortId) {
-        // Fallback for old legacy cohortId field
-        return { ...p, cohortId: undefined };
+      let updated = { ...p };
+      if (p.formsCohortId && removeIds.has(p.formsCohortId)) {
+        updated.formsCohortId = undefined;
       }
-      return p;
+      if (p.sparringCohortId && removeIds.has(p.sparringCohortId)) {
+        updated.sparringCohortId = undefined;
+      }
+      if (p.cohortId && removeIds.has(p.cohortId)) {
+        updated.cohortId = undefined;
+      }
+      return updated;
     });
     setParticipants(updatedParticipants);
   };
@@ -479,7 +492,6 @@ function CohortManagement() {
                     <th>Division</th>
                     <th>Gender</th>
                     <th>Age</th>
-                    <th>Type</th>
                     <th>Form Count</th>
                     <th>Sparring Count</th>
                     <th>Rings</th>
@@ -511,18 +523,7 @@ function CohortManagement() {
                         <td>
                           {cohort.maxAge === 999 ? `${cohort.minAge}+` : `${cohort.minAge}-${cohort.maxAge}`}
                         </td>
-                        <td>
-                          {oppositeCohort ? (
-                            <span style={{ color: '#6c757d' }}>Both</span>
-                          ) : (
-                            <span style={{ 
-                              color: cohort.type === 'forms' ? '#007bff' : '#28a745',
-                              textTransform: 'capitalize'
-                            }}>
-                              {cohort.type}
-                            </span>
-                          )}
-                        </td>
+                        {/* type column removed - cohorts may represent forms/sparring but UI hides type */}
                         <td style={{ color: formCount > 0 ? '#007bff' : '#999' }}>
                           {formCount > 0 ? formCount : '-'}
                         </td>

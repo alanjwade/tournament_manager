@@ -1,5 +1,32 @@
 import { Participant } from '../types/tournament';
 
+/**
+ * Check if a sparring ring has mixed alt ring assignments (some set, some not).
+ * Returns validation status for alt ring assignments.
+ */
+export function checkSparringAltRingStatus(
+  participants: Participant[],
+  cohortId: string,
+  cohortRing: string
+): { status: 'none' | 'all' | 'mixed'; countA: number; countB: number; countEmpty: number } {
+  const ringParticipants = participants.filter(p => 
+    p.sparringCohortId === cohortId && p.sparringCohortRing === cohortRing
+  );
+
+  const countA = ringParticipants.filter(p => p.sparringAltRing === 'a').length;
+  const countB = ringParticipants.filter(p => p.sparringAltRing === 'b').length;
+  const countEmpty = ringParticipants.filter(p => !p.sparringAltRing).length;
+
+  if (countA === 0 && countB === 0) {
+    return { status: 'none', countA, countB, countEmpty };
+  } else if (countEmpty === 0) {
+    return { status: 'all', countA, countB, countEmpty };
+  } else {
+    return { status: 'mixed', countA, countB, countEmpty };
+  }
+}
+
+
 function hashName(firstName: string, lastName: string): number {
   const str = `${firstName}${lastName}`.toLowerCase();
   let hash = 0;
@@ -112,7 +139,7 @@ export function orderFormsRing(
     ...p,
     formsRankOrder: (index + 1) * 10,
   }));
-
+  
   // Update all participants, replacing those in this ring with ordered versions
   return participants.map((p) => {
     const ordered = orderedWithRanks.find((op) => op.id === p.id);
@@ -122,6 +149,7 @@ export function orderFormsRing(
 
 /**
  * Order Sparring participants by height and assign rank order.
+ * Handles sparringAltRing subdivision ('a' and 'b' groups).
  * @param participants - All participants
  * @param cohortId - The cohort ID (or legacy ringId for backward compatibility)
  * @param cohortRing - Optional: The cohort ring identifier (e.g., "R1", "R2")
@@ -145,20 +173,53 @@ export function orderSparringRing(
     return participants; // No changes if no participants in this ring
   }
 
-  // Sort by height (total inches)
-  const sorted = [...ringParticipants].sort(
-    (a, b) => {
+  // Check alt ring distribution
+  const altRingA = ringParticipants.filter(p => p.sparringAltRing === 'a');
+  const altRingB = ringParticipants.filter(p => p.sparringAltRing === 'b');
+  const altRingEmpty = ringParticipants.filter(p => !p.sparringAltRing);
+  
+  let orderedWithRanks: Participant[];
+
+  // If all participants have alt ring set to 'a' or 'b', split the ring
+  if (altRingEmpty.length === 0 && (altRingA.length > 0 || altRingB.length > 0)) {
+    // Sort each group by height
+    const sortedA = [...altRingA].sort((a, b) => {
       const heightA = a.heightFeet * 12 + a.heightInches;
       const heightB = b.heightFeet * 12 + b.heightInches;
       return heightA - heightB;
-    }
-  );
+    });
+    
+    const sortedB = [...altRingB].sort((a, b) => {
+      const heightA = a.heightFeet * 12 + a.heightInches;
+      const heightB = b.heightFeet * 12 + b.heightInches;
+      return heightA - heightB;
+    });
 
-  // Assign rank order numbers
-  const orderedWithRanks = sorted.map((p, index) => ({
-    ...p,
-    sparringRankOrder: (index + 1) * 10,
-  }));
+    // Assign rank orders: 'a' group first (10, 20, 30...), then 'b' group continues
+    const rankedA = sortedA.map((p, index) => ({
+      ...p,
+      sparringRankOrder: (index + 1) * 10,
+    }));
+
+    const rankedB = sortedB.map((p, index) => ({
+      ...p,
+      sparringRankOrder: (rankedA.length + index + 1) * 10,
+    }));
+
+    orderedWithRanks = [...rankedA, ...rankedB];
+  } else {
+    // Normal ordering (no alt ring split or mixed)
+    const sorted = [...ringParticipants].sort((a, b) => {
+      const heightA = a.heightFeet * 12 + a.heightInches;
+      const heightB = b.heightFeet * 12 + b.heightInches;
+      return heightA - heightB;
+    });
+
+    orderedWithRanks = sorted.map((p, index) => ({
+      ...p,
+      sparringRankOrder: (index + 1) * 10,
+    }));
+  }
 
   // Update all participants, replacing those in this ring with ordered versions
   return participants.map((p) => {
