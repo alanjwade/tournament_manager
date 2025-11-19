@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Participant, Cohort, CompetitionRing, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CohortRingMapping, TournamentState as SavedState } from '../types/tournament';
+import { Participant, Cohort, CompetitionRing, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CohortRingMapping, TournamentState as SavedState, Checkpoint, CheckpointDiff, ParticipantChange } from '../types/tournament';
 
 interface TournamentState {
   participants: Participant[];
@@ -8,6 +8,7 @@ interface TournamentState {
   config: TournamentConfig;
   physicalRingMappings: PhysicalRingMapping[]; // Legacy
   cohortRingMappings: CohortRingMapping[]; // New mapping system
+  checkpoints: Checkpoint[]; // Checkpoint system
   
   // Actions
   setParticipants: (participants: Participant[]) => void;
@@ -28,6 +29,13 @@ interface TournamentState {
   loadState: () => Promise<void>;
   autoSave: () => void;
   reset: () => void;
+  
+  // Checkpoint actions
+  createCheckpoint: (name?: string) => Promise<Checkpoint>;
+  renameCheckpoint: (checkpointId: string, newName: string) => void;
+  deleteCheckpoint: (checkpointId: string) => void;
+  diffCheckpoint: (checkpointId: string) => CheckpointDiff | null;
+  loadCheckpoint: (checkpointId: string) => void;
 }
 
 const initialConfig: TournamentConfig = {
@@ -74,13 +82,14 @@ const initialConfig: TournamentConfig = {
   },
 };
 
-export const useTournamentStore = create<TournamentState>((set) => ({
+export const useTournamentStore = create<TournamentState>((set, get) => ({
   participants: [],
   cohorts: [],
   competitionRings: [],
   config: initialConfig,
   physicalRingMappings: [],
   cohortRingMappings: [],
+  checkpoints: [],
 
   setParticipants: (participants) => {
     // Normalize participant objects to include newer fields with defaults
@@ -250,5 +259,195 @@ export const useTournamentStore = create<TournamentState>((set) => ({
       cohorts: [],
       competitionRings: [],
       config: initialConfig,
+      checkpoints: [],
     }),
+
+  // Checkpoint management
+  createCheckpoint: async (name?: string) => {
+    const state = get();
+    const timestamp = new Date().toISOString();
+    const checkpointName = name || `Checkpoint ${new Date().toLocaleString()}`;
+    
+    const checkpoint: Checkpoint = {
+      id: `checkpoint-${Date.now()}`,
+      name: checkpointName,
+      timestamp,
+      state: {
+        participants: JSON.parse(JSON.stringify(state.participants)),
+        cohorts: JSON.parse(JSON.stringify(state.cohorts)),
+        config: JSON.parse(JSON.stringify(state.config)),
+        physicalRingMappings: JSON.parse(JSON.stringify(state.physicalRingMappings)),
+        cohortRingMappings: JSON.parse(JSON.stringify(state.cohortRingMappings)),
+        lastSaved: timestamp,
+      },
+    };
+
+    set((state) => ({
+      checkpoints: [...state.checkpoints, checkpoint],
+    }));
+
+    // Save checkpoint to disk
+    try {
+      const result = await window.electronAPI.saveCheckpoint(checkpoint);
+      if (result.success) {
+        console.log('Checkpoint saved:', checkpoint.name);
+      } else {
+        console.error('Failed to save checkpoint:', result.error);
+      }
+    } catch (error) {
+      console.error('Error saving checkpoint:', error);
+    }
+
+    return checkpoint;
+  },
+
+  renameCheckpoint: (checkpointId: string, newName: string) => {
+    set((state) => ({
+      checkpoints: state.checkpoints.map(cp =>
+        cp.id === checkpointId ? { ...cp, name: newName } : cp
+      ),
+    }));
+    
+    // Update checkpoint on disk
+    const state = get();
+    const checkpoint = state.checkpoints.find(cp => cp.id === checkpointId);
+    if (checkpoint) {
+      window.electronAPI.saveCheckpoint(checkpoint).catch(err => {
+        console.error('Failed to update checkpoint name:', err);
+      });
+    }
+  },
+
+  deleteCheckpoint: (checkpointId: string) => {
+    set((state) => ({
+      checkpoints: state.checkpoints.filter(cp => cp.id !== checkpointId),
+    }));
+
+    // Delete from disk
+    window.electronAPI.deleteCheckpoint(checkpointId).catch(err => {
+      console.error('Failed to delete checkpoint:', err);
+    });
+  },
+
+  diffCheckpoint: (checkpointId: string): CheckpointDiff | null => {
+    const state = get();
+    const checkpoint = state.checkpoints.find(cp => cp.id === checkpointId);
+    
+    if (!checkpoint) {
+      return null;
+    }
+
+    const currentParticipants = state.participants;
+    const checkpointParticipants = checkpoint.state.participants;
+
+    // Create maps for quick lookup
+    const currentMap = new Map(currentParticipants.map(p => [p.id, p]));
+    const checkpointMap = new Map(checkpointParticipants.map(p => [p.id, p]));
+
+    // Find added participants
+    const participantsAdded = currentParticipants.filter(p => !checkpointMap.has(p.id));
+
+    // Find removed participants
+    const participantsRemoved = checkpointParticipants.filter(p => !currentMap.has(p.id));
+
+    // Find modified participants
+    const participantsModified: ParticipantChange[] = [];
+    const ringsAffected = new Set<string>();
+
+    currentParticipants.forEach(currentP => {
+      const checkpointP = checkpointMap.get(currentP.id);
+      if (!checkpointP) return; // Already counted in participantsAdded
+
+      // Check relevant fields for changes
+      const fieldsToCheck = [
+        'formsCohortId', 'sparringCohortId',
+        'formsCohortRing', 'sparringCohortRing', 'sparringAltRing',
+        'formsRingId', 'sparringRingId',
+        'competingForms', 'competingSparring',
+        'formsRankOrder', 'sparringRankOrder'
+      ];
+
+      fieldsToCheck.forEach(field => {
+        const currentValue = (currentP as any)[field];
+        const checkpointValue = (checkpointP as any)[field];
+        
+        if (JSON.stringify(currentValue) !== JSON.stringify(checkpointValue)) {
+          participantsModified.push({
+            participantId: currentP.id,
+            participantName: `${currentP.firstName} ${currentP.lastName}`,
+            field,
+            oldValue: checkpointValue,
+            newValue: currentValue,
+          });
+
+          // Track affected rings
+          if (field === 'formsCohortId' || field === 'formsCohortRing') {
+            if (checkpointValue) {
+              const cohort = checkpoint.state.cohorts.find(c => c.id === checkpointValue);
+              if (cohort) ringsAffected.add(`${cohort.name}_${checkpointP.formsCohortRing || 'R1'}`);
+            }
+            if (currentValue) {
+              const cohort = state.cohorts.find(c => c.id === currentValue);
+              if (cohort) ringsAffected.add(`${cohort.name}_${currentP.formsCohortRing || 'R1'}`);
+            }
+          }
+          if (field === 'sparringCohortId' || field === 'sparringCohortRing' || field === 'sparringAltRing') {
+            if (checkpointValue) {
+              const cohort = checkpoint.state.cohorts.find(c => c.id === checkpointValue);
+              if (cohort) {
+                const altRingSuffix = checkpointP.sparringAltRing ? `_${checkpointP.sparringAltRing}` : '';
+                ringsAffected.add(`${cohort.name}_${checkpointP.sparringCohortRing || 'R1'}${altRingSuffix}`);
+              }
+            }
+            if (currentValue) {
+              const cohort = state.cohorts.find(c => c.id === currentValue);
+              if (cohort) {
+                const altRingSuffix = currentP.sparringAltRing ? `_${currentP.sparringAltRing}` : '';
+                ringsAffected.add(`${cohort.name}_${currentP.sparringCohortRing || 'R1'}${altRingSuffix}`);
+              }
+            }
+          }
+        }
+      });
+    });
+
+    return {
+      participantsAdded,
+      participantsRemoved,
+      participantsModified,
+      ringsAffected,
+    };
+  },
+
+  loadCheckpoint: (checkpointId: string) => {
+    const state = get();
+    const checkpoint = state.checkpoints.find(cp => cp.id === checkpointId);
+    
+    if (!checkpoint) {
+      alert('Checkpoint not found');
+      return;
+    }
+
+    if (confirm(`Load checkpoint "${checkpoint.name}"? This will replace your current state.`)) {
+      set({
+        participants: JSON.parse(JSON.stringify(checkpoint.state.participants)),
+        cohorts: JSON.parse(JSON.stringify(checkpoint.state.cohorts)),
+        config: JSON.parse(JSON.stringify(checkpoint.state.config)),
+        physicalRingMappings: JSON.parse(JSON.stringify(checkpoint.state.physicalRingMappings)),
+        cohortRingMappings: JSON.parse(JSON.stringify(checkpoint.state.cohortRingMappings)),
+      });
+      alert(`Checkpoint "${checkpoint.name}" loaded successfully`);
+    }
+  },
 }));
+
+// Load checkpoints from disk on startup
+if (typeof window !== 'undefined' && window.electronAPI?.loadCheckpoints) {
+  window.electronAPI.loadCheckpoints().then((result) => {
+    if (result.success && result.data) {
+      useTournamentStore.setState({ checkpoints: result.data });
+    }
+  }).catch((error) => {
+    console.error('Error loading checkpoints on startup:', error);
+  });
+}

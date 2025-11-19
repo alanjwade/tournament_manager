@@ -7,6 +7,9 @@ export interface ElectronAPI {
   loadTournamentState: () => Promise<{ success: boolean; data?: any; error?: string } | null>;
   saveAutosave: (data: string) => Promise<{ success: boolean; error?: string }>;
   loadAutosave: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+  saveCheckpoint: (checkpoint: any) => Promise<{ success: boolean; path?: string; error?: string }>;
+  loadCheckpoints: () => Promise<{ success: boolean; data?: any[]; error?: string }>;
+  deleteCheckpoint: (checkpointId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

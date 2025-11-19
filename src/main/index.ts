@@ -238,3 +238,70 @@ ipcMain.handle('load-tournament-state', async () => {
     return { success: false, error: String(error) };
   }
 });
+
+// Checkpoint handlers
+ipcMain.handle('save-checkpoint', async (event, checkpoint: any) => {
+  try {
+    const checkpointsDir = path.join(app.getPath('userData'), 'checkpoints');
+    
+    // Create checkpoints directory if it doesn't exist
+    if (!fs.existsSync(checkpointsDir)) {
+      fs.mkdirSync(checkpointsDir, { recursive: true });
+    }
+    
+    const filePath = path.join(checkpointsDir, `${checkpoint.id}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(checkpoint, null, 2), 'utf8');
+    
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error('Error saving checkpoint:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('load-checkpoints', async () => {
+  try {
+    const checkpointsDir = path.join(app.getPath('userData'), 'checkpoints');
+    
+    // Return empty array if checkpoints directory doesn't exist
+    if (!fs.existsSync(checkpointsDir)) {
+      return { success: true, data: [] };
+    }
+    
+    const files = fs.readdirSync(checkpointsDir);
+    const checkpoints = files
+      .filter(file => file.endsWith('.json'))
+      .map(file => {
+        try {
+          const filePath = path.join(checkpointsDir, file);
+          const fileData = fs.readFileSync(filePath, 'utf-8');
+          return JSON.parse(fileData);
+        } catch (error) {
+          console.error(`Error reading checkpoint file ${file}:`, error);
+          return null;
+        }
+      })
+      .filter(checkpoint => checkpoint !== null);
+    
+    return { success: true, data: checkpoints };
+  } catch (error) {
+    console.error('Error loading checkpoints:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('delete-checkpoint', async (event, checkpointId: string) => {
+  try {
+    const checkpointsDir = path.join(app.getPath('userData'), 'checkpoints');
+    const filePath = path.join(checkpointsDir, `${checkpointId}.json`);
+    
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting checkpoint:', error);
+    return { success: false, error: String(error) };
+  }
+});

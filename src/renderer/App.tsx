@@ -9,8 +9,9 @@ import DataViewer from './components/DataViewer';
 import RingMapEditor from './components/RingMapEditor';
 import OrderRings from './components/OrderRings';
 import Configuration from './components/Configuration';
+import CheckpointManager from './components/CheckpointManager';
 
-type Tab = 'import' | 'cohorts' | 'rings' | 'editor' | 'overview' | 'ringmap' | 'order' | 'export';
+type Tab = 'import' | 'cohorts' | 'rings' | 'editor' | 'overview' | 'ringmap' | 'order' | 'export' | 'checkpoints';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('import');
@@ -110,6 +111,12 @@ function App() {
         >
           Export PDFs
         </button>
+        <button
+          className={`tab ${activeTab === 'checkpoints' ? 'active' : ''}`}
+          onClick={() => setActiveTab('checkpoints')}
+        >
+          Checkpoints
+        </button>
       </div>
 
       <div className="tab-content">
@@ -128,6 +135,7 @@ function App() {
         {activeTab === 'editor' && <DataViewer />}
         {activeTab === 'overview' && <RingOverview />}
         {activeTab === 'export' && <PDFExport />}
+        {activeTab === 'checkpoints' && <CheckpointManager />}
       </div>
     </div>
   );

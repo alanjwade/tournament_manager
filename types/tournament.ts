@@ -109,3 +109,25 @@ export interface TournamentState {
   cohortRingMappings?: CohortRingMapping[]; // Optional for backward compatibility
   lastSaved?: string;
 }
+
+export interface Checkpoint {
+  id: string;
+  name: string;
+  timestamp: string;
+  state: TournamentState;
+}
+
+export interface ParticipantChange {
+  participantId: string;
+  participantName: string;
+  field: string;
+  oldValue: any;
+  newValue: any;
+}
+
+export interface CheckpointDiff {
+  participantsAdded: Participant[];
+  participantsRemoved: Participant[];
+  participantsModified: ParticipantChange[];
+  ringsAffected: Set<string>; // List of ring names that have changes
+}

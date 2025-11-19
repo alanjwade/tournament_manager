@@ -9,4 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadTournamentState: () => ipcRenderer.invoke('load-tournament-state'),
   saveAutosave: (data: string) => ipcRenderer.invoke('save-autosave', data),
   loadAutosave: () => ipcRenderer.invoke('load-autosave'),
+  saveCheckpoint: (checkpoint: any) => ipcRenderer.invoke('save-checkpoint', checkpoint),
+  loadCheckpoints: () => ipcRenderer.invoke('load-checkpoints'),
+  deleteCheckpoint: (checkpointId: string) => ipcRenderer.invoke('delete-checkpoint', checkpointId),
 });
