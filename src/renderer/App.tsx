@@ -27,11 +27,26 @@ function App() {
         if (result?.success && result.data) {
           const state = JSON.parse(result.data);
           const defaultConfig = useTournamentStore.getState().config;
+          
+          // Merge divisions to preserve abbreviations from default config
+          const mergedDivisions = (state.config?.divisions || []).map((savedDiv: any) => {
+            const defaultDiv = defaultConfig.divisions.find(d => d.name === savedDiv.name);
+            return {
+              ...savedDiv,
+              // Preserve abbreviation from default config if not in saved state
+              abbreviation: savedDiv.abbreviation || defaultDiv?.abbreviation
+            };
+          });
+          
           useTournamentStore.setState({
             participants: (state.participants || []).map((p: any) => ({ ...p, sparringAltRing: p.sparringAltRing || '' })),
             cohorts: state.cohorts || [],
             competitionRings: state.competitionRings || [],
-            config: { ...defaultConfig, ...state.config },
+            config: { 
+              ...defaultConfig, 
+              ...state.config,
+              divisions: mergedDivisions
+            },
             physicalRingMappings: state.physicalRingMappings || [],
             cohortRingMappings: state.cohortRingMappings || [],
           });

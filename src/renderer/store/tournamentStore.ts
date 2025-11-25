@@ -40,11 +40,11 @@ interface TournamentState {
 
 const initialConfig: TournamentConfig = {
   divisions: [
-    { name: 'Black Belt', order: 1, numRings: 2 },
-    { name: 'Level 1', order: 2, numRings: 2 },
-    { name: 'Level 2', order: 3, numRings: 2 },
-    { name: 'Level 3', order: 4, numRings: 2 },
-    { name: 'Beginner', order: 5, numRings: 2 },
+    { name: 'Black Belt', order: 1, numRings: 2, abbreviation: 'BLKB' },
+    { name: 'Level 1', order: 2, numRings: 2, abbreviation: 'LVL1' },
+    { name: 'Level 2', order: 3, numRings: 2, abbreviation: 'LVL2' },
+    { name: 'Level 3', order: 4, numRings: 2, abbreviation: 'LVL3' },
+    { name: 'Beginner', order: 5, numRings: 2, abbreviation: 'BGNR' },
   ],
   physicalRings: [],
   watermarkImage: undefined,
@@ -219,11 +219,25 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const result = await window.electronAPI.loadTournamentState();
     if (result && result.success && result.data) {
       const state = result.data as SavedState;
+      
+      // Merge divisions to preserve abbreviations from initial config
+      const mergedDivisions = (state.config?.divisions || []).map((savedDiv) => {
+        const defaultDiv = initialConfig.divisions.find(d => d.name === savedDiv.name);
+        return {
+          ...savedDiv,
+          // Preserve abbreviation from default config if not in saved state
+          abbreviation: savedDiv.abbreviation || defaultDiv?.abbreviation
+        };
+      });
+      
       set({
         participants: state.participants || [],
         cohorts: state.cohorts || [],
         competitionRings: state.competitionRings || [],
-        config: state.config || initialConfig,
+        config: {
+          ...(state.config || initialConfig),
+          divisions: mergedDivisions
+        },
         physicalRingMappings: state.physicalRingMappings || [],
         cohortRingMappings: state.cohortRingMappings || [],
       });

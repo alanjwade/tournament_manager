@@ -57,7 +57,7 @@ function DataViewer() {
   const formsOptions = ['not participating', 'same as sparring', ...divisionOptions];
   const sparringOptions = ['not participating', 'same as forms', ...divisionOptions];
 
-  // Get all unique physical ring names from mappings
+  // Get all unique physical ring names from mappings (simple list)
   const physicalRingOptions = useMemo(() => {
     const ringNames = new Set<string>();
     physicalRingMappings.forEach(m => {
@@ -79,6 +79,65 @@ function DataViewer() {
     });
     return sorted;
   }, [physicalRingMappings]);
+
+  // Get physical ring options with division designators for dropdowns
+  const physicalRingOptionsWithDivision = useMemo(() => {
+    // Map physical ring to divisions that use it
+    const ringToDivisions = new Map<string, Set<string>>();
+    
+    physicalRingMappings.forEach(mapping => {
+      // Extract cohort name from cohortRingName (e.g., "Mixed 8-10_R1" -> "Mixed 8-10")
+      const cohortName = mapping.cohortRingName.split('_')[0];
+      
+      // Find cohort and its division
+      const cohort = cohorts.find(c => c.name === cohortName);
+      if (cohort && mapping.physicalRingName) {
+        if (!ringToDivisions.has(mapping.physicalRingName)) {
+          ringToDivisions.set(mapping.physicalRingName, new Set());
+        }
+        ringToDivisions.get(mapping.physicalRingName)!.add(cohort.division);
+      }
+    });
+    
+    // Build list of ring options with division abbreviations
+    const options: Array<{ value: string; label: string; division: string; divisionOrder: number }> = [];
+    
+    ringToDivisions.forEach((divisions, physicalRing) => {
+      divisions.forEach(division => {
+        const divisionConfig = config.divisions.find(d => d.name === division);
+        // Use abbreviation from config, or fallback to uppercase first 4 chars
+        const abbr = (divisionConfig && divisionConfig.abbreviation) 
+          ? divisionConfig.abbreviation 
+          : division.substring(0, 4).toUpperCase();
+        const order = divisionConfig?.order || 999;
+        
+        options.push({
+          value: physicalRing,
+          label: `${abbr} ${physicalRing}`,
+          division,
+          divisionOrder: order
+        });
+      });
+    });
+    
+    // Sort by division order, then by physical ring
+    return options.sort((a, b) => {
+      if (a.divisionOrder !== b.divisionOrder) {
+        return a.divisionOrder - b.divisionOrder;
+      }
+      
+      // Sort by ring number and suffix
+      const aMatch = a.value.match(/^PR(\d+)([a-z]*)$/);
+      const bMatch = b.value.match(/^PR(\d+)([a-z]*)$/);
+      if (aMatch && bMatch) {
+        const aNum = parseInt(aMatch[1]);
+        const bNum = parseInt(bMatch[1]);
+        if (aNum !== bNum) return aNum - bNum;
+        return (aMatch[2] || '').localeCompare(bMatch[2] || '');
+      }
+      return a.value.localeCompare(b.value);
+    });
+  }, [physicalRingMappings, cohorts, config.divisions]);
 
   // Get all cohort names for dropdowns
   const formsCohortOptions = useMemo(() => {
@@ -611,8 +670,8 @@ function DataViewer() {
                       }}
                     >
                       <option value="">Not assigned</option>
-                      {physicalRingOptions.map(ringName => (
-                        <option key={ringName} value={ringName}>{ringName}</option>
+                      {physicalRingOptionsWithDivision.map(option => (
+                        <option key={`${option.division}-${option.value}`} value={option.value}>{option.label}</option>
                       ))}
                     </select>
                   ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
@@ -708,8 +767,8 @@ function DataViewer() {
                       }}
                     >
                       <option value="">Not assigned</option>
-                      {physicalRingOptions.map(ringName => (
-                        <option key={ringName} value={ringName}>{ringName}</option>
+                      {physicalRingOptionsWithDivision.map(option => (
+                        <option key={`${option.division}-${option.value}`} value={option.value}>{option.label}</option>
                       ))}
                     </select>
                   ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}

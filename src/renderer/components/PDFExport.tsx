@@ -15,6 +15,8 @@ function PDFExport() {
   const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
+  const checkpoints = useTournamentStore((state) => state.checkpoints);
+  const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
   
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
   
@@ -50,6 +52,28 @@ function PDFExport() {
   const [selectedSparringDivision, setSelectedSparringDivision] = useState<string>('');
   const [selectedFormsRings, setSelectedFormsRings] = useState<Set<string>>(new Set());
   const [selectedSparringRings, setSelectedSparringRings] = useState<Set<string>>(new Set());
+  const [selectedFormsCheckpoint, setSelectedFormsCheckpoint] = useState<string>('');
+  const [selectedSparringCheckpoint, setSelectedSparringCheckpoint] = useState<string>('');
+  
+  // Get sorted checkpoints (latest first)
+  const sortedCheckpoints = useMemo(() => {
+    return [...checkpoints].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [checkpoints]);
+  
+  // Set default checkpoint to latest when checkpoints available
+  useEffect(() => {
+    if (sortedCheckpoints.length > 0 && !selectedFormsCheckpoint) {
+      setSelectedFormsCheckpoint(sortedCheckpoints[0].id);
+    }
+  }, [sortedCheckpoints]);
+  
+  useEffect(() => {
+    if (sortedCheckpoints.length > 0 && !selectedSparringCheckpoint) {
+      setSelectedSparringCheckpoint(sortedCheckpoints[0].id);
+    }
+  }, [sortedCheckpoints]);
   
   // Get available rings for selected divisions
   const availableFormsRings = useMemo(() => {
@@ -96,6 +120,65 @@ function PDFExport() {
       setSelectedSparringRings(new Set(availableSparringRings.map(r => r.id)));
     }
   }, [selectedSparringDivision, availableSparringRings]);
+
+  // Select rings that changed since checkpoint
+  const handleSelectFormsDiff = () => {
+    if (!selectedFormsCheckpoint) {
+      alert('Please select a checkpoint');
+      return;
+    }
+    
+    const diff = diffCheckpoint(selectedFormsCheckpoint);
+    if (!diff) {
+      alert('Failed to compute diff');
+      return;
+    }
+    
+    // Get affected ring names for the selected division
+    const affectedRings = new Set<string>();
+    diff.ringsAffected.forEach(ringName => {
+      // Find corresponding competition ring
+      const ring = availableFormsRings.find(r => r.name === ringName && r.type === 'forms');
+      if (ring) {
+        affectedRings.add(ring.id);
+      }
+    });
+    
+    if (affectedRings.size === 0) {
+      alert(`No forms rings changed in ${selectedFormsDivision} division since checkpoint`);
+    } else {
+      setSelectedFormsRings(affectedRings);
+    }
+  };
+  
+  const handleSelectSparringDiff = () => {
+    if (!selectedSparringCheckpoint) {
+      alert('Please select a checkpoint');
+      return;
+    }
+    
+    const diff = diffCheckpoint(selectedSparringCheckpoint);
+    if (!diff) {
+      alert('Failed to compute diff');
+      return;
+    }
+    
+    // Get affected ring names for the selected division
+    const affectedRings = new Set<string>();
+    diff.ringsAffected.forEach(ringName => {
+      // Find corresponding competition ring
+      const ring = availableSparringRings.find(r => r.name === ringName && r.type === 'sparring');
+      if (ring) {
+        affectedRings.add(ring.id);
+      }
+    });
+    
+    if (affectedRings.size === 0) {
+      alert(`No sparring rings changed in ${selectedSparringDivision} division since checkpoint`);
+    } else {
+      setSelectedSparringRings(affectedRings);
+    }
+  };
 
   const savePDF = async (pdf: any, filename: string) => {
     try {
@@ -492,7 +575,8 @@ function PDFExport() {
                   <div style={{ 
                     display: 'flex', 
                     gap: '10px',
-                    marginBottom: '10px'
+                    marginBottom: '10px',
+                    flexWrap: 'wrap'
                   }}>
                     <button
                       className="btn btn-secondary"
@@ -508,6 +592,28 @@ function PDFExport() {
                     >
                       Deselect All
                     </button>
+                    {checkpoints.length > 0 && (
+                      <>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={handleSelectFormsDiff}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
+                          Select Diff from Checkpoint
+                        </button>
+                        <select
+                          value={selectedFormsCheckpoint}
+                          onChange={(e) => setSelectedFormsCheckpoint(e.target.value)}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
+                          {sortedCheckpoints.map(cp => (
+                            <option key={cp.id} value={cp.id}>
+                              {cp.name} ({new Date(cp.timestamp).toLocaleString()})
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
                   </div>
                   <div style={{ 
                     maxHeight: '200px', 
@@ -616,7 +722,8 @@ function PDFExport() {
                   <div style={{ 
                     display: 'flex', 
                     gap: '10px',
-                    marginBottom: '10px'
+                    marginBottom: '10px',
+                    flexWrap: 'wrap'
                   }}>
                     <button
                       className="btn btn-secondary"
@@ -632,6 +739,28 @@ function PDFExport() {
                     >
                       Deselect All
                     </button>
+                    {checkpoints.length > 0 && (
+                      <>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={handleSelectSparringDiff}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
+                          Select Diff from Checkpoint
+                        </button>
+                        <select
+                          value={selectedSparringCheckpoint}
+                          onChange={(e) => setSelectedSparringCheckpoint(e.target.value)}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
+                          {sortedCheckpoints.map(cp => (
+                            <option key={cp.id} value={cp.id}>
+                              {cp.name} ({new Date(cp.timestamp).toLocaleString()})
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
                   </div>
                   <div style={{ 
                     maxHeight: '200px', 
