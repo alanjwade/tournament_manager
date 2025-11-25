@@ -151,6 +151,13 @@ export function generateSparringBrackets(
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text(`${titleWithAlt} Sparring Bracket`, margin, margin + 0.3);
+      
+      // Cohort ring name subtitle
+      if (ring.name) {
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${ring.name}${altRingLabel}`, margin, margin + 0.5);
+      }
 
       console.log(`Ring ${ring.name}${altRingLabel}: ${ringParticipants.length} participants`);
       ringParticipants.forEach((p, i) => console.log(`  ${i}: ${p.firstName} ${p.lastName} (${p.id})`));

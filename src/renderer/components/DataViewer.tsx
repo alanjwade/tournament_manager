@@ -65,7 +65,7 @@ function DataViewer() {
         ringNames.add(m.physicalRingName);
       }
     });
-    return Array.from(ringNames).sort((a, b) => {
+    const sorted = Array.from(ringNames).sort((a, b) => {
       // Sort by ring number, then suffix (PR1, PR1a, PR1b, PR2, PR2a, etc.)
       const aMatch = a.match(/^PR(\d+)([a-z]*)$/);
       const bMatch = b.match(/^PR(\d+)([a-z]*)$/);
@@ -77,6 +77,7 @@ function DataViewer() {
       }
       return a.localeCompare(b);
     });
+    return sorted;
   }, [physicalRingMappings]);
 
   // Get all cohort names for dropdowns
@@ -101,6 +102,12 @@ function DataViewer() {
           updates.competingForms = value !== 'not participating' && value !== 'same as sparring';
         } else if (field === 'sparringDivision') {
           updates.competingSparring = value !== 'not participating' && value !== 'same as forms';
+          
+          // When setting sparring to "same as forms", copy forms cohort and ring
+          if (value === 'same as forms') {
+            updates.sparringCohortId = p.formsCohortId;
+            updates.sparringCohortRing = p.formsCohortRing;
+          }
         }
         
         return { ...p, ...updates };
@@ -386,13 +393,16 @@ function DataViewer() {
               </th>
               <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
                 Forms Division
-                <input
-                  type="text"
-                  placeholder="Filter..."
+                <select
                   value={filters.formsDivision}
                   onChange={(e) => updateFilter('formsDivision', e.target.value)}
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
-                />
+                >
+                  <option value="">All</option>
+                  {formsOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
               </th>
               <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
                 Forms Cohort
@@ -436,13 +446,16 @@ function DataViewer() {
               </th>
               <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
                 Sparring Division
-                <input
-                  type="text"
-                  placeholder="Filter..."
+                <select
                   value={filters.sparringDivision}
                   onChange={(e) => updateFilter('sparringDivision', e.target.value)}
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
-                />
+                >
+                  <option value="">All</option>
+                  {sparringOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
               </th>
               <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
                 Sparring Cohort

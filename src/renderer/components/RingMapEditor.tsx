@@ -73,6 +73,24 @@ function RingMapEditor() {
     }
   }, [divisions]);
 
+  // Initialize numPhysicalRings from existing mappings on mount
+  useEffect(() => {
+    if (physicalRingMappings.length > 0) {
+      // Extract unique physical ring names and determine count
+      const uniqueRings = new Set<string>();
+      physicalRingMappings.forEach(m => {
+        // Extract base ring number from PR1a, PR1b, PR2a, etc.
+        const match = m.physicalRingName.match(/^PR(\d+)/);
+        if (match) {
+          uniqueRings.add(match[1]);
+        }
+      });
+      if (uniqueRings.size > 0) {
+        setNumPhysicalRings(uniqueRings.size);
+      }
+    }
+  }, []);
+
   // Get sorted cohort rings for the selected division
   const sortedCohortRings = useMemo(() => {
     const ringMap = new Map<string, {
@@ -167,29 +185,33 @@ function RingMapEditor() {
 
     setAssignments(newAssignments);
 
-    // Save to state immediately
-    const mappings = newAssignments.map(a => ({
+    // Save to state - merge with existing mappings from other divisions
+    const newMappings = newAssignments.map(a => ({
       cohortRingName: a.cohortRingName,
       physicalRingName: a.physicalRingName,
     }));
-    setPhysicalRingMappings(mappings);
     
-    // Also create the physical ring objects with colors
-    const physicalRings: PhysicalRing[] = [];
-    for (let i = 1; i <= numPhysicalRings; i++) {
-      physicalRings.push({
-        id: `ring-${i}`,
-        name: `Ring ${i}`,
-        color: RING_COLOR_MAP[i] || '#cccccc',
-      });
-    }
-    setPhysicalRings(physicalRings);
+    // Keep mappings from other divisions, replace only current division's mappings
+    const currentDivisionRingNames = new Set(sortedCohortRings.map(r => r.ringName));
+    const otherDivisionMappings = physicalRingMappings.filter(
+      m => !currentDivisionRingNames.has(m.cohortRingName)
+    );
+    
+    const allMappings = [...otherDivisionMappings, ...newMappings];
+    console.log('[RingMapEditor] handleAutoAssign - Setting mappings:', allMappings);
+    setPhysicalRingMappings(allMappings);
   };
 
-  // Initialize assignments from existing mappings when division changes
+  // Initialize assignments from existing mappings when division changes or mappings update
   useEffect(() => {
+    console.log('[RingMapEditor] useEffect triggered');
+    console.log('[RingMapEditor] selectedDivision:', selectedDivision);
+    console.log('[RingMapEditor] sortedCohortRings:', sortedCohortRings.map(r => r.ringName));
+    console.log('[RingMapEditor] physicalRingMappings:', physicalRingMappings);
+    
     const newAssignments: RingAssignmentRow[] = sortedCohortRings.map(ring => {
       const mapping = physicalRingMappings.find(m => m.cohortRingName === ring.ringName);
+      console.log(`[RingMapEditor] Looking up ${ring.ringName}, found mapping:`, mapping);
       return {
         cohortRingName: ring.ringName,
         division: ring.division,
@@ -198,21 +220,37 @@ function RingMapEditor() {
         physicalRingName: mapping?.physicalRingName || '',
       };
     });
-    setAssignments(newAssignments);
+    
+    console.log('[RingMapEditor] newAssignments:', newAssignments);
+    console.log('[RingMapEditor] current assignments:', assignments);
+    
+    // Only update if assignments actually changed to prevent infinite loops
+    const assignmentsChanged = JSON.stringify(newAssignments) !== JSON.stringify(assignments);
+    console.log('[RingMapEditor] assignmentsChanged:', assignmentsChanged);
+    if (assignmentsChanged) {
+      setAssignments(newAssignments);
+    }
   }, [sortedCohortRings, selectedDivision, physicalRingMappings]);
 
   // Handle manual edit of physical ring assignment
   const handlePhysicalRingChange = (cohortRingName: string, newPhysicalRing: string) => {
+    console.log('[RingMapEditor] handlePhysicalRingChange called');
+    console.log('[RingMapEditor] cohortRingName:', cohortRingName);
+    console.log('[RingMapEditor] newPhysicalRing:', newPhysicalRing);
+    
     // Update local state
     const updatedAssignments = assignments.map(a =>
       a.cohortRingName === cohortRingName
         ? { ...a, physicalRingName: newPhysicalRing }
         : a
     );
+    console.log('[RingMapEditor] updatedAssignments:', updatedAssignments);
     setAssignments(updatedAssignments);
 
     // Save to store immediately
+    console.log('[RingMapEditor] Calling updatePhysicalRingMapping');
     updatePhysicalRingMapping(cohortRingName, newPhysicalRing);
+    console.log('[RingMapEditor] After updatePhysicalRingMapping, store physicalRingMappings:', useTournamentStore.getState().physicalRingMappings);
   };
 
   return (

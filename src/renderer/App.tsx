@@ -23,11 +23,9 @@ function App() {
       console.log('App mounted - checking for autosave');
       try {
         const result = await window.electronAPI.loadAutosave();
-        console.log('Autosave exists:', !!result?.data);
         
         if (result?.success && result.data) {
           const state = JSON.parse(result.data);
-          console.log('Loading autosave - participants count:', state.participants?.length || 0);
           const defaultConfig = useTournamentStore.getState().config;
           useTournamentStore.setState({
             participants: (state.participants || []).map((p: any) => ({ ...p, sparringAltRing: p.sparringAltRing || '' })),
@@ -37,9 +35,6 @@ function App() {
             physicalRingMappings: state.physicalRingMappings || [],
             cohortRingMappings: state.cohortRingMappings || [],
           });
-          console.log('Loaded autosave - final participants count:', useTournamentStore.getState().participants.length);
-        } else {
-          console.log('No autosave found');
         }
       } catch (error) {
         console.error('Failed to load autosave:', error);

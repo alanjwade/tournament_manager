@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { checkSparringAltRingStatus } from '../utils/ringOrdering';
@@ -8,9 +8,11 @@ interface RingPair {
   formsRing?: any;
   sparringRing?: any;
   physicalRingName?: string;
+  division: string;
 }
 
 function RingOverview() {
+  const [selectedDivision, setSelectedDivision] = useState<string>('all');
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
   const cohorts = useTournamentStore((state) => state.cohorts);
@@ -48,6 +50,7 @@ function RingOverview() {
         pairMap.set(key, { 
           cohortRingName: ringName,
           physicalRingName: mapping?.physicalRingName,
+          division: ring.division,
         });
       }
       
@@ -92,6 +95,25 @@ function RingOverview() {
       return a.cohortRingName.localeCompare(b.cohortRingName);
     });
   }, [competitionRings, physicalRingMappings]);
+
+  // Get unique divisions for the filter dropdown
+  const divisions = useMemo(() => {
+    const divSet = new Set<string>();
+    ringPairs.forEach(pair => {
+      if (pair.division) {
+        divSet.add(pair.division);
+      }
+    });
+    return Array.from(divSet).sort();
+  }, [ringPairs]);
+
+  // Filter ring pairs by selected division
+  const filteredRingPairs = useMemo(() => {
+    if (selectedDivision === 'all') {
+      return ringPairs;
+    }
+    return ringPairs.filter(pair => pair.division === selectedDivision);
+  }, [ringPairs, selectedDivision]);
 
   const renderRingTable = (ring: any, type: 'forms' | 'sparring') => {
     if (!ring) {
@@ -176,9 +198,6 @@ function RingOverview() {
           <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
             <div>
               <strong>Cohort:</strong> {cohort?.gender}, Ages {cohort?.minAge}-{cohort?.maxAge}
-            </div>
-            <div>
-              <strong>Division:</strong> {ring.division}
             </div>
             <div style={{ color: '#5cb85c', fontWeight: 'bold' }}>
               Split into Alt Rings: {participantsA.length} in 'a', {participantsB.length} in 'b'
@@ -302,9 +321,6 @@ function RingOverview() {
             <strong>Cohort:</strong> {cohort?.gender}, Ages {cohort?.minAge}-{cohort?.maxAge}
           </div>
           <div>
-            <strong>Division:</strong> {ring.division}
-          </div>
-          <div>
             <strong>Participants:</strong> {ringParticipants.length}
           </div>
         </div>
@@ -370,6 +386,33 @@ function RingOverview() {
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <h2 className="card-title" style={{ flexShrink: 0 }}>Ring Overview</h2>
       
+      {/* Division Filter */}
+      <div style={{ marginBottom: '15px', flexShrink: 0 }}>
+        <label style={{ marginRight: '10px', fontWeight: 'bold' }}>
+          Filter by Division:
+        </label>
+        <select
+          value={selectedDivision}
+          onChange={(e) => setSelectedDivision(e.target.value)}
+          style={{
+            padding: '5px 10px',
+            fontSize: '14px',
+            borderRadius: '4px',
+            border: '1px solid #ccc',
+          }}
+        >
+          <option value="all">All Divisions ({ringPairs.length} rings)</option>
+          {divisions.map((division) => {
+            const count = ringPairs.filter(p => p.division === division).length;
+            return (
+              <option key={division} value={division}>
+                {division} ({count} rings)
+              </option>
+            );
+          })}
+        </select>
+      </div>
+      
       {unassignedCount > 0 && (
         <div className="warning" style={{ marginBottom: '15px', flexShrink: 0 }}>
           <strong>⚠️ {unassignedCount} participants</strong> not assigned to any ring
@@ -377,7 +420,7 @@ function RingOverview() {
       )}
 
       <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
-        {ringPairs.map((pair) => (
+        {filteredRingPairs.map((pair) => (
           <div
             key={pair.cohortRingName}
             style={{
@@ -392,13 +435,18 @@ function RingOverview() {
               style={{
                 marginBottom: '15px',
                 color: '#333',
-                fontSize: '16px',
-                fontWeight: '600',
+                fontSize: '18px',
+                fontWeight: 'bold',
               }}
             >
-              {pair.cohortRingName}
+              <span style={{ color: '#007bff', marginRight: '15px' }}>
+                {pair.division}
+              </span>
+              <span>
+                {pair.cohortRingName}
+              </span>
               {pair.physicalRingName && (
-                <span style={{ marginLeft: '10px', color: '#007bff', fontSize: '14px' }}>
+                <span style={{ marginLeft: '15px', color: '#28a745', fontSize: '16px', fontWeight: '600' }}>
                   ({pair.physicalRingName})
                 </span>
               )}

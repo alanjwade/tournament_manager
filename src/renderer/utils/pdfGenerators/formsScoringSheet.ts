@@ -125,6 +125,13 @@ export function generateFormsScoringSheets(
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text(`${fullyQualifiedRingName} Forms Scoring Sheet`, margin, margin + 0.3);
+    
+    // Cohort ring name subtitle
+    if (ring.name) {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(ring.name, margin, margin + 0.5);
+    }
 
     // Table
     let y = margin + 0.8; // Start below title
