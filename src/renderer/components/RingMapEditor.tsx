@@ -30,7 +30,11 @@ const RING_COLOR_MAP: { [key: number]: string } = {
   14: '#b4a7d6', // Light Purple
 };
 
-function RingMapEditor() {
+interface RingMapEditorProps {
+  globalDivision?: string;
+}
+
+function RingMapEditor({ globalDivision }: RingMapEditorProps) {
   const participants = useTournamentStore((state) => state.participants);
   const cohorts = useTournamentStore((state) => state.cohorts);
   const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
@@ -62,9 +66,16 @@ function RingMapEditor() {
     });
   }, [participants, config.divisions]);
   
-  const [selectedDivision, setSelectedDivision] = useState<string>('Black Belt');
+  const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt');
   const [numPhysicalRings, setNumPhysicalRings] = useState<number>(14);
   const [assignments, setAssignments] = useState<RingAssignmentRow[]>([]);
+
+  // Sync with global division when it changes
+  useEffect(() => {
+    if (globalDivision && globalDivision !== 'all') {
+      setSelectedDivision(globalDivision);
+    }
+  }, [globalDivision]);
 
   // Set default division on mount or when divisions change
   useEffect(() => {

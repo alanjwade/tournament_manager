@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { checkSparringAltRingStatus } from '../utils/ringOrdering';
+import { Participant } from '../types/tournament';
 
 interface RingPair {
   cohortRingName: string;
@@ -11,13 +12,56 @@ interface RingPair {
   division: string;
 }
 
-function RingOverview() {
-  const [selectedDivision, setSelectedDivision] = useState<string>('all');
+interface QuickEditState {
+  participant: Participant;
+  ringType: 'forms' | 'sparring';
+  ringName: string;
+}
+
+interface RingOverviewProps {
+  globalDivision?: string;
+}
+
+// Ring balance indicator helper
+const getRingBalanceStyle = (participantCount: number): { color: string; bg: string; label: string } => {
+  if (participantCount >= 8 && participantCount <= 12) {
+    return { color: '#155724', bg: '#d4edda', label: 'balanced' };
+  } else if ((participantCount >= 5 && participantCount <= 7) || (participantCount >= 13 && participantCount <= 15)) {
+    return { color: '#856404', bg: '#fff3cd', label: 'acceptable' };
+  } else {
+    return { color: '#721c24', bg: '#f8d7da', label: 'unbalanced' };
+  }
+};
+
+function RingOverview({ globalDivision }: RingOverviewProps) {
+  const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision || 'all');
+  const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
   const cohorts = useTournamentStore((state) => state.cohorts);
   const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
+  const updateParticipant = useTournamentStore((state) => state.updateParticipant);
+  const checkpoints = useTournamentStore((state) => state.checkpoints);
+  const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
+
+  // Sync with global division when it changes
+  useEffect(() => {
+    if (globalDivision) {
+      setSelectedDivision(globalDivision);
+    }
+  }, [globalDivision]);
+
+  // Compute rings changed since latest checkpoint
+  const changedRings = useMemo(() => {
+    if (checkpoints.length === 0) return new Set<string>();
+    const latestCheckpoint = [...checkpoints].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )[0];
+    const diff = diffCheckpoint(latestCheckpoint.id);
+    if (!diff) return new Set<string>();
+    return diff.ringsAffected;
+  }, [checkpoints, diffCheckpoint]);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -115,7 +159,163 @@ function RingOverview() {
     return ringPairs.filter(pair => pair.division === selectedDivision);
   }, [ringPairs, selectedDivision]);
 
-  const renderRingTable = (ring: any, type: 'forms' | 'sparring') => {
+  // Handle clicking on a participant name
+  const handleParticipantClick = (participant: Participant, ringType: 'forms' | 'sparring', ringName: string) => {
+    setQuickEdit({ participant, ringType, ringName });
+  };
+
+  // Render clickable participant name
+  const renderParticipantName = (p: Participant, ringType: 'forms' | 'sparring', ringName: string) => (
+    <span
+      onClick={() => handleParticipantClick(p, ringType, ringName)}
+      style={{
+        cursor: 'pointer',
+        color: '#0056b3',
+        textDecoration: 'underline',
+      }}
+      title="Click to edit"
+    >
+      {p.firstName} {p.lastName}
+    </span>
+  );
+
+  // Quick Edit Modal Component
+  const renderQuickEditModal = () => {
+    if (!quickEdit) return null;
+
+    const { participant, ringType } = quickEdit;
+    const currentRankOrder = ringType === 'forms' ? participant.formsRankOrder : participant.sparringRankOrder;
+    const currentAltRing = participant.sparringAltRing || '';
+
+    const handleSave = (updates: Partial<Participant>) => {
+      updateParticipant(participant.id, updates);
+      // Refresh the participant data in the modal
+      const updatedParticipant = { ...participant, ...updates };
+      setQuickEdit({ ...quickEdit, participant: updatedParticipant });
+    };
+
+    const handleClose = () => {
+      setQuickEdit(null);
+    };
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}
+        onClick={handleClose}
+      >
+        <div
+          style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '20px',
+            minWidth: '350px',
+            maxWidth: '450px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>
+            Quick Edit: {participant.firstName} {participant.lastName}
+          </h3>
+          
+          <div style={{ fontSize: '13px', color: '#666', marginBottom: '15px' }}>
+            <div><strong>Ring:</strong> {quickEdit.ringName}</div>
+            <div><strong>Type:</strong> {ringType === 'forms' ? 'Forms' : 'Sparring'}</div>
+            <div><strong>Age:</strong> {participant.age} | <strong>Gender:</strong> {participant.gender}</div>
+            {ringType === 'sparring' && (
+              <div><strong>Height:</strong> {participant.heightFeet}'{participant.heightInches}"</div>
+            )}
+          </div>
+
+          {/* Rank Order */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+              {ringType === 'forms' ? 'Forms' : 'Sparring'} Rank Order (×10 = position):
+            </label>
+            <input
+              type="number"
+              value={currentRankOrder || ''}
+              onChange={(e) => {
+                const value = e.target.value ? parseInt(e.target.value) : undefined;
+                handleSave(ringType === 'forms' 
+                  ? { formsRankOrder: value } 
+                  : { sparringRankOrder: value }
+                );
+              }}
+              style={{
+                width: '100%',
+                padding: '8px',
+                fontSize: '14px',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+              }}
+              placeholder="e.g., 1, 2, 3..."
+            />
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+              Position = Rank × 10. Use decimals like 1.5 to insert between 1 and 2.
+            </div>
+          </div>
+
+          {/* Alt Ring (Sparring only) */}
+          {ringType === 'sparring' && (
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+                Alt Ring (splits ring into a/b):
+              </label>
+              <select
+                value={currentAltRing}
+                onChange={(e) => {
+                  const value = e.target.value as '' | 'a' | 'b';
+                  handleSave({ sparringAltRing: value });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  fontSize: '14px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                }}
+              >
+                <option value="">No alt ring (default)</option>
+                <option value="a">Alt Ring A</option>
+                <option value="b">Alt Ring B</option>
+              </select>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+            <button
+              onClick={handleClose}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRingTable = (ring: any, type: 'forms' | 'sparring', ringDisplayName: string) => {
     if (!ring) {
       return (
         <div style={{ color: '#999', fontStyle: 'italic', padding: '10px' }}>
@@ -238,7 +438,7 @@ function RingOverview() {
                         {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
                       </td>
                       <td style={{ padding: '4px' }}>
-                        {p.firstName} {p.lastName}
+                        {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt A)')}
                       </td>
                       <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
                       <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
@@ -286,7 +486,7 @@ function RingOverview() {
                         {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
                       </td>
                       <td style={{ padding: '4px' }}>
-                        {p.firstName} {p.lastName}
+                        {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt B)')}
                       </td>
                       <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
                       <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
@@ -350,7 +550,7 @@ function RingOverview() {
                     {position ? position * 10 : '-'}
                   </td>
                   <td style={{ padding: '4px' }}>
-                    {p.firstName} {p.lastName}
+                    {renderParticipantName(p, type, ringDisplayName)}
                   </td>
                   <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
                   <td style={{ padding: '4px', textAlign: 'center' }}>
@@ -384,6 +584,9 @@ function RingOverview() {
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      {/* Quick Edit Modal */}
+      {renderQuickEditModal()}
+      
       <h2 className="card-title" style={{ flexShrink: 0 }}>Ring Overview</h2>
       
       {/* Division Filter */}
@@ -419,16 +622,49 @@ function RingOverview() {
         </div>
       )}
 
+      {/* Changed rings summary */}
+      {changedRings.size > 0 && (
+        <div style={{ 
+          marginBottom: '15px', 
+          padding: '10px 15px',
+          backgroundColor: '#fff3cd',
+          border: '1px solid #ffc107',
+          borderRadius: '6px',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <span style={{ fontSize: '18px' }}>⚠️</span>
+          <span>
+            <strong>{changedRings.size} ring{changedRings.size > 1 ? 's' : ''} changed</strong> since last checkpoint
+          </span>
+        </div>
+      )}
+
       <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
-        {filteredRingPairs.map((pair) => (
+        {filteredRingPairs.map((pair) => {
+          // Check if this ring pair has changed since checkpoint
+          const formsChanged = pair.formsRing && changedRings.has(pair.formsRing.name || pair.cohortRingName);
+          const sparringChanged = pair.sparringRing && changedRings.has(pair.sparringRing.name || pair.cohortRingName);
+          const hasChanged = formsChanged || sparringChanged;
+
+          // Get participant counts for balance indicators
+          const formsCount = pair.formsRing?.participantIds?.length || 0;
+          const sparringCount = pair.sparringRing?.participantIds?.length || 0;
+          const formsBalance = getRingBalanceStyle(formsCount);
+          const sparringBalance = getRingBalanceStyle(sparringCount);
+
+          return (
           <div
             key={pair.cohortRingName}
             style={{
-              border: '2px solid #ddd',
+              border: hasChanged ? '3px solid #ffc107' : '2px solid #ddd',
               borderRadius: '8px',
               padding: '15px',
               marginBottom: '20px',
-              backgroundColor: 'white',
+              backgroundColor: hasChanged ? '#fffef5' : 'white',
+              boxShadow: hasChanged ? '0 0 8px rgba(255, 193, 7, 0.4)' : undefined,
             }}
           >
             <h4
@@ -437,17 +673,58 @@ function RingOverview() {
                 color: '#333',
                 fontSize: '18px',
                 fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px',
               }}
             >
-              <span style={{ color: '#007bff', marginRight: '15px' }}>
+              <span style={{ color: '#007bff' }}>
                 {pair.division}
               </span>
               <span>
                 {pair.cohortRingName}
               </span>
               {pair.physicalRingName && (
-                <span style={{ marginLeft: '15px', color: '#28a745', fontSize: '16px', fontWeight: '600' }}>
+                <span style={{ color: '#28a745', fontSize: '16px', fontWeight: '600' }}>
                   ({pair.physicalRingName})
+                </span>
+              )}
+              {hasChanged && (
+                <span style={{
+                  backgroundColor: '#ffc107',
+                  color: '#000',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                }}>
+                  CHANGED
+                </span>
+              )}
+              {/* Balance indicators */}
+              {formsCount > 0 && (
+                <span style={{
+                  backgroundColor: formsBalance.bg,
+                  color: formsBalance.color,
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                }} title={`Forms: ${formsCount} participants (${formsBalance.label})`}>
+                  F:{formsCount}
+                </span>
+              )}
+              {sparringCount > 0 && (
+                <span style={{
+                  backgroundColor: sparringBalance.bg,
+                  color: sparringBalance.color,
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                }} title={`Sparring: ${sparringCount} participants (${sparringBalance.label})`}>
+                  S:{sparringCount}
                 </span>
               )}
             </h4>
@@ -455,16 +732,17 @@ function RingOverview() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
               {/* Forms Column */}
               <div>
-                {renderRingTable(pair.formsRing, 'forms')}
+                {renderRingTable(pair.formsRing, 'forms', pair.physicalRingName || pair.cohortRingName)}
               </div>
 
               {/* Sparring Column */}
               <div>
-                {renderRingTable(pair.sparringRing, 'sparring')}
+                {renderRingTable(pair.sparringRing, 'sparring', pair.physicalRingName || pair.cohortRingName)}
               </div>
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );

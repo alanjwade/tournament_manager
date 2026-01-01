@@ -268,3 +268,13 @@ code {
 .mt-2 {
   margin-top: 20px;
 }
+
+/* Highlight pulse animation for search results */
+@keyframes highlight-pulse {
+  0%, 100% {
+    background-color: #fff3cd;
+  }
+  50% {
+    background-color: #ffe69c;
+  }
+}

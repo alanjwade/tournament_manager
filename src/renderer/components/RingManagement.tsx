@@ -1,10 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { assignRingsForAllCohorts, mapSparringToForms } from '../utils/ringAssignment';
 import { CompetitionRing } from '../types/tournament';
 import { computeCompetitionRings } from '../utils/computeRings';
 
-function RingManagement() {
+interface RingManagementProps {
+  globalDivision?: string;
+}
+
+function RingManagement({ globalDivision }: RingManagementProps) {
   const participants = useTournamentStore((state) => state.participants);
   const cohorts = useTournamentStore((state) => state.cohorts);
   const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
@@ -18,8 +22,15 @@ function RingManagement() {
     [participants, cohorts, cohortRingMappings]
   );
 
-  const [selectedDivision, setSelectedDivision] = useState<string>('Black Belt');
+  const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt');
   const [numPhysicalRings, setNumPhysicalRings] = useState<number>(14);
+
+  // Sync with global division when it changes
+  useEffect(() => {
+    if (globalDivision && globalDivision !== 'all') {
+      setSelectedDivision(globalDivision);
+    }
+  }, [globalDivision]);
 
   // Helper function to sort cohorts by age, then gender
   const sortCohorts = (cohortList: typeof cohorts) => {

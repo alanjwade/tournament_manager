@@ -1,16 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { getEffectiveDivision } from '../utils/excelParser';
 import { Participant } from '../types/tournament';
 import { computeCompetitionRings } from '../utils/computeRings';
 
-function DataViewer() {
+interface DataViewerProps {
+  globalDivision?: string;
+}
+
+function DataViewer({ globalDivision }: DataViewerProps) {
   const participants = useTournamentStore((state) => state.participants);
   const cohorts = useTournamentStore((state) => state.cohorts);
   const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
+  
+  // State for highlighted participant from search
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -40,6 +48,59 @@ function DataViewer() {
     formsOrder: '',
     sparringOrder: '',
   });
+
+  // Sync with global division when it changes
+  useEffect(() => {
+    if (globalDivision && globalDivision !== 'all') {
+      setFilters(prev => ({
+        ...prev,
+        formsDivision: globalDivision,
+        sparringDivision: globalDivision,
+      }));
+    }
+  }, [globalDivision]);
+
+  // Check for highlighted participant from global search
+  useEffect(() => {
+    const storedId = sessionStorage.getItem('highlightParticipant');
+    if (storedId) {
+      sessionStorage.removeItem('highlightParticipant');
+      setHighlightedId(storedId);
+      
+      // Clear all filters to ensure participant is visible
+      setFilters({
+        firstName: '',
+        lastName: '',
+        age: '',
+        gender: '',
+        heightFeet: '',
+        heightInches: '',
+        school: '',
+        branch: '',
+        formsDivision: '',
+        sparringDivision: '',
+        formsCohort: '',
+        sparringCohort: '',
+        formsRing: '',
+        sparringRing: '',
+        formsPhysicalRing: '',
+        sparringPhysicalRing: '',
+        sparringAltRing: '',
+        formsOrder: '',
+        sparringOrder: '',
+      });
+      
+      // Clear highlight after 5 seconds
+      setTimeout(() => setHighlightedId(null), 5000);
+    }
+  }, []);
+
+  // Scroll to highlighted row when it becomes visible
+  useEffect(() => {
+    if (highlightedId && highlightedRowRef.current) {
+      highlightedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightedId]);
 
   // Get cohort name by ID
   const getCohortName = (cohortId?: string) => {
@@ -582,9 +643,19 @@ function DataViewer() {
               const sparringPhysicalMapping = physicalRingMappings.find(m => 
                 sparringCohort && p.sparringCohortRing && m.cohortRingName === `${sparringCohort.name}_${p.sparringCohortRing}`
               );
+
+              const isHighlighted = p.id === highlightedId;
               
               return (
-              <tr key={p.id}>
+              <tr 
+                key={p.id}
+                ref={isHighlighted ? highlightedRowRef : undefined}
+                style={{
+                  backgroundColor: isHighlighted ? '#fff3cd' : undefined,
+                  boxShadow: isHighlighted ? 'inset 0 0 0 2px #ffc107' : undefined,
+                  animation: isHighlighted ? 'highlight-pulse 1s ease-in-out 3' : undefined,
+                }}
+              >
                 <td style={{ padding: '8px', border: '1px solid #ddd' }}>{p.firstName}</td>
                 <td style={{ padding: '8px', border: '1px solid #ddd' }}>{p.lastName}</td>
                 <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>

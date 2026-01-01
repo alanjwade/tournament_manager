@@ -9,7 +9,11 @@ import { computeCompetitionRings } from '../utils/computeRings';
 import { CompetitionRing } from '../types/tournament';
 import logoImage from '../assets/logos/logo_orig_dark_letters.png';
 
-function PDFExport() {
+interface PDFExportProps {
+  globalDivision?: string;
+}
+
+function PDFExport({ globalDivision }: PDFExportProps) {
   const participants = useTournamentStore((state) => state.participants);
   const cohorts = useTournamentStore((state) => state.cohorts);
   const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
@@ -42,7 +46,9 @@ function PDFExport() {
     [participants, cohorts, cohortRingMappings]
   );
   
-  const [selectedDivision, setSelectedDivision] = useState<string>('Black Belt');
+  const [selectedDivision, setSelectedDivision] = useState<string>(
+    globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt'
+  );
   const [exporting, setExporting] = useState(false);
   
   // State for forms/sparring advanced options
@@ -54,6 +60,13 @@ function PDFExport() {
   const [selectedSparringRings, setSelectedSparringRings] = useState<Set<string>>(new Set());
   const [selectedFormsCheckpoint, setSelectedFormsCheckpoint] = useState<string>('');
   const [selectedSparringCheckpoint, setSelectedSparringCheckpoint] = useState<string>('');
+  
+  // Sync with global division when it changes
+  useEffect(() => {
+    if (globalDivision && globalDivision !== 'all') {
+      setSelectedDivision(globalDivision);
+    }
+  }, [globalDivision]);
   
   // Get sorted checkpoints (latest first)
   const sortedCheckpoints = useMemo(() => {

@@ -1,5 +1,3 @@
-check-in-Black Belt.pdf
-name-tags-Black Belt.pdf
 # Dependencies
 node_modules/
 package-lock.json
@@ -9,6 +7,9 @@ yarn.lock
 dist/
 build/
 out/
+release/
+
+# Electron app binaries
 *.exe
 *.dmg
 *.AppImage
@@ -16,7 +17,8 @@ out/
 *.rpm
 
 # IDE and editor files
-.vscode/
+.vscode/settings.json
+.vscode/launch.json
 .idea/
 *.swp
 *.swo
@@ -42,7 +44,10 @@ yarn-error.log*
 
 # OS files
 Thumbs.db
-*.pdf
-*.png
-*.jpg
-*.jpeg
+
+# Generated PDF outputs (tournament day)
+pdf_outputs/
+
+# Session/state files (user data)
+tournament-state.json
+*.session

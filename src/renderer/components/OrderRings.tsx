@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { orderFormsRing, orderSparringRing, checkSparringAltRingStatus } from '../utils/ringOrdering';
 import { computeCompetitionRings } from '../utils/computeRings';
@@ -8,14 +8,29 @@ interface RingPair {
   formsRing?: any;
   sparringRing?: any;
   physicalRingName?: string;
+  division: string;
 }
 
-function OrderRings() {
+interface OrderRingsProps {
+  globalDivision?: string;
+}
+
+function OrderRings({ globalDivision }: OrderRingsProps) {
   const participants = useTournamentStore((state) => state.participants);
   const cohorts = useTournamentStore((state) => state.cohorts);
   const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
+  const config = useTournamentStore((state) => state.config);
+
+  const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision || 'all');
+
+  // Sync with global division when it changes
+  useEffect(() => {
+    if (globalDivision) {
+      setSelectedDivision(globalDivision);
+    }
+  }, [globalDivision]);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -41,6 +56,7 @@ function OrderRings() {
         pairMap.set(key, { 
           cohortRingName: ringName,
           physicalRingName: mapping?.physicalRingName,
+          division: ring.division,
         });
       }
       
@@ -53,7 +69,12 @@ function OrderRings() {
       }
     });
 
-    const pairs = Array.from(pairMap.values());
+    let pairs = Array.from(pairMap.values());
+
+    // Filter by selected division
+    if (selectedDivision !== 'all') {
+      pairs = pairs.filter(p => p.division === selectedDivision);
+    }
 
     // Sort by physical ring name if available, otherwise by cohort ring name
     return pairs.sort((a, b) => {
@@ -84,7 +105,7 @@ function OrderRings() {
       
       return a.cohortRingName.localeCompare(b.cohortRingName);
     });
-  }, [competitionRings, physicalRingMappings]);
+  }, [competitionRings, physicalRingMappings, selectedDivision]);
 
   const handleOrderAllRings = () => {
     if (!confirm('This will order all Forms and Sparring rings. Continue?')) {
@@ -311,7 +332,20 @@ function OrderRings() {
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <h2 className="card-title" style={{ flexShrink: 0 }}>Order Rings</h2>
 
-      <div style={{ flexShrink: 0, marginBottom: '20px' }}>
+      <div style={{ flexShrink: 0, marginBottom: '20px', display: 'flex', gap: '20px', alignItems: 'center' }}>
+        <div>
+          <label style={{ marginRight: '10px' }}>Division:</label>
+          <select
+            value={selectedDivision}
+            onChange={(e) => setSelectedDivision(e.target.value)}
+            style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
+          >
+            <option value="all">All Divisions</option>
+            {config.divisions.map(d => (
+              <option key={d.name} value={d.name}>{d.name}</option>
+            ))}
+          </select>
+        </div>
         <button
           className="btn btn-primary"
           onClick={handleOrderAllRings}

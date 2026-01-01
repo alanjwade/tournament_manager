@@ -8,7 +8,10 @@
     "dev": "concurrently \"npm run build:watch\" \"wait-on dist/src/main/index.js && electron .\"",
     "build": "tsc && vite build",
     "build:watch": "tsc && concurrently \"tsc --watch\" \"vite build --watch\"",
-    "package": "electron-builder"
+    "package": "electron-builder",
+    "package:win": "electron-builder --win",
+    "package:linux": "electron-builder --linux",
+    "package:all": "electron-builder --win --linux"
   },
   "keywords": [
     "tournament",
@@ -62,8 +65,11 @@
     },
     "win": {
       "target": [
-        "nsis"
-      ]
+        "dir",
+        "zip"
+      ],
+      "icon": "src/renderer/assets/icons/app-icon.png",
+      "signAndEditExecutable": false
     }
   }
 }

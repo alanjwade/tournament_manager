@@ -1,10 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useTournamentStore } from '../store/tournamentStore';
 import { Cohort } from '../types/tournament';
 import { getEffectiveDivision } from '../utils/excelParser';
 
-function CohortManagement() {
+interface CohortManagementProps {
+  globalDivision?: string;
+}
+
+function CohortManagement({ globalDivision }: CohortManagementProps) {
   const participants = useTournamentStore((state) => state.participants);
   const cohorts = useTournamentStore((state) => state.cohorts);
   const config = useTournamentStore((state) => state.config);
@@ -12,10 +16,17 @@ function CohortManagement() {
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const updateCohort = useTournamentStore((state) => state.updateCohort);
 
-  const [selectedDivision, setSelectedDivision] = useState('Black Belt');
+  const [selectedDivision, setSelectedDivision] = useState(globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt');
   const [selectedGender, setSelectedGender] = useState<'male' | 'female' | 'mixed'>('mixed');
   const [selectedAges, setSelectedAges] = useState<Set<string>>(new Set());
   const [numRings, setNumRings] = useState(1);
+
+  // Sync with global division when it changes
+  useEffect(() => {
+    if (globalDivision && globalDivision !== 'all') {
+      setSelectedDivision(globalDivision);
+    }
+  }, [globalDivision]);
 
   // Get unique ages from participants in selected division
   const availableAges = useMemo(() => {
