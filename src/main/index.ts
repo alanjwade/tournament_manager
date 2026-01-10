@@ -155,12 +155,14 @@ ipcMain.handle('load-autosave', async () => {
     
     if (fs.existsSync(autosavePath)) {
       const data = fs.readFileSync(autosavePath, 'utf8');
+      console.log('Autosave file loaded successfully');
       return { success: true, data, path: autosavePath };
     }
+    console.log('No autosave file found at:', autosavePath);
     return { success: true, data: null, path: autosavePath };
   } catch (error) {
     console.error('Error loading autosave:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: String(error), path: 'unknown' };
   }
 });
 

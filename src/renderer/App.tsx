@@ -166,10 +166,12 @@ function App() {
       console.log('App mounted - checking for autosave');
       try {
         const result = await window.electronAPI.loadAutosave();
+        console.log('Autosave load result - Path:', result?.path, 'Has data:', !!result?.data);
         
         if (result?.success && result.data) {
           const state = JSON.parse(result.data);
           const defaultConfig = useTournamentStore.getState().config;
+          console.log('Loaded', state.participants?.length || 0, 'participants from:', result.path);
           
           // Merge divisions to preserve abbreviations from default config
           const mergedDivisions = (state.config?.divisions || []).map((savedDiv: any) => {
@@ -193,6 +195,8 @@ function App() {
             physicalRingMappings: state.physicalRingMappings || [],
             categoryPoolMappings: state.categoryPoolMappings || [],
           });
+        } else if (result?.path) {
+          console.log('No autosave file found. Would save to:', result.path);
         }
       } catch (error) {
         console.error('Failed to load autosave:', error);

@@ -211,13 +211,12 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
       return;
     }
 
-    const changedFormsRings = filteredRingPairs
-      .filter(pair => changedRings.has(pair.cohortRingName) && pair.formsRing)
-      .map(pair => pair.formsRing!);
+    // Get all competition rings that have changed (from full set, not filtered)
+    const changedFormsRings = competitionRings
+      .filter(ring => ring.type === 'forms' && changedRings.has(ring.name || ring.division));
     
-    const changedSparringRings = filteredRingPairs
-      .filter(pair => changedRings.has(pair.cohortRingName) && pair.sparringRing)
-      .map(pair => pair.sparringRing!);
+    const changedSparringRings = competitionRings
+      .filter(ring => ring.type === 'sparring' && changedRings.has(ring.name || ring.division));
 
     setPrinting('all-changed');
     try {
