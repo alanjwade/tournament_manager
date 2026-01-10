@@ -78,11 +78,18 @@ ipcMain.handle('select-file', async () => {
 function getDataPath(): string {
   // Check if running as portable (look for "portable" in the exe path/name)
   const exePath = app.getPath('exe');
-  const isPortable = exePath.includes('portable') || 
-                     exePath.includes('-portable') ||
+  const exeName = path.basename(exePath);
+  const isPortable = exePath.toLowerCase().includes('portable') || 
+                     exeName.toLowerCase().includes('portable') ||
                      process.env.PORTABLE_EXECUTABLE_DIR;
   
-  console.log('Portable detection - exePath:', exePath, 'isPortable:', isPortable, 'isPackaged:', app.isPackaged);
+  console.log('===== PORTABLE DETECTION =====');
+  console.log('exePath:', exePath);
+  console.log('exeName:', exeName);
+  console.log('isPackaged:', app.isPackaged);
+  console.log('isPortable (detected):', isPortable);
+  console.log('PORTABLE_EXECUTABLE_DIR env:', process.env.PORTABLE_EXECUTABLE_DIR);
+  console.log('=============================');
   
   if (isPortable) {
     // For portable: save next to the executable
@@ -95,19 +102,23 @@ function getDataPath(): string {
     if (!fs.existsSync(dataDir)) {
       try {
         fs.mkdirSync(dataDir, { recursive: true });
-        console.log('Created portable data directory:', dataDir);
+        console.log('Successfully created portable data directory:', dataDir);
       } catch (error) {
-        console.warn('Could not create portable data directory, falling back to userData:', error);
+        console.error('Error creating portable data directory:', error);
+        console.warn('Falling back to userData');
         return app.getPath('userData');
       }
+    } else {
+      console.log('Portable data directory already exists:', dataDir);
     }
     
     return dataDir;
   }
   
   // Default: use userData directory
-  console.log('Using userData directory:', app.getPath('userData'));
-  return app.getPath('userData');
+  const userDataPath = app.getPath('userData');
+  console.log('Using userData directory:', userDataPath);
+  return userDataPath;
 }
 
 ipcMain.handle('save-autosave', async (event, data: string) => {
