@@ -76,20 +76,26 @@ ipcMain.handle('select-file', async () => {
 // Autosave handlers
 // For portable builds, prefer saving in the app directory if possible
 function getDataPath(): string {
-  // Check if running as portable (look for "portable" in process.execPath or app.isPackaged)
-  const isPortable = process.env.PORTABLE_EXECUTABLE_DIR || 
-                     app.getPath('exe').includes('portable') ||
-                     app.getName().toLowerCase().includes('portable');
+  // Check if running as portable (look for "portable" in the exe path/name)
+  const exePath = app.getPath('exe');
+  const isPortable = exePath.includes('portable') || 
+                     exePath.includes('-portable') ||
+                     process.env.PORTABLE_EXECUTABLE_DIR;
   
-  if (isPortable && app.isPackaged) {
+  console.log('Portable detection - exePath:', exePath, 'isPortable:', isPortable, 'isPackaged:', app.isPackaged);
+  
+  if (isPortable) {
     // For portable: save next to the executable
-    const appDir = path.dirname(app.getPath('exe'));
+    const appDir = path.dirname(exePath);
     const dataDir = path.join(appDir, 'tournament-data');
+    
+    console.log('Using portable data directory:', dataDir);
     
     // Create directory if it doesn't exist
     if (!fs.existsSync(dataDir)) {
       try {
         fs.mkdirSync(dataDir, { recursive: true });
+        console.log('Created portable data directory:', dataDir);
       } catch (error) {
         console.warn('Could not create portable data directory, falling back to userData:', error);
         return app.getPath('userData');
@@ -100,6 +106,7 @@ function getDataPath(): string {
   }
   
   // Default: use userData directory
+  console.log('Using userData directory:', app.getPath('userData'));
   return app.getPath('userData');
 }
 

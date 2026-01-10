@@ -173,7 +173,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
     (overallStats.participatingParticipants - overallStats.withCohort);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px' }}>
       <h2 style={{ marginBottom: '20px', color: '#333' }}>Tournament Dashboard</h2>
 
       {/* Quick Stats Cards */}

@@ -1083,7 +1083,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   }
 
   return (
-    <div className="card" style={{ maxWidth: '1400px', margin: '0 auto', maxHeight: '100vh', overflowY: 'auto' }}>
+    <div className="card" style={{ maxHeight: '100vh', overflowY: 'auto' }}>
       {/* Quick Edit Modal */}
       {renderQuickEditModal()}
       

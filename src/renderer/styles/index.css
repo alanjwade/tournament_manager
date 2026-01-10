@@ -192,6 +192,7 @@ code {
   border-bottom: 2px solid #ddd;
   margin-bottom: 20px;
   flex-shrink: 0;
+  width: fit-content;
 }
 
 .tab {
@@ -218,9 +219,11 @@ code {
 .tab-content {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   display: flex;
   flex-direction: column;
+  width: fit-content;
+  min-width: 0;
 }
 
 .grid {

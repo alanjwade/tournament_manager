@@ -42,8 +42,8 @@ function PDFExport({ globalDivision }: PDFExportProps) {
   
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
   
   const [selectedDivision, setSelectedDivision] = useState<string>(
@@ -230,7 +230,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       physicalRingMappings,
       config.schoolAbbreviations,
       logoDataUrl,
-      cohorts
+      categories
     );
     await savePDF(pdf, `name-tags-${selectedDivision}.pdf`);
   };
@@ -246,7 +246,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       selectedDivision,
       config.physicalRings,
       physicalRingMappings,
-      cohorts
+      categories
     );
     await savePDF(pdf, `check-in-${selectedDivision}.pdf`);
   };
@@ -431,7 +431,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     });
 
     const divisionFilter = selectedDivision || 'all';
-    const pdf = generateRingOverviewPDF(participants, ringPairs, cohorts, divisionFilter);
+    const pdf = generateRingOverviewPDF(participants, ringPairs, categories, divisionFilter);
     const filename = divisionFilter === 'all' 
       ? 'ring-overview-all-divisions.pdf' 
       : `ring-overview-${divisionFilter}.pdf`;
