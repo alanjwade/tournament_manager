@@ -27,8 +27,6 @@ jobs:
       
       - name: Package for Windows
         run: npm run package:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: List release files
         run: dir release
