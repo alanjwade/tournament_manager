@@ -163,15 +163,19 @@ function App() {
   // Load autosave on mount
   useEffect(() => {
     const loadAutosave = async () => {
-      console.log('App mounted - checking for autosave');
       try {
+        console.log('App mounted - checking for autosave');
         const result = await window.electronAPI.loadAutosave();
-        console.log('Autosave load result - Path:', result?.path, 'Has data:', !!result?.data);
+        console.log('Load result received:', {
+          success: result?.success,
+          hasData: !!result?.data,
+          path: result?.path || 'NO_PATH_RETURNED'
+        });
         
         if (result?.success && result.data) {
           const state = JSON.parse(result.data);
           const defaultConfig = useTournamentStore.getState().config;
-          console.log('Loaded', state.participants?.length || 0, 'participants from:', result.path);
+          console.log(`✓ Loaded ${state.participants?.length || 0} participants from: ${result.path}`);
           
           // Merge divisions to preserve abbreviations from default config
           const mergedDivisions = (state.config?.divisions || []).map((savedDiv: any) => {
@@ -195,8 +199,8 @@ function App() {
             physicalRingMappings: state.physicalRingMappings || [],
             categoryPoolMappings: state.categoryPoolMappings || [],
           });
-        } else if (result?.path) {
-          console.log('No autosave file found. Would save to:', result.path);
+        } else if (!result?.data) {
+          console.log('No autosave data found. Save path will be: ' + (result?.path || 'unknown'));
         }
       } catch (error) {
         console.error('Failed to load autosave:', error);

@@ -82,19 +82,17 @@ function getDataPath(): string {
   const lowerExePath = exePath.toLowerCase();
   const lowerExeName = exeName.toLowerCase();
   
-  // More robust portable detection
-  const isPortable = lowerExePath.includes('portable') || 
-                     lowerExeName.includes('portable') ||
-                     lowerExePath.includes('appdata\\local\\temp') === false && 
-                     lowerExePath.includes('program files') === false &&
-                     process.env.PORTABLE_EXECUTABLE_DIR;
-  
   console.log('===== PORTABLE DETECTION =====');
   console.log('exePath:', exePath);
   console.log('exeName:', exeName);
   console.log('isPackaged:', app.isPackaged);
+  console.log('lowerExePath includes portable:', lowerExePath.includes('portable'));
+  console.log('lowerExeName includes portable:', lowerExeName.includes('portable'));
+  
+  // Portable detection: if "portable" is in the exe name or path
+  const isPortable = lowerExePath.includes('portable') || lowerExeName.includes('portable');
+  
   console.log('isPortable (detected):', isPortable);
-  console.log('PORTABLE_EXECUTABLE_DIR env:', process.env.PORTABLE_EXECUTABLE_DIR);
   console.log('=============================');
   
   if (isPortable) {

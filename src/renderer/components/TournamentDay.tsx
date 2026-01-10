@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import jsPDF from 'jspdf';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
@@ -204,7 +205,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
     }
   };
 
-  // Print all changed rings
+  // Print all changed rings combined into one PDF
   const handlePrintAllChanged = async () => {
     if (changedRings.size === 0) {
       alert('No rings have changed since the last checkpoint.');
@@ -220,6 +221,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
 
     setPrinting('all-changed');
     try {
+      const allPdfs: { pdf: jsPDF; pages: number }[] = [];
+
       // Group by division for forms
       const formsByDivision = new Map<string, CompetitionRing[]>();
       changedFormsRings.forEach(ring => {
@@ -227,7 +230,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
         formsByDivision.set(ring.division, [...existing, ring]);
       });
 
-      // Generate and print forms PDFs
+      // Generate forms PDFs
       for (const [division, rings] of formsByDivision) {
         if (rings.length > 0) {
           const pdf = generateFormsScoringSheets(
@@ -238,23 +241,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
             config.watermarkImage,
             physicalRingMappings
           );
-          
-          const pdfBlob = pdf.output('blob');
-          const pdfUrl = URL.createObjectURL(pdfBlob);
-          const printWindow = window.open(pdfUrl);
-          if (printWindow) {
-            await new Promise<void>(resolve => {
-              printWindow.addEventListener('load', () => {
-                printWindow.print();
-                setTimeout(() => {
-                  URL.revokeObjectURL(pdfUrl);
-                  resolve();
-                }, 500);
-              });
-            });
-          } else {
-            URL.revokeObjectURL(pdfUrl);
-          }
+          const pageCount = (pdf as any).internal.pages.length - 1;
+          allPdfs.push({ pdf, pages: pageCount });
         }
       }
 
@@ -265,7 +253,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
         sparringByDivision.set(ring.division, [...existing, ring]);
       });
 
-      // Generate and print sparring PDFs
+      // Generate sparring PDFs
       for (const [division, rings] of sparringByDivision) {
         if (rings.length > 0) {
           const pdf = generateSparringBrackets(
@@ -276,24 +264,51 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
             config.watermarkImage,
             physicalRingMappings
           );
-          
-          const pdfBlob = pdf.output('blob');
-          const pdfUrl = URL.createObjectURL(pdfBlob);
-          const printWindow = window.open(pdfUrl);
-          if (printWindow) {
-            await new Promise<void>(resolve => {
-              printWindow.addEventListener('load', () => {
-                printWindow.print();
-                setTimeout(() => {
-                  URL.revokeObjectURL(pdfUrl);
-                  resolve();
-                }, 500);
-              });
-            });
-          } else {
-            URL.revokeObjectURL(pdfUrl);
-          }
+          const pageCount = (pdf as any).internal.pages.length - 1;
+          allPdfs.push({ pdf, pages: pageCount });
         }
+      }
+
+      // Combine all PDFs into one
+      if (allPdfs.length === 0) {
+        alert('No PDFs generated for changed rings.');
+        return;
+      }
+
+      const masterPdf = allPdfs[0].pdf;
+      
+      // Add pages from all other PDFs to the first one
+      for (let i = 1; i < allPdfs.length; i++) {
+        const { pdf, pages } = allPdfs[i];
+        
+        for (let pageNum = 1; pageNum <= pages; pageNum++) {
+          // Add a new page with same dimensions as source
+          const width = (pdf as any).internal.pageSize.getWidth();
+          const height = (pdf as any).internal.pageSize.getHeight();
+          masterPdf.addPage([width, height]);
+          
+          // Copy page content using getImageProperties and addImage
+          const pageData = pdf.output('dataurlstring');
+          masterPdf.addImage(pageData, 'PDF', 0, 0, width, height, undefined, 'FAST');
+        }
+      }
+
+      // Open the combined PDF in a single print dialog
+      const pdfBlob = masterPdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(pdfUrl);
+      if (printWindow) {
+        await new Promise<void>(resolve => {
+          printWindow.addEventListener('load', () => {
+            printWindow.print();
+            setTimeout(() => {
+              URL.revokeObjectURL(pdfUrl);
+              resolve();
+            }, 500);
+          });
+        });
+      } else {
+        URL.revokeObjectURL(pdfUrl);
       }
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
