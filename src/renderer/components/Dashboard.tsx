@@ -9,56 +9,46 @@ interface DashboardProps {
 
 function Dashboard({ onNavigate }: DashboardProps) {
   const participants = useTournamentStore((state) => state.participants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
   const checkpoints = useTournamentStore((state) => state.checkpoints);
 
   // Compute competition rings
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
 
   // Calculate statistics by division
   const divisionStats = useMemo(() => {
     const stats = new Map<string, {
       total: number;
-      formsAssigned: number;
-      sparringAssigned: number;
-      formsRingAssigned: number;
-      sparringRingAssigned: number;
+      cohortAssigned: number;
+      ringAssigned: number;
     }>();
 
     // Initialize stats for each division
     config.divisions.forEach(div => {
       stats.set(div.name, {
         total: 0,
-        formsAssigned: 0,
-        sparringAssigned: 0,
-        formsRingAssigned: 0,
-        sparringRingAssigned: 0,
+        cohortAssigned: 0,
+        ringAssigned: 0,
       });
     });
 
     // Count participants per division
     participants.forEach(p => {
       const formsDivision = getEffectiveDivision(p, 'forms');
-      const sparringDivision = getEffectiveDivision(p, 'sparring');
-
+      
       if (formsDivision && stats.has(formsDivision)) {
         const s = stats.get(formsDivision)!;
         s.total++;
-        if (p.formsCohortId) s.formsAssigned++;
-        if (p.formsCohortRing) s.formsRingAssigned++;
-      }
-
-      if (sparringDivision && stats.has(sparringDivision)) {
-        const s = stats.get(sparringDivision)!;
-        if (formsDivision !== sparringDivision) s.total++; // Only count if different division
-        if (p.sparringCohortId) s.sparringAssigned++;
-        if (p.sparringCohortRing) s.sparringRingAssigned++;
+        // A participant is assigned to a category if they have either forms or sparring category (usually the same)
+        if (p.formsCategoryId || p.sparringCategoryId) s.cohortAssigned++;
+        // A participant has a ring if they have either forms or sparring ring (usually the same)
+        if (p.formsPool || p.sparringPool) s.ringAssigned++;
       }
     });
 
@@ -67,34 +57,21 @@ function Dashboard({ onNavigate }: DashboardProps) {
 
   // Overall statistics
   const overallStats = useMemo(() => {
-    const formsParticipants = participants.filter(p => p.competingForms);
-    const sparringParticipants = participants.filter(p => p.competingSparring);
+    const participatingParticipants = participants.filter(p => p.competingForms || p.competingSparring);
 
-    const formsWithCohort = formsParticipants.filter(p => p.formsCohortId);
-    const sparringWithCohort = sparringParticipants.filter(p => p.sparringCohortId);
-
-    const formsWithRing = formsParticipants.filter(p => p.formsCohortRing);
-    const sparringWithRing = sparringParticipants.filter(p => p.sparringCohortRing);
+    const withCohort = participatingParticipants.filter(p => p.formsCategoryId || p.sparringCategoryId);
+    const withRing = participatingParticipants.filter(p => p.formsPool || p.sparringPool);
 
     return {
       totalParticipants: participants.length,
-      formsParticipants: formsParticipants.length,
-      sparringParticipants: sparringParticipants.length,
-      formsWithCohort: formsWithCohort.length,
-      sparringWithCohort: sparringWithCohort.length,
-      formsWithRing: formsWithRing.length,
-      sparringWithRing: sparringWithRing.length,
-      formsCohortPercent: formsParticipants.length > 0 
-        ? Math.round((formsWithCohort.length / formsParticipants.length) * 100) 
+      participatingParticipants: participatingParticipants.length,
+      withCohort: withCohort.length,
+      withRing: withRing.length,
+      cohortPercent: participatingParticipants.length > 0 
+        ? Math.round((withCohort.length / participatingParticipants.length) * 100) 
         : 0,
-      sparringCohortPercent: sparringParticipants.length > 0 
-        ? Math.round((sparringWithCohort.length / sparringParticipants.length) * 100) 
-        : 0,
-      formsRingPercent: formsParticipants.length > 0 
-        ? Math.round((formsWithRing.length / formsParticipants.length) * 100) 
-        : 0,
-      sparringRingPercent: sparringParticipants.length > 0 
-        ? Math.round((sparringWithRing.length / sparringParticipants.length) * 100) 
+      ringPercent: participatingParticipants.length > 0 
+        ? Math.round((withRing.length / participatingParticipants.length) * 100) 
         : 0,
     };
   }, [participants]);
@@ -141,24 +118,14 @@ function Dashboard({ onNavigate }: DashboardProps) {
         tab: 'import',
       },
       {
-        name: 'Assign Cohorts',
-        status: overallStats.formsCohortPercent === 100 && overallStats.sparringCohortPercent === 100 
+        name: 'Assign Categories',
+        status: overallStats.cohortPercent === 100 
           ? 'complete' 
-          : overallStats.formsCohortPercent > 0 || overallStats.sparringCohortPercent > 0 
+          : overallStats.cohortPercent > 0 
             ? 'in-progress' 
             : 'pending',
-        detail: `Forms: ${overallStats.formsCohortPercent}%, Sparring: ${overallStats.sparringCohortPercent}%`,
-        tab: 'cohorts',
-      },
-      {
-        name: 'Assign Rings',
-        status: overallStats.formsRingPercent === 100 && overallStats.sparringRingPercent === 100 
-          ? 'complete' 
-          : overallStats.formsRingPercent > 0 || overallStats.sparringRingPercent > 0 
-            ? 'in-progress' 
-            : 'pending',
-        detail: `Forms: ${overallStats.formsRingPercent}%, Sparring: ${overallStats.sparringRingPercent}%`,
-        tab: 'rings',
+        detail: `${overallStats.cohortPercent}% assigned (auto-assigned to pools)`,
+        tab: 'categories',
       },
       {
         name: 'Map Physical Rings',
@@ -203,8 +170,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
 
   // Count all warnings
   const warningCount = ringAnalysis.length + mappingAnalysis.length + 
-    (overallStats.formsParticipants - overallStats.formsWithCohort) +
-    (overallStats.sparringParticipants - overallStats.sparringWithCohort);
+    (overallStats.participatingParticipants - overallStats.withCohort);
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -235,8 +201,8 @@ function Dashboard({ onNavigate }: DashboardProps) {
           borderRadius: '8px',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '36px', fontWeight: 'bold' }}>{cohorts.length}</div>
-          <div style={{ fontSize: '14px', opacity: 0.9 }}>Cohorts</div>
+          <div style={{ fontSize: '36px', fontWeight: 'bold' }}>{categories.length}</div>
+          <div style={{ fontSize: '14px', opacity: 0.9 }}>Categories</div>
         </div>
 
         <div style={{
@@ -314,8 +280,8 @@ function Dashboard({ onNavigate }: DashboardProps) {
             <tr style={{ borderBottom: '2px solid #ddd' }}>
               <th style={{ padding: '10px', textAlign: 'left' }}>Division</th>
               <th style={{ padding: '10px', textAlign: 'center' }}>Total</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Forms Cohort</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Sparring Cohort</th>
+              <th style={{ padding: '10px', textAlign: 'center' }}>Forms Category</th>
+              <th style={{ padding: '10px', textAlign: 'center' }}>Sparring Category</th>
               <th style={{ padding: '10px', textAlign: 'center' }}>Forms Ring</th>
               <th style={{ padding: '10px', textAlign: 'center' }}>Sparring Ring</th>
             </tr>
@@ -384,7 +350,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
           {/* Unassigned participants */}
           {overallStats.formsWithCohort < overallStats.formsParticipants && (
             <div 
-              onClick={() => onNavigate('cohorts')}
+              onClick={() => onNavigate('categories')}
               style={{ 
                 padding: '10px', 
                 backgroundColor: 'rgba(255,255,255,0.5)', 
@@ -393,14 +359,14 @@ function Dashboard({ onNavigate }: DashboardProps) {
                 cursor: 'pointer',
               }}
             >
-              <strong>{overallStats.formsParticipants - overallStats.formsWithCohort}</strong> forms participants not assigned to cohorts
-              <span style={{ float: 'right', color: '#007bff' }}>Go to Cohorts →</span>
+              <strong>{overallStats.formsParticipants - overallStats.formsWithCohort}</strong> forms participants not assigned to categories
+              <span style={{ float: 'right', color: '#007bff' }}>Go to Categories →</span>
             </div>
           )}
           
           {overallStats.sparringWithCohort < overallStats.sparringParticipants && (
             <div 
-              onClick={() => onNavigate('cohorts')}
+              onClick={() => onNavigate('categories')}
               style={{ 
                 padding: '10px', 
                 backgroundColor: 'rgba(255,255,255,0.5)', 
@@ -409,7 +375,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
                 cursor: 'pointer',
               }}
             >
-              <strong>{overallStats.sparringParticipants - overallStats.sparringWithCohort}</strong> sparring participants not assigned to cohorts
+              <strong>{overallStats.sparringParticipants - overallStats.sparringWithCohort}</strong> sparring participants not assigned to categories
               <span style={{ float: 'right', color: '#007bff' }}>Go to Cohorts →</span>
             </div>
           )}

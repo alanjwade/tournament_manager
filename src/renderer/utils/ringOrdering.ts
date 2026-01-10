@@ -6,11 +6,11 @@ import { Participant } from '../types/tournament';
  */
 export function checkSparringAltRingStatus(
   participants: Participant[],
-  cohortId: string,
-  cohortRing: string
+  categoryId: string,
+  pool: string
 ): { status: 'none' | 'all' | 'mixed'; countA: number; countB: number; countEmpty: number } {
   const ringParticipants = participants.filter(p => 
-    p.sparringCohortId === cohortId && p.sparringCohortRing === cohortRing
+    p.sparringCategoryId === categoryId && p.sparringPool === pool
   );
 
   const countA = ringParticipants.filter(p => p.sparringAltRing === 'a').length;
@@ -41,22 +41,22 @@ function hashName(firstName: string, lastName: string): number {
 /**
  * Order Forms participants by distributing schools and assigning rank order.
  * @param participants - All participants
- * @param cohortId - The cohort ID (or legacy ringId for backward compatibility)
- * @param cohortRing - Optional: The cohort ring identifier (e.g., "R1", "R2")
+ * @param categoryId - The category ID (or legacy ringId for backward compatibility)
+ * @param pool - Optional: The pool identifier (e.g., "R1", "R2")
  */
 export function orderFormsRing(
   participants: Participant[],
-  cohortId: string,
-  cohortRing?: string
+  categoryId: string,
+  pool?: string
 ): Participant[] {
   // Filter participants for this ring
   const ringParticipants = participants.filter((p) => {
-    // New approach: use formsCohortId and formsCohortRing
-    if (cohortRing) {
-      return p.formsCohortId === cohortId && p.formsCohortRing === cohortRing;
+    // New approach: use formsCategoryId and formsPool
+    if (pool) {
+      return p.formsCategoryId === categoryId && p.formsPool === pool;
     }
     // Legacy approach: use formsRingId (for backward compatibility)
-    return p.formsRingId === cohortId;
+    return p.formsRingId === categoryId;
   });
 
   if (ringParticipants.length === 0) {
@@ -134,10 +134,10 @@ export function orderFormsRing(
     }
   }
 
-  // Assign rank order numbers (10x the position for easy later changes)
+  // Assign rank order numbers (position for ordering)
   const orderedWithRanks = result.map((p, index) => ({
     ...p,
-    formsRankOrder: (index + 1) * 10,
+    formsRankOrder: index + 1,
   }));
   
   // Update all participants, replacing those in this ring with ordered versions
@@ -151,22 +151,22 @@ export function orderFormsRing(
  * Order Sparring participants by height and assign rank order.
  * Handles sparringAltRing subdivision ('a' and 'b' groups).
  * @param participants - All participants
- * @param cohortId - The cohort ID (or legacy ringId for backward compatibility)
- * @param cohortRing - Optional: The cohort ring identifier (e.g., "R1", "R2")
+ * @param categoryId - The category ID (or legacy ringId for backward compatibility)
+ * @param pool - Optional: The pool identifier (e.g., "R1", "R2")
  */
 export function orderSparringRing(
   participants: Participant[],
-  cohortId: string,
-  cohortRing?: string
+  categoryId: string,
+  pool?: string
 ): Participant[] {
   // Filter participants for this ring
   const ringParticipants = participants.filter((p) => {
-    // New approach: use sparringCohortId and sparringCohortRing
-    if (cohortRing) {
-      return p.sparringCohortId === cohortId && p.sparringCohortRing === cohortRing;
+    // New approach: use sparringCategoryId and sparringPool
+    if (pool) {
+      return p.sparringCategoryId === categoryId && p.sparringPool === pool;
     }
     // Legacy approach: use sparringRingId (for backward compatibility)
-    return p.sparringRingId === cohortId;
+    return p.sparringRingId === categoryId;
   });
 
   if (ringParticipants.length === 0) {
@@ -195,15 +195,15 @@ export function orderSparringRing(
       return heightA - heightB;
     });
 
-    // Assign rank orders: 'a' group first (10, 20, 30...), then 'b' group continues
+    // Assign rank orders: 'a' group first (1, 2, 3...), then 'b' group continues
     const rankedA = sortedA.map((p, index) => ({
       ...p,
-      sparringRankOrder: (index + 1) * 10,
+      sparringRankOrder: index + 1,
     }));
 
     const rankedB = sortedB.map((p, index) => ({
       ...p,
-      sparringRankOrder: (rankedA.length + index + 1) * 10,
+      sparringRankOrder: rankedA.length + index + 1,
     }));
 
     orderedWithRanks = [...rankedA, ...rankedB];
@@ -217,7 +217,7 @@ export function orderSparringRing(
 
     orderedWithRanks = sorted.map((p, index) => ({
       ...p,
-      sparringRankOrder: (index + 1) * 10,
+      sparringRankOrder: index + 1,
     }));
   }
 

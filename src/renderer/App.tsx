@@ -4,18 +4,16 @@ import { getEffectiveDivision } from './utils/excelParser';
 import { computeCompetitionRings } from './utils/computeRings';
 import Dashboard from './components/Dashboard';
 import DataImport from './components/DataImport';
-import CohortManagement from './components/CohortManagement';
-import RingManagement from './components/RingManagement';
+import CategoryManagement from './components/CategoryManagement';
 import RingOverview from './components/RingOverview';
 import PDFExport from './components/PDFExport';
 import DataViewer from './components/DataViewer';
 import RingMapEditor from './components/RingMapEditor';
-import OrderRings from './components/OrderRings';
 import Configuration from './components/Configuration';
 import CheckpointManager from './components/CheckpointManager';
 import TournamentDay from './components/TournamentDay';
 
-type Tab = 'dashboard' | 'import' | 'cohorts' | 'rings' | 'editor' | 'overview' | 'ringmap' | 'order' | 'export' | 'checkpoints' | 'tournament-day';
+type Tab = 'dashboard' | 'import' | 'categories' | 'editor' | 'overview' | 'ringmap' | 'export' | 'checkpoints' | 'tournament-day';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -23,8 +21,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchFocused, setSearchFocused] = useState<boolean>(false);
   const participants = useTournamentStore((state) => state.participants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const checkpoints = useTournamentStore((state) => state.checkpoints);
   const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
@@ -44,11 +42,11 @@ function App() {
       .slice(0, 10); // Limit to 10 results
   }, [searchQuery, participants]);
 
-  // Get cohort name by ID
-  const getCohortName = (cohortId?: string) => {
-    if (!cohortId) return null;
-    const cohort = cohorts.find(c => c.id === cohortId);
-    return cohort?.name || null;
+  // Get category name by ID
+  const getCategoryName = (categoryId?: string) => {
+    if (!categoryId) return null;
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name || null;
   };
 
   // Get ring name for a participant
@@ -58,10 +56,10 @@ function App() {
     const parts: string[] = [];
     
     if (formsDivision && formsDivision !== 'not participating') {
-      parts.push(`F: ${p.formsCohortRing || 'unassigned'}`);
+      parts.push(`F: ${p.formsPool || 'unassigned'}`);
     }
     if (sparringDivision && sparringDivision !== 'not participating') {
-      parts.push(`S: ${p.sparringCohortRing || 'unassigned'}`);
+      parts.push(`S: ${p.sparringPool || 'unassigned'}`);
     }
     return parts.join(' | ') || 'Not competing';
   };
@@ -78,43 +76,23 @@ function App() {
 
   // Compute competition rings for status tracking
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
 
   // Compute tab status badges
   const tabStatus = useMemo(() => {
-    // Count participants without cohort assignments
-    const unassignedCohorts = participants.filter(p => {
+    // Count participants without category assignments
+    const unassignedCategories = participants.filter(p => {
       const formsDivision = getEffectiveDivision(p, 'forms');
       const sparringDivision = getEffectiveDivision(p, 'sparring');
       const needsForms = formsDivision && formsDivision !== 'not participating';
       const needsSparring = sparringDivision && sparringDivision !== 'not participating';
-      return (needsForms && !p.formsCohortId) || (needsSparring && !p.sparringCohortId);
-    }).length;
-
-    // Count participants without ring assignments
-    const unassignedRings = participants.filter(p => {
-      const formsDivision = getEffectiveDivision(p, 'forms');
-      const sparringDivision = getEffectiveDivision(p, 'sparring');
-      const needsForms = formsDivision && formsDivision !== 'not participating';
-      const needsSparring = sparringDivision && sparringDivision !== 'not participating';
-      return (needsForms && p.formsCohortId && !p.formsCohortRing) || 
-             (needsSparring && p.sparringCohortId && !p.sparringCohortRing);
+      return (needsForms && !p.formsCategoryId) || (needsSparring && !p.sparringCategoryId);
     }).length;
 
     // Count rings without physical ring mappings
     const unmappedRings = competitionRings.filter(ring => !ring.physicalRingId).length;
-
-    // Count participants without rank order
-    const unorderedParticipants = participants.filter(p => {
-      const formsDivision = getEffectiveDivision(p, 'forms');
-      const sparringDivision = getEffectiveDivision(p, 'sparring');
-      const needsForms = formsDivision && formsDivision !== 'not participating';
-      const needsSparring = sparringDivision && sparringDivision !== 'not participating';
-      return (needsForms && p.formsCohortRing && !p.formsRankOrder) || 
-             (needsSparring && p.sparringCohortRing && !p.sparringRankOrder);
-    }).length;
 
     // Count rings changed since last checkpoint
     let changedRings = 0;
@@ -128,15 +106,36 @@ function App() {
       }
     }
 
+    // Count configuration errors
+    let configErrors = 0;
+    
+    // Check each division for pools exceeding physical rings
+    config.divisions.forEach(division => {
+      const divisionFormsRings = categories
+        .filter(c => c.division === division.name && c.type === 'forms')
+        .reduce((sum, c) => sum + c.numRings, 0);
+      const divisionSparringRings = categories
+        .filter(c => c.division === division.name && c.type === 'sparring')
+        .reduce((sum, c) => sum + c.numRings, 0);
+      const physicalRings = division.numRings || 0;
+      
+      if (divisionFormsRings > physicalRings) configErrors++;
+      if (divisionSparringRings > physicalRings) configErrors++;
+      
+      // Check if division has categories but no physical rings
+      if ((divisionFormsRings > 0 || divisionSparringRings > 0) && physicalRings === 0) {
+        configErrors++;
+      }
+    });
+
     return {
-      cohorts: unassignedCohorts,
-      rings: unassignedRings,
+      categories: unassignedCategories,
       ringMap: unmappedRings,
-      order: unorderedParticipants,
       tournamentDay: changedRings,
       checkpoints: checkpoints.length,
+      configuration: configErrors,
     };
-  }, [participants, cohorts, competitionRings, checkpoints, diffCheckpoint]);
+  }, [participants, categories, competitionRings, checkpoints, diffCheckpoint]);
 
   // Badge component
   const Badge = ({ count, type = 'warning' }: { count: number; type?: 'warning' | 'info' | 'success' }) => {
@@ -184,7 +183,7 @@ function App() {
           
           useTournamentStore.setState({
             participants: (state.participants || []).map((p: any) => ({ ...p, sparringAltRing: p.sparringAltRing || '' })),
-            cohorts: state.cohorts || [],
+            categories: state.categories || [],
             competitionRings: state.competitionRings || [],
             config: { 
               ...defaultConfig, 
@@ -192,7 +191,7 @@ function App() {
               divisions: mergedDivisions
             },
             physicalRingMappings: state.physicalRingMappings || [],
-            cohortRingMappings: state.cohortRingMappings || [],
+            categoryPoolMappings: state.categoryPoolMappings || [],
           });
         }
       } catch (error) {
@@ -334,20 +333,12 @@ function App() {
           {participants.length > 0 && <Badge count={participants.length} type="info" />}
         </button>
         <button
-          className={`tab ${activeTab === 'cohorts' ? 'active' : ''}`}
-          onClick={() => setActiveTab('cohorts')}
+          className={`tab ${activeTab === 'categories' ? 'active' : ''}`}
+          onClick={() => setActiveTab('categories')}
           disabled={participants.length === 0}
         >
-          Cohorts
-          <Badge count={tabStatus.cohorts} type="warning" />
-        </button>
-        <button
-          className={`tab ${activeTab === 'rings' ? 'active' : ''}`}
-          onClick={() => setActiveTab('rings')}
-          disabled={participants.length === 0}
-        >
-          Ring Assignment
-          <Badge count={tabStatus.rings} type="warning" />
+          Categories
+          <Badge count={tabStatus.categories} type="warning" />
         </button>
         <button
           className={`tab ${activeTab === 'ringmap' ? 'active' : ''}`}
@@ -356,14 +347,6 @@ function App() {
         >
           Ring Map
           <Badge count={tabStatus.ringMap} type="warning" />
-        </button>
-        <button
-          className={`tab ${activeTab === 'order' ? 'active' : ''}`}
-          onClick={() => setActiveTab('order')}
-          disabled={participants.length === 0}
-        >
-          Order
-          <Badge count={tabStatus.order} type="warning" />
         </button>
         <button
           className={`tab ${activeTab === 'editor' ? 'active' : ''}`}
@@ -414,10 +397,8 @@ function App() {
             </div>
           </>
         )}
-        {activeTab === 'cohorts' && <CohortManagement globalDivision={globalDivision} />}
-        {activeTab === 'rings' && <RingManagement globalDivision={globalDivision} />}
+        {activeTab === 'categories' && <CategoryManagement globalDivision={globalDivision} />}
         {activeTab === 'ringmap' && <RingMapEditor globalDivision={globalDivision} />}
-        {activeTab === 'order' && <OrderRings globalDivision={globalDivision} />}
         {activeTab === 'editor' && <DataViewer globalDivision={globalDivision} />}
         {activeTab === 'overview' && <RingOverview globalDivision={globalDivision} />}
         {activeTab === 'export' && <PDFExport globalDivision={globalDivision} />}

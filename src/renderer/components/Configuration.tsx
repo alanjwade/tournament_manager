@@ -78,7 +78,7 @@ function Configuration() {
     const newDivision: Division = {
       name: divisionName.trim(),
       order: config.divisions.length + 1,
-      numRings: 1,
+      numPools: 1,
     };
     setDivisions([...config.divisions, newDivision]);
     setDivisionName('');
@@ -86,32 +86,6 @@ function Configuration() {
 
   const handleRemoveDivision = (name: string) => {
     setDivisions(config.divisions.filter((d) => d.name !== name));
-  };
-
-  const handleDivisionRingsChange = (divisionName: string, rings: number) => {
-    setDivisions(
-      config.divisions.map((d) =>
-        d.name === divisionName ? { ...d, numRings: rings } : d
-      )
-    );
-  };
-
-  const handleSetPhysicalRings = () => {
-    // Find the maximum number of rings needed across all divisions
-    const maxRings = Math.max(...config.divisions.map(d => d.numRings || 1), 0);
-    if (maxRings < 1 || maxRings > 14) {
-      alert('Number of rings must be between 1 and 14');
-      return;
-    }
-    const rings: PhysicalRing[] = [];
-    for (let i = 1; i <= maxRings; i++) {
-      rings.push({
-        id: `ring-${i}`,
-        name: `Ring ${i}`,
-        color: RING_COLOR_MAP[i],
-      });
-    }
-    setPhysicalRings(rings);
   };
 
   const handleWatermarkSelect = async () => {
@@ -189,7 +163,6 @@ function Configuration() {
               <tr>
                 <th>Division</th>
                 <th>Order</th>
-                <th>Rings</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -198,18 +171,6 @@ function Configuration() {
                 <tr key={div.name}>
                   <td>{div.name}</td>
                   <td>{div.order}</td>
-                  <td>
-                    <input
-                      type="number"
-                      min={1}
-                      max={14}
-                      value={div.numRings || 1}
-                      onChange={(e) =>
-                        handleDivisionRingsChange(div.name, parseInt(e.target.value) || 1)
-                      }
-                      style={{ width: '60px', padding: '4px' }}
-                    />
-                  </td>
                   <td>
                     <button
                       className="btn btn-danger"
@@ -225,57 +186,7 @@ function Configuration() {
           </table>
         </div>
 
-        <div>
-          <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
-            Physical Rings
-          </h3>
-          
-          <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
-            Set the number of rings for each division above (max 14 per division). Physical rings 
-            will be generated based on the maximum rings needed across all divisions. Since divisions 
-            run one at a time, rings are reused.
-          </p>
 
-          <button className="btn btn-primary" onClick={handleSetPhysicalRings}>
-            Set Physical Rings
-          </button>
-
-          {config.physicalRings.length > 0 && (
-            <div style={{ marginTop: '20px' }}>
-              <h4 style={{ fontSize: '14px', marginBottom: '10px' }}>
-                Configured Rings ({config.physicalRings.length})
-              </h4>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Ring #</th>
-                    <th>Color</th>
-                    <th>Preview</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {config.physicalRings.map((ring, idx) => (
-                    <tr key={ring.id}>
-                      <td>{idx + 1}</td>
-                      <td>{RING_COLOR_NAMES[idx + 1] || ring.color}</td>
-                      <td>
-                        <div
-                          style={{
-                            width: '60px',
-                            height: '30px',
-                            backgroundColor: ring.color,
-                            border: '1px solid #333',
-                            borderRadius: '4px',
-                          }}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
 
       <div style={{ marginTop: '30px' }}>

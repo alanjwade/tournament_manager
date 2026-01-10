@@ -63,7 +63,7 @@ export function generateFormsScoringSheets(
     }
     firstPage = false;
 
-    // Get physical ring ID from mapping using the cohort ring name
+    // Get physical ring ID from mapping using the pool name
     const physicalRingId = ring.name && physicalRingMappings 
       ? getPhysicalRingId(ring.name, physicalRingMappings)
       : null;
@@ -106,7 +106,7 @@ export function generateFormsScoringSheets(
         
         // Set opacity for watermark
         doc.saveGraphicsState();
-        (doc as any).setGState(new (doc as any).GState({ opacity: 0.3 })); // 30% opacity
+        (doc as any).setGState(new (doc as any).GState({ opacity: 0.15 })); // 15% opacity
         
         // Add watermark behind everything
         doc.addImage(watermark, 'PNG', wmX, wmY, wmWidth, wmHeight, undefined, 'FAST');
@@ -126,7 +126,7 @@ export function generateFormsScoringSheets(
     doc.setFont('helvetica', 'bold');
     doc.text(`${fullyQualifiedRingName} Forms Scoring Sheet`, margin, margin + 0.3);
     
-    // Cohort ring name subtitle
+    // Category ring name subtitle
     if (ring.name) {
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
@@ -222,7 +222,7 @@ export function generateFormsScoringSheets(
             const wmY = margin + (maxHeight - wmHeight) / 2;
             
             doc.saveGraphicsState();
-            (doc as any).setGState(new (doc as any).GState({ opacity: 0.3 })); // 30% opacity
+            (doc as any).setGState(new (doc as any).GState({ opacity: 0.15 })); // 15% opacity
             doc.addImage(watermark, 'PNG', wmX, wmY, wmWidth, wmHeight, undefined, 'FAST');
             doc.restoreGraphicsState();
           } catch (e) {

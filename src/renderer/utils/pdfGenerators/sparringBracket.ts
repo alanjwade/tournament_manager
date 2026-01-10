@@ -80,10 +80,10 @@ export function generateSparringBrackets(
       .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
 
     // Check for alt ring status
-    const cohortRing = ring.name?.match(/_R(\d+)$/)?.[0]?.substring(1); // Get "_R1" then remove "_" to get "R1"
-    console.log('[sparringBracket] Ring:', ring.name, 'cohortRing:', cohortRing);
-    const altStatus = cohortRing 
-      ? checkSparringAltRingStatus(participants, ring.cohortId, cohortRing)
+    const pool = ring.name?.match(/_R(\d+)$/)?.[0]?.substring(1); // Get "_R1" then remove "_" to get "R1"
+    console.log('[sparringBracket] Ring:', ring.name, 'pool:', pool);
+    const altStatus = pool 
+      ? checkSparringAltRingStatus(participants, ring.categoryId, pool)
       : { status: 'none' as const, countA: 0, countB: 0, countEmpty: allRingParticipants.length };
     console.log('[sparringBracket] altStatus:', altStatus);
 
@@ -94,7 +94,7 @@ export function generateSparringBrackets(
       }
       firstPage = false;
 
-      // Get physical ring ID from mapping using the cohort ring name
+      // Get physical ring ID from mapping using the pool name
       const physicalRingId = ring.name && physicalRingMappings 
         ? getPhysicalRingId(ring.name, physicalRingMappings)
         : null;
@@ -135,7 +135,7 @@ export function generateSparringBrackets(
           
           // Set opacity for watermark
           doc.saveGraphicsState();
-          (doc as any).setGState(new (doc as any).GState({ opacity: 0.3 })); // 30% opacity
+          (doc as any).setGState(new (doc as any).GState({ opacity: 0.15 })); // 15% opacity
           
           // Add watermark behind everything
           doc.addImage(watermark, 'PNG', wmX, wmY, wmWidth, wmHeight, undefined, 'FAST');
@@ -152,7 +152,7 @@ export function generateSparringBrackets(
       doc.setFont('helvetica', 'bold');
       doc.text(`${titleWithAlt} Sparring Bracket`, margin, margin + 0.3);
       
-      // Cohort ring name subtitle
+      // Category ring name subtitle
       if (ring.name) {
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
@@ -193,7 +193,9 @@ export function generateSparringBrackets(
       // Add timestamp at bottom
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      doc.text(timestamp, margin, pageHeight - margin);
+      doc.setTextColor(128, 128, 128); // Gray text
+      doc.text(timestamp, margin, pageHeight - 0.25);
+      doc.setTextColor(0, 0, 0); // Reset to black
     };
 
     // If all participants have alt ring 'a' or 'b', generate separate brackets

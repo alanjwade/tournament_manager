@@ -15,8 +15,8 @@ interface PDFExportProps {
 
 function PDFExport({ globalDivision }: PDFExportProps) {
   const participants = useTournamentStore((state) => state.participants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
   const checkpoints = useTournamentStore((state) => state.checkpoints);

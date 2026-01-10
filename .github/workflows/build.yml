@@ -1,0 +1,78 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Package for Windows
+        run: npm run package:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: List release files
+        run: dir release
+        shell: cmd
+      
+      - name: Upload portable executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: release/*.exe
+          if-no-files-found: warn
+      
+      - name: Upload zip archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: release/*.zip
+          if-no-files-found: warn
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/*.exe
+            release/*.zip
+            WINDOWS_RELEASE_README.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## 📦 Download and Run
+            
+            **For Windows Users:**
+            1. Download `Tournament Manager-*-portable.exe` (recommended)
+            2. OR download `Tournament Manager-*-x64.zip` and extract
+            3. Double-click to run - no installation needed!
+            
+            📖 See `WINDOWS_RELEASE_README.md` for complete instructions.
+            
+            ## 💾 Tournament Data
+            
+            Your tournament data saves automatically to a `tournament-data` folder next to the exe.
+            To share tournament data, just share the `tournament-autosave.json` file!
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

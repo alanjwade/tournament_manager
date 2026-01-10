@@ -51,7 +51,16 @@
     },
     "files": [
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "src/renderer/assets/logos/**/*",
+      "src/renderer/assets/icons/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "src/renderer/assets/logos",
+        "to": "assets/logos",
+        "filter": ["**/*"]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity"
@@ -65,11 +74,21 @@
     },
     "win": {
       "target": [
-        "dir",
-        "zip"
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
       ],
       "icon": "src/renderer/assets/icons/app-icon.png",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
     }
   }
 }

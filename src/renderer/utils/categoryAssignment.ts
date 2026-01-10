@@ -1,22 +1,22 @@
-import { Participant, Cohort } from '../types/tournament';
+import { Participant, Category } from '../types/tournament';
 import { v4 as uuidv4 } from 'uuid';
 
-export interface CohortDefinition {
+export interface CategoryDefinition {
   division: string;
   gender: 'Male' | 'Female' | 'Mixed';
   minAge: number;
   maxAge: number;
-  numRings: number;
+  numPools: number;
 }
 
-export function assignCohorts(
+export function assignCategories(
   participants: Participant[],
-  cohortDefinitions: CohortDefinition[],
+  categoryDefinitions: CategoryDefinition[],
   type: 'forms' | 'sparring' = 'forms'
-): Cohort[] {
-  const cohorts: Cohort[] = [];
+): Category[] {
+  const categories: Category[] = [];
 
-  cohortDefinitions.forEach((def) => {
+  categoryDefinitions.forEach((def) => {
     const matchingParticipants = participants.filter((p) => {
       if (p.division !== def.division) return false;
       if (type === 'forms' && !p.competingForms) return false;
@@ -31,28 +31,28 @@ export function assignCohorts(
     });
 
     if (matchingParticipants.length > 0) {
-      const cohort: Cohort = {
+      const category: Category = {
         id: uuidv4(),
         division: def.division,
         gender: def.gender.toLowerCase() as 'male' | 'female' | 'mixed',
         minAge: def.minAge,
         maxAge: def.maxAge,
-        numRings: def.numRings,
+        numPools: def.numPools,
         participantIds: matchingParticipants.map((p) => p.id),
         name: `${def.gender} ${def.minAge}-${def.maxAge === 999 ? '18+' : def.maxAge}`,
       };
-      cohorts.push(cohort);
+      categories.push(category);
     }
   });
 
-  return cohorts;
+  return categories;
 }
 
-export function autoGenerateCohortDefinitions(
+export function autoGenerateCategoryDefinitions(
   participants: Participant[],
   division?: string
-): CohortDefinition[] {
-  const definitions: CohortDefinition[] = [];
+): CategoryDefinition[] {
+  const definitions: CategoryDefinition[] = [];
   const divisions = division
     ? [division]
     : [...new Set(participants.map((p) => p.division))];
@@ -64,8 +64,8 @@ export function autoGenerateCohortDefinitions(
     const males = divParticipants.filter((p) => p.gender === 'Male');
     const females = divParticipants.filter((p) => p.gender === 'Female');
 
-    // Helper to create age-based cohorts
-    const createAgeCohorts = (
+    // Helper to create age-based categories
+    const createAgeCategories = (
       gender: 'Male' | 'Female' | 'Mixed',
       parts: Participant[]
     ) => {
@@ -90,7 +90,7 @@ export function autoGenerateCohortDefinitions(
             gender,
             minAge: Math.min(...youth.map((p) => p.age)),
             maxAge: 17,
-            numRings: calculateRingsNeeded(youth.length),
+            numPools: calculatePoolsNeeded(youth.length),
           });
         }
 
@@ -100,48 +100,48 @@ export function autoGenerateCohortDefinitions(
             gender,
             minAge: 18,
             maxAge: Math.max(...adults.map((p) => p.age)),
-            numRings: calculateRingsNeeded(adults.length),
+            numPools: calculatePoolsNeeded(adults.length),
           });
         }
       } else {
-        // Single cohort
+        // Single category
         definitions.push({
           division: div,
           gender,
           minAge,
           maxAge,
-          numRings: calculateRingsNeeded(parts.length),
+          numPools: calculatePoolsNeeded(parts.length),
         });
       }
     };
 
-    // Create cohorts for males and females
-    createAgeCohorts('Male', males);
-    createAgeCohorts('Female', females);
+    // Create categories for males and females
+    createAgeCategories('Male', males);
+    createAgeCategories('Female', females);
   });
 
   return definitions;
 }
 
-function calculateRingsNeeded(participantCount: number): number {
+function calculatePoolsNeeded(participantCount: number): number {
   if (participantCount <= 10) return 1;
   if (participantCount <= 20) return 2;
   if (participantCount <= 30) return 3;
   return Math.ceil(participantCount / 10);
 }
 
-export function updateParticipantsWithCohorts(
+export function updateParticipantsWithCategories(
   participants: Participant[],
-  cohorts: Cohort[],
+  categories: Category[],
   type: 'forms' | 'sparring'
 ): Participant[] {
   return participants.map((p) => {
-    const cohort = cohorts.find((c) => c.participantIds.includes(p.id));
-    if (cohort) {
+    const category = categories.find((c) => c.participantIds.includes(p.id));
+    if (category) {
       if (type === 'forms') {
-        return { ...p, formsCohort: cohort.id };
+        return { ...p, formsCategoryId: category.id, formsCohortId: category.id };
       } else {
-        return { ...p, sparringCohort: cohort.id };
+        return { ...p, sparringCategoryId: category.id, sparringCohortId: category.id };
       }
     }
     return p;

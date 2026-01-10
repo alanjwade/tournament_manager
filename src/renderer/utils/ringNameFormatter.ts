@@ -48,7 +48,7 @@ export function formatPdfTimestamp(date: Date = new Date()): string {
 }
 
 /**
- * Get the physical ring name from a cohort ring name and mapping
+ * Get the physical ring name from a pool name and mapping
  * Returns the physical ring identifier (e.g., "PR4b", "PR1a", "PR9")
  */
 export function getPhysicalRingId(

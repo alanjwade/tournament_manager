@@ -38,12 +38,58 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const updateParticipant = useTournamentStore((state) => state.updateParticipant);
   const checkpoints = useTournamentStore((state) => state.checkpoints);
   const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
+
+  // Move participant up or down in rank order
+  const moveParticipant = (participantId: string, direction: 'up' | 'down', ringType: 'forms' | 'sparring') => {
+    const participant = participants.find(p => p.id === participantId);
+    if (!participant) return;
+
+    // Get all participants in the same ring
+    const categoryId = ringType === 'forms' ? participant.formsCategoryId : participant.sparringCategoryId;
+    const pool = ringType === 'forms' ? participant.formsPool : participant.sparringPool;
+    
+    if (!categoryId || !pool) return;
+
+    const ringParticipants = participants
+      .filter(p => {
+        const pCategoryId = ringType === 'forms' ? p.formsCategoryId : p.sparringCategoryId;
+        const pPool = ringType === 'forms' ? p.formsPool : p.sparringPool;
+        return pCategoryId === categoryId && pPool === pool;
+      })
+      .sort((a, b) => {
+        const aRank = ringType === 'forms' ? (a.formsRankOrder || 0) : (a.sparringRankOrder || 0);
+        const bRank = ringType === 'forms' ? (b.formsRankOrder || 0) : (b.sparringRankOrder || 0);
+        return aRank - bRank;
+      });
+
+    const currentIndex = ringParticipants.findIndex(p => p.id === participantId);
+    if (currentIndex === -1) return;
+
+    // Can't move up if first, can't move down if last
+    if (direction === 'up' && currentIndex === 0) return;
+    if (direction === 'down' && currentIndex === ringParticipants.length - 1) return;
+
+    // Create new order by swapping positions in the array
+    const newOrder = [...ringParticipants];
+    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    [newOrder[currentIndex], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[currentIndex]];
+
+    // Reassign all rank orders sequentially (1, 2, 3, ...)
+    newOrder.forEach((p, index) => {
+      const newRank = index + 1;
+      if (ringType === 'forms') {
+        updateParticipant(p.id, { formsRankOrder: newRank });
+      } else {
+        updateParticipant(p.id, { sparringRankOrder: newRank });
+      }
+    });
+  };
 
   // Sync with global division when it changes
   useEffect(() => {
@@ -65,8 +111,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
 
   const formsRings = competitionRings.filter((r) => r.type === 'forms');
@@ -109,7 +155,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
     const pairs = Array.from(pairMap.values());
 
-    // Sort by physical ring name if available, otherwise by cohort ring name
+    // Sort by physical ring name if available, otherwise by pool name
     return pairs.sort((a, b) => {
       if (a.physicalRingName && b.physicalRingName) {
         // Custom sort for physical ring names (PR1, PR1a, PR1b, PR2, etc.)
@@ -164,6 +210,51 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     setQuickEdit({ participant, ringType, ringName });
   };
 
+  // Get available physical rings for the current quick edit (if any)
+  const availablePhysicalRings = useMemo(() => {
+    if (!quickEdit) return [];
+    
+    const { participant, ringType } = quickEdit;
+    const currentDivision = ringType === 'forms' 
+      ? (participant.formsDivision || participant.division) 
+      : (participant.sparringDivision || participant.division);
+    
+    if (!currentDivision || currentDivision === 'not participating') return [];
+    
+    // Get all pools for this division and type
+    const divisionCohorts = categories.filter(c => 
+      c.division === currentDivision && 
+      c.type === ringType
+    );
+    
+    // Get all unique physical rings used in this division
+    const physicalRingSet = new Set<string>();
+    divisionCohorts.forEach(category => {
+      // Find mappings for this category
+      const categoryMappings = physicalRingMappings.filter(m => 
+        m.cohortRingName.startsWith(`${category.name}_`)
+      );
+      categoryMappings.forEach(mapping => {
+        if (mapping.physicalRingName) {
+          physicalRingSet.add(mapping.physicalRingName);
+        }
+      });
+    });
+    
+    return Array.from(physicalRingSet).sort((a, b) => {
+      // Sort by ring number (PR1, PR1a, PR2, etc.)
+      const aMatch = a.match(/PR(\d+)([a-z]?)/);
+      const bMatch = b.match(/PR(\d+)([a-z]?)/);
+      if (aMatch && bMatch) {
+        const aNum = parseInt(aMatch[1]);
+        const bNum = parseInt(bMatch[1]);
+        if (aNum !== bNum) return aNum - bNum;
+        return (aMatch[2] || '').localeCompare(bMatch[2] || '');
+      }
+      return a.localeCompare(b);
+    });
+  }, [quickEdit, categories, physicalRingMappings]);
+
   // Render clickable participant name
   const renderParticipantName = (p: Participant, ringType: 'forms' | 'sparring', ringName: string) => (
     <span
@@ -183,9 +274,34 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const renderQuickEditModal = () => {
     if (!quickEdit) return null;
 
-    const { participant, ringType } = quickEdit;
-    const currentRankOrder = ringType === 'forms' ? participant.formsRankOrder : participant.sparringRankOrder;
-    const currentAltRing = participant.sparringAltRing || '';
+    const { participant } = quickEdit;
+    const formsRankOrder = participant.formsRankOrder;
+    const sparringRankOrder = participant.sparringRankOrder;
+    const formsAltRing = participant.sparringAltRing || '';
+    
+    // Get forms division info
+    const formsDivision = participant.formsDivision || participant.division;
+    const formsCategoryId = participant.formsCategoryId;
+    const formsCategory = formsCategoryId ? categories.find(c => c.id === formsCategoryId) : null;
+    const formsPool = participant.formsPool;
+    const formsCohortRingName = formsCategory && formsPool 
+      ? `${formsCategory.name}_${formsPool}` 
+      : null;
+    const formsPhysicalMapping = formsCohortRingName 
+      ? physicalRingMappings.find(m => m.cohortRingName === formsCohortRingName)
+      : null;
+    
+    // Get sparring division info
+    const sparringDivision = participant.sparringDivision || participant.division;
+    const sparringCategoryId = participant.sparringCategoryId;
+    const sparringCategory = sparringCategoryId ? categories.find(c => c.id === sparringCategoryId) : null;
+    const sparringPool = participant.sparringPool;
+    const sparringCohortRingName = sparringCategory && sparringPool 
+      ? `${sparringCategory.name}_${sparringPool}` 
+      : null;
+    const sparringPhysicalMapping = sparringCohortRingName 
+      ? physicalRingMappings.find(m => m.cohortRingName === sparringCohortRingName)
+      : null;
 
     const handleSave = (updates: Partial<Participant>) => {
       updateParticipant(participant.id, updates);
@@ -196,6 +312,85 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
     const handleClose = () => {
       setQuickEdit(null);
+    };
+
+    // Build physical ring options filtered by division
+    const buildPhysicalRingOptions = (division: string | null | undefined) => {
+      if (!division || division === 'not participating') return [];
+      
+      // If sparring division is "same as forms", use the forms division instead
+      const effectiveDivision = division === 'same as forms' 
+        ? formsDivision 
+        : division;
+      
+      if (!effectiveDivision || effectiveDivision === 'not participating') return [];
+      
+      // Find all categories for this division
+      const categoriesForDivision = categories.filter(c => c.division === effectiveDivision);
+      
+      if (categoriesForDivision.length === 0) return [];
+      
+      // Get all mappings for these categories
+      const mappingsForDivision = physicalRingMappings.filter(m => {
+        const categoryName = m.cohortRingName?.split('_')[0];
+        return categoriesForDivision.some(c => c.name === categoryName);
+      });
+
+      return mappingsForDivision
+        .filter(m => m.physicalRingName)
+        .map(m => ({
+          physicalRingName: m.physicalRingName,
+          cohortRingName: m.cohortRingName,
+          label: `${m.physicalRingName} (${m.cohortRingName})`
+        }))
+        .sort((a, b) => {
+          // Sort by ring number (PR1, PR1a, PR2, etc.)
+          const aMatch = a.physicalRingName.match(/PR(\d+)([a-z]?)/);
+          const bMatch = b.physicalRingName.match(/PR(\d+)([a-z]?)/);
+          if (aMatch && bMatch) {
+            const aNum = parseInt(aMatch[1]);
+            const bNum = parseInt(bMatch[1]);
+            if (aNum !== bNum) return aNum - bNum;
+            return (aMatch[2] || '').localeCompare(bMatch[2] || '');
+          }
+          return a.physicalRingName.localeCompare(b.physicalRingName);
+        });
+    };
+
+    const handlePhysicalRingChange = (type: 'forms' | 'sparring', newPhysicalRing: string) => {
+      if (type === 'forms' && formsCohortRingName && newPhysicalRing) {
+        const existingMapping = physicalRingMappings.find(m => m.cohortRingName === formsCohortRingName);
+        if (existingMapping) {
+          const updatedMappings = physicalRingMappings.map(m => 
+            m.cohortRingName === formsCohortRingName 
+              ? { ...m, physicalRingName: newPhysicalRing }
+              : m
+          );
+          useTournamentStore.getState().setPhysicalRingMappings(updatedMappings);
+        } else {
+          useTournamentStore.getState().setPhysicalRingMappings([
+            ...physicalRingMappings,
+            { cohortRingName: formsCohortRingName, physicalRingName: newPhysicalRing }
+          ]);
+        }
+        setQuickEdit({ ...quickEdit });
+      } else if (type === 'sparring' && sparringCohortRingName && newPhysicalRing) {
+        const existingMapping = physicalRingMappings.find(m => m.cohortRingName === sparringCohortRingName);
+        if (existingMapping) {
+          const updatedMappings = physicalRingMappings.map(m => 
+            m.cohortRingName === sparringCohortRingName 
+              ? { ...m, physicalRingName: newPhysicalRing }
+              : m
+          );
+          useTournamentStore.getState().setPhysicalRingMappings(updatedMappings);
+        } else {
+          useTournamentStore.getState().setPhysicalRingMappings([
+            ...physicalRingMappings,
+            { cohortRingName: sparringCohortRingName, physicalRingName: newPhysicalRing }
+          ]);
+        }
+        setQuickEdit({ ...quickEdit });
+      }
     };
 
     return (
@@ -219,9 +414,11 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             backgroundColor: 'white',
             borderRadius: '8px',
             padding: '20px',
-            minWidth: '350px',
-            maxWidth: '450px',
+            minWidth: '500px',
+            maxWidth: '600px',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+            maxHeight: '90vh',
+            overflowY: 'auto',
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -229,52 +426,237 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             Quick Edit: {participant.firstName} {participant.lastName}
           </h3>
           
-          <div style={{ fontSize: '13px', color: '#666', marginBottom: '15px' }}>
-            <div><strong>Ring:</strong> {quickEdit.ringName}</div>
-            <div><strong>Type:</strong> {ringType === 'forms' ? 'Forms' : 'Sparring'}</div>
+          <div style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>
             <div><strong>Age:</strong> {participant.age} | <strong>Gender:</strong> {participant.gender}</div>
-            {ringType === 'sparring' && (
+            {participant.heightFeet && (
               <div><strong>Height:</strong> {participant.heightFeet}'{participant.heightInches}"</div>
             )}
           </div>
 
-          {/* Rank Order */}
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-              {ringType === 'forms' ? 'Forms' : 'Sparring'} Rank Order (×10 = position):
-            </label>
-            <input
-              type="number"
-              value={currentRankOrder || ''}
-              onChange={(e) => {
-                const value = e.target.value ? parseInt(e.target.value) : undefined;
-                handleSave(ringType === 'forms' 
-                  ? { formsRankOrder: value } 
-                  : { sparringRankOrder: value }
-                );
-              }}
-              style={{
-                width: '100%',
-                padding: '8px',
-                fontSize: '14px',
-                border: '1px solid #ccc',
+          {/* Forms Section */}
+          <div style={{ 
+            marginBottom: '25px', 
+            paddingBottom: '20px', 
+            borderBottom: '1px solid #e0e0e0'
+          }}>
+            <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#007bff', fontSize: '14px' }}>
+              Forms
+            </h4>
+            
+            {/* Current Ring Assignment Info */}
+            {formsCategory && formsPool && (
+              <div style={{ 
+                marginBottom: '15px', 
+                padding: '10px', 
+                backgroundColor: '#f0f7ff',
                 borderRadius: '4px',
-              }}
-              placeholder="e.g., 1, 2, 3..."
-            />
-            <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
-              Position = Rank × 10. Use decimals like 1.5 to insert between 1 and 2.
+                fontSize: '12px',
+              }}>
+                <div><strong>Category:</strong> {formsCategory.name}</div>
+                <div><strong>Category Ring:</strong> {formsPool}</div>
+                {formsPhysicalMapping && (
+                  <div><strong>Physical Ring:</strong> {formsPhysicalMapping.physicalRingName}</div>
+                )}
+              </div>
+            )}
+
+            {/* Division Selector */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+                Division:
+              </label>
+              <select
+                value={formsDivision || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleSave({ formsDivision: value });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  fontSize: '14px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                }}
+              >
+                <option value="">Select division...</option>
+                <option value="not participating">Not participating</option>
+                <option value="same as sparring">Same as sparring</option>
+                {config.divisions.map(d => (
+                  <option key={d.name} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Physical Ring Selector for Forms */}
+            {buildPhysicalRingOptions(formsDivision).length > 0 && formsDivision && formsDivision !== 'not participating' && (
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+                  Physical Ring:
+                </label>
+                <select
+                  value={formsPhysicalMapping?.physicalRingName || ''}
+                  onChange={(e) => handlePhysicalRingChange('forms', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '13px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                  }}
+                  disabled={!formsCohortRingName}
+                >
+                  <option value="">No physical ring assigned</option>
+                  {buildPhysicalRingOptions(formsDivision).map(option => (
+                    <option key={option.physicalRingName} value={option.physicalRingName}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Rank Order */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+                Rank Order:
+              </label>
+              <input
+                type="number"
+                value={formsRankOrder || ''}
+                onChange={(e) => {
+                  const value = e.target.value ? parseInt(e.target.value) : undefined;
+                  handleSave({ formsRankOrder: value });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  fontSize: '14px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                }}
+                placeholder="e.g., 1, 2, 3..."
+              />
+              <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+                Use decimals like 1.5 to insert between 1 and 2.
+              </div>
             </div>
           </div>
 
-          {/* Alt Ring (Sparring only) */}
-          {ringType === 'sparring' && (
+          {/* Sparring Section */}
+          <div style={{ marginBottom: '25px' }}>
+            <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#dc3545', fontSize: '14px' }}>
+              Sparring
+            </h4>
+            
+            {/* Current Ring Assignment Info */}
+            {sparringCategory && sparringPool && (
+              <div style={{ 
+                marginBottom: '15px', 
+                padding: '10px', 
+                backgroundColor: '#fff5f5',
+                borderRadius: '4px',
+                fontSize: '12px',
+              }}>
+                <div><strong>Category:</strong> {sparringCategory.name}</div>
+                <div><strong>Category Ring:</strong> {sparringPool}</div>
+                {sparringPhysicalMapping && (
+                  <div><strong>Physical Ring:</strong> {sparringPhysicalMapping.physicalRingName}</div>
+                )}
+              </div>
+            )}
+
+            {/* Division Selector */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+                Division:
+              </label>
+              <select
+                value={sparringDivision || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleSave({ sparringDivision: value });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  fontSize: '14px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                }}
+              >
+                <option value="">Select division...</option>
+                <option value="not participating">Not participating</option>
+                <option value="same as forms">Same as forms</option>
+                {config.divisions.map(d => (
+                  <option key={d.name} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Physical Ring Selector for Sparring */}
+            {buildPhysicalRingOptions(sparringDivision).length > 0 && sparringDivision && sparringDivision !== 'not participating' && (
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+                  Physical Ring:
+                </label>
+                <select
+                  value={sparringPhysicalMapping?.physicalRingName || ''}
+                  onChange={(e) => handlePhysicalRingChange('sparring', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '13px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    opacity: sparringDivision === 'same as forms' ? 0.5 : 1,
+                    cursor: sparringDivision === 'same as forms' ? 'not-allowed' : 'pointer',
+                  }}
+                  disabled={!sparringCohortRingName || sparringDivision === 'same as forms'}
+                >
+                  <option value="">No physical ring assigned</option>
+                  {buildPhysicalRingOptions(sparringDivision).map(option => (
+                    <option key={option.physicalRingName} value={option.physicalRingName}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Rank Order */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+                Rank Order:
+              </label>
+              <input
+                type="number"
+                value={sparringRankOrder || ''}
+                onChange={(e) => {
+                  const value = e.target.value ? parseInt(e.target.value) : undefined;
+                  handleSave({ sparringRankOrder: value });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  fontSize: '14px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                }}
+                placeholder="e.g., 1, 2, 3..."
+              />
+              <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+                Use decimals like 1.5 to insert between 1 and 2.
+              </div>
+            </div>
+
+            {/* Alt Ring */}
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
                 Alt Ring (splits ring into a/b):
               </label>
               <select
-                value={currentAltRing}
+                value={formsAltRing}
                 onChange={(e) => {
                   const value = e.target.value as '' | 'a' | 'b';
                   handleSave({ sparringAltRing: value });
@@ -292,7 +674,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 <option value="b">Alt Ring B</option>
               </select>
             </div>
-          )}
+          </div>
 
           {/* Actions */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
@@ -324,7 +706,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       );
     }
 
-    const cohort = cohorts.find((c) => c.id === ring.cohortId);
+    const category = categories.find((c) => c.id === ring.categoryId);
 
     const ringParticipants = participants
       .filter((p) => ring.participantIds.includes(p.id))
@@ -338,12 +720,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
     // Check for alt ring status in sparring rings
     let altStatus = null;
-    if (type === 'sparring' && cohort) {
-      // Extract cohort ring from ring name (e.g., "R1" from "Mixed 8-10_R1")
-      const cohortRing = ring.name?.match(/_R(\d+)$/)?.[0]?.substring(1); // Get "_R1" then remove "_" to get "R1"
-      console.log('[RingOverview] Checking alt ring status for', ring.name, 'cohortRing:', cohortRing);
-      if (cohortRing) {
-        altStatus = checkSparringAltRingStatus(participants, cohort.id, cohortRing);
+    if (type === 'sparring' && category) {
+      // Extract pool from ring name (e.g., "R1" from "Mixed 8-10_R1")
+      const pool = ring.name?.match(/_R(\d+)$/)?.[0]?.substring(1); // Get "_R1" then remove "_" to get "R1"
+      console.log('[RingOverview] Checking alt ring status for', ring.name, 'pool:', pool);
+      if (pool) {
+        altStatus = checkSparringAltRingStatus(participants, category.id, pool);
         console.log('[RingOverview] altStatus:', altStatus);
       }
     }
@@ -397,7 +779,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           </h5>
           <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
             <div>
-              <strong>Cohort:</strong> {cohort?.gender}, Ages {cohort?.minAge}-{cohort?.maxAge}
+              <strong>Category:</strong> {category?.gender}, Ages {category?.minAge}-{category?.maxAge}
             </div>
             <div style={{ color: '#5cb85c', fontWeight: 'bold' }}>
               Split into Alt Rings: {participantsA.length} in 'a', {participantsB.length} in 'b'
@@ -424,7 +806,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               >
                 <thead>
                   <tr style={{ backgroundColor: '#f8f9fa' }}>
-                    <th style={{ padding: '4px' }}>Position</th>
+                    <th style={{ padding: '4px', width: '80px' }}>Position</th>
                     <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
                     <th style={{ padding: '4px' }}>Age</th>
                     <th style={{ padding: '4px' }}>Gender</th>
@@ -432,21 +814,61 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {participantsA.map((p) => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
-                        {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
-                      </td>
-                      <td style={{ padding: '4px' }}>
-                        {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt A)')}
-                      </td>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>
-                        {p.heightFeet}'{p.heightInches}"
-                      </td>
-                    </tr>
-                  ))}
+                  {participantsA.map((p, index) => {
+                    const isFirst = index === 0;
+                    const isLast = index === participantsA.length - 1;
+                    return (
+                      <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => moveParticipant(p.id, 'up', 'sparring')}
+                              disabled={isFirst}
+                              style={{
+                                padding: '2px 6px',
+                                fontSize: '10px',
+                                border: '1px solid #ccc',
+                                borderRadius: '3px',
+                                backgroundColor: isFirst ? '#f0f0f0' : 'white',
+                                cursor: isFirst ? 'not-allowed' : 'pointer',
+                                opacity: isFirst ? 0.5 : 1,
+                              }}
+                              title="Move up"
+                            >
+                              ▲
+                            </button>
+                            <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                              {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
+                            </span>
+                            <button
+                              onClick={() => moveParticipant(p.id, 'down', 'sparring')}
+                              disabled={isLast}
+                              style={{
+                                padding: '2px 6px',
+                                fontSize: '10px',
+                                border: '1px solid #ccc',
+                                borderRadius: '3px',
+                                backgroundColor: isLast ? '#f0f0f0' : 'white',
+                                cursor: isLast ? 'not-allowed' : 'pointer',
+                                opacity: isLast ? 0.5 : 1,
+                              }}
+                              title="Move down"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                        </td>
+                        <td style={{ padding: '4px' }}>
+                          {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt A)')}
+                        </td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>
+                          {p.heightFeet}'{p.heightInches}"
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -472,7 +894,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               >
                 <thead>
                   <tr style={{ backgroundColor: '#f8f9fa' }}>
-                    <th style={{ padding: '4px' }}>Position</th>
+                    <th style={{ padding: '4px', width: '80px' }}>Position</th>
                     <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
                     <th style={{ padding: '4px' }}>Age</th>
                     <th style={{ padding: '4px' }}>Gender</th>
@@ -480,21 +902,61 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {participantsB.map((p) => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
-                        {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
-                      </td>
-                      <td style={{ padding: '4px' }}>
-                        {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt B)')}
-                      </td>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>
-                        {p.heightFeet}'{p.heightInches}"
-                      </td>
-                    </tr>
-                  ))}
+                  {participantsB.map((p, index) => {
+                    const isFirst = index === 0;
+                    const isLast = index === participantsB.length - 1;
+                    return (
+                      <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => moveParticipant(p.id, 'up', 'sparring')}
+                              disabled={isFirst}
+                              style={{
+                                padding: '2px 6px',
+                                fontSize: '10px',
+                                border: '1px solid #ccc',
+                                borderRadius: '3px',
+                                backgroundColor: isFirst ? '#f0f0f0' : 'white',
+                                cursor: isFirst ? 'not-allowed' : 'pointer',
+                                opacity: isFirst ? 0.5 : 1,
+                              }}
+                              title="Move up"
+                            >
+                              ▲
+                            </button>
+                            <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                              {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
+                            </span>
+                            <button
+                              onClick={() => moveParticipant(p.id, 'down', 'sparring')}
+                              disabled={isLast}
+                              style={{
+                                padding: '2px 6px',
+                                fontSize: '10px',
+                                border: '1px solid #ccc',
+                                borderRadius: '3px',
+                                backgroundColor: isLast ? '#f0f0f0' : 'white',
+                                cursor: isLast ? 'not-allowed' : 'pointer',
+                                opacity: isLast ? 0.5 : 1,
+                              }}
+                              title="Move down"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                        </td>
+                        <td style={{ padding: '4px' }}>
+                          {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt B)')}
+                        </td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>
+                          {p.heightFeet}'{p.heightInches}"
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -518,7 +980,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         </h5>
         <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
           <div>
-            <strong>Cohort:</strong> {cohort?.gender}, Ages {cohort?.minAge}-{cohort?.maxAge}
+            <strong>Category:</strong> {category?.gender}, Ages {category?.minAge}-{category?.maxAge}
           </div>
           <div>
             <strong>Participants:</strong> {ringParticipants.length}
@@ -534,7 +996,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         >
           <thead>
             <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <th style={{ padding: '4px' }}>Position</th>
+              <th style={{ padding: '4px', width: '80px' }}>Position</th>
               <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
               <th style={{ padding: '4px' }}>Age</th>
               <th style={{ padding: '4px' }}>Gender</th>
@@ -542,12 +1004,50 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             </tr>
           </thead>
           <tbody>
-            {ringParticipants.map((p) => {
+            {ringParticipants.map((p, index) => {
               const position = type === 'forms' ? p.formsRankOrder : p.sparringRankOrder;
+              const isFirst = index === 0;
+              const isLast = index === ringParticipants.length - 1;
               return (
                 <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
-                    {position ? position * 10 : '-'}
+                  <td style={{ padding: '4px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                      <button
+                        onClick={() => moveParticipant(p.id, 'up', type)}
+                        disabled={isFirst}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: '10px',
+                          border: '1px solid #ccc',
+                          borderRadius: '3px',
+                          backgroundColor: isFirst ? '#f0f0f0' : 'white',
+                          cursor: isFirst ? 'not-allowed' : 'pointer',
+                          opacity: isFirst ? 0.5 : 1,
+                        }}
+                        title="Move up"
+                      >
+                        ▲
+                      </button>
+                      <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
+                        {position || '-'}
+                      </span>
+                      <button
+                        onClick={() => moveParticipant(p.id, 'down', type)}
+                        disabled={isLast}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: '10px',
+                          border: '1px solid #ccc',
+                          borderRadius: '3px',
+                          backgroundColor: isLast ? '#f0f0f0' : 'white',
+                          cursor: isLast ? 'not-allowed' : 'pointer',
+                          opacity: isLast ? 0.5 : 1,
+                        }}
+                        title="Move down"
+                      >
+                        ▼
+                      </button>
+                    </div>
                   </td>
                   <td style={{ padding: '4px' }}>
                     {renderParticipantName(p, type, ringDisplayName)}
@@ -575,7 +1075,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       <div className="card">
         <h2 className="card-title">Ring Overview</h2>
         <div className="info">
-          <p>No rings assigned yet. Please assign rings in the Cohort Ring Assignment tab.</p>
+          <p>No rings assigned yet. Please assign rings in the Category Ring Assignment tab.</p>
           <p><strong>Unassigned participants:</strong> {participants.length}</p>
         </div>
       </div>
@@ -583,14 +1083,14 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   }
 
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div className="card" style={{ maxWidth: '1400px', margin: '0 auto', maxHeight: '100vh', overflowY: 'auto' }}>
       {/* Quick Edit Modal */}
       {renderQuickEditModal()}
       
-      <h2 className="card-title" style={{ flexShrink: 0 }}>Ring Overview</h2>
+      <h2 className="card-title">Ring Overview</h2>
       
       {/* Division Filter */}
-      <div style={{ marginBottom: '15px', flexShrink: 0 }}>
+      <div style={{ marginBottom: '15px' }}>
         <label style={{ marginRight: '10px', fontWeight: 'bold' }}>
           Filter by Division:
         </label>
@@ -617,7 +1117,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       </div>
       
       {unassignedCount > 0 && (
-        <div className="warning" style={{ marginBottom: '15px', flexShrink: 0 }}>
+        <div className="warning" style={{ marginBottom: '15px' }}>
           <strong>⚠️ {unassignedCount} participants</strong> not assigned to any ring
         </div>
       )}
@@ -630,7 +1130,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           backgroundColor: '#fff3cd',
           border: '1px solid #ffc107',
           borderRadius: '6px',
-          flexShrink: 0,
           display: 'flex',
           alignItems: 'center',
           gap: '10px'
@@ -642,7 +1141,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
+      <div>
         {filteredRingPairs.map((pair) => {
           // Check if this ring pair has changed since checkpoint
           const formsChanged = pair.formsRing && changedRings.has(pair.formsRing.name || pair.cohortRingName);

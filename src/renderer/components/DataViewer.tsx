@@ -10,8 +10,8 @@ interface DataViewerProps {
 
 function DataViewer({ globalDivision }: DataViewerProps) {
   const participants = useTournamentStore((state) => state.participants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
@@ -22,8 +22,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
 
   // Filter states for each column
@@ -38,8 +38,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     branch: '',
     formsDivision: '',
     sparringDivision: '',
-    formsCohort: '',
-    sparringCohort: '',
+    formsCategory: '',
+    sparringCategory: '',
     formsRing: '',
     sparringRing: '',
     formsPhysicalRing: '',
@@ -79,8 +79,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         branch: '',
         formsDivision: '',
         sparringDivision: '',
-        formsCohort: '',
-        sparringCohort: '',
+        formsCategory: '',
+        sparringCategory: '',
         formsRing: '',
         sparringRing: '',
         formsPhysicalRing: '',
@@ -102,11 +102,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     }
   }, [highlightedId]);
 
-  // Get cohort name by ID
-  const getCohortName = (cohortId?: string) => {
-    if (!cohortId) return 'Unassigned';
-    const cohort = cohorts.find((c) => c.id === cohortId);
-    return cohort ? `${cohort.name} (${cohort.division})` : 'Unknown';
+  // Get category name by ID
+  const getCohortName = (categoryId?: string) => {
+    if (!categoryId) return 'Unassigned';
+    const category = categories.find((c) => c.id === categoryId);
+    return category ? `${category.name} (${category.division})` : 'Unknown';
   };
 
   // Get all unique divisions from config
@@ -147,16 +147,16 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     const ringToDivisions = new Map<string, Set<string>>();
     
     physicalRingMappings.forEach(mapping => {
-      // Extract cohort name from cohortRingName (e.g., "Mixed 8-10_R1" -> "Mixed 8-10")
-      const cohortName = mapping.cohortRingName.split('_')[0];
+      // Extract category name from cohortRingName (e.g., "Mixed 8-10_R1" -> "Mixed 8-10")
+      const categoryName = mapping.cohortRingName.split('_')[0];
       
-      // Find cohort and its division
-      const cohort = cohorts.find(c => c.name === cohortName);
-      if (cohort && mapping.physicalRingName) {
+      // Find category and its division
+      const category = categories.find(c => c.name === categoryName);
+      if (category && mapping.physicalRingName) {
         if (!ringToDivisions.has(mapping.physicalRingName)) {
           ringToDivisions.set(mapping.physicalRingName, new Set());
         }
-        ringToDivisions.get(mapping.physicalRingName)!.add(cohort.division);
+        ringToDivisions.get(mapping.physicalRingName)!.add(category.division);
       }
     });
     
@@ -198,18 +198,18 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       }
       return a.value.localeCompare(b.value);
     });
-  }, [physicalRingMappings, cohorts, config.divisions]);
+  }, [physicalRingMappings, categories, config.divisions]);
 
-  // Get all cohort names for dropdowns
+  // Get all category names for dropdowns
   const formsCohortOptions = useMemo(() => {
-    const formsCohorts = cohorts.filter(c => c.type === 'forms');
+    const formsCohorts = categories.filter(c => c.type === 'forms');
     return formsCohorts.map(c => ({ id: c.id, name: c.name }));
-  }, [cohorts]);
+  }, [categories]);
 
   const sparringCohortOptions = useMemo(() => {
-    const sparringCohorts = cohorts.filter(c => c.type === 'sparring');
+    const sparringCohorts = categories.filter(c => c.type === 'sparring');
     return sparringCohorts.map(c => ({ id: c.id, name: c.name }));
-  }, [cohorts]);
+  }, [categories]);
 
   // Update participant division
   const updateParticipantDivision = (participantId: string, field: 'formsDivision' | 'sparringDivision', value: string) => {
@@ -223,10 +223,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         } else if (field === 'sparringDivision') {
           updates.competingSparring = value !== 'not participating' && value !== 'same as forms';
           
-          // When setting sparring to "same as forms", copy forms cohort and ring
+          // When setting sparring to "same as forms", copy forms category and ring
           if (value === 'same as forms') {
-            updates.sparringCohortId = p.formsCohortId;
-            updates.sparringCohortRing = p.formsCohortRing;
+            updates.sparringCategoryId = p.formsCategoryId;
+            updates.sparringPool = p.formsPool;
           }
         }
         
@@ -237,8 +237,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     setParticipants(updatedParticipants);
   };
 
-  // Update participant cohort assignment
-  const updateParticipantCohort = (participantId: string, field: 'formsCohortId' | 'sparringCohortId', value: string) => {
+  // Update participant category assignment
+  const updateParticipantCohort = (participantId: string, field: 'formsCategoryId' | 'sparringCategoryId', value: string) => {
     const updatedParticipants = participants.map(p => {
       if (p.id === participantId) {
         return { ...p, [field]: value || undefined };
@@ -260,8 +260,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     setParticipants(updatedParticipants);
   };
 
-  // Update participant cohort ring (formsCohortRing or sparringCohortRing)
-  const updateParticipantCohortRing = (participantId: string, field: 'formsCohortRing' | 'sparringCohortRing', value: string) => {
+  // Update participant pool (formsPool or sparringPool)
+  const updateParticipantCohortRing = (participantId: string, field: 'formsPool' | 'sparringPool', value: string) => {
     const updatedParticipants = participants.map(p => {
       if (p.id === participantId) {
         return { ...p, [field]: value || undefined };
@@ -271,21 +271,21 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     setParticipants(updatedParticipants);
   };
 
-  // Update participant physical ring - this will update division, cohort, and cohort ring based on ring map
+  // Update participant physical ring - this will update division, category, and pool based on ring map
   const updateParticipantPhysicalRing = (participantId: string, type: 'forms' | 'sparring', physicalRingName: string) => {
     const participant = participants.find(p => p.id === participantId);
     if (!participant) return;
 
-    // Find the cohort ring mapping for this physical ring
+    // Find the pool mapping for this physical ring
     const mapping = physicalRingMappings.find(m => m.physicalRingName === physicalRingName);
     if (!mapping) {
       // If no mapping found, just clear the assignments
       const updatedParticipants = participants.map(p => {
         if (p.id === participantId) {
           if (type === 'forms') {
-            return { ...p, formsCohortId: undefined, formsCohortRing: undefined };
+            return { ...p, formsCategoryId: undefined, formsPool: undefined };
           } else {
-            return { ...p, sparringCohortId: undefined, sparringCohortRing: undefined };
+            return { ...p, sparringCategoryId: undefined, sparringPool: undefined };
           }
         }
         return p;
@@ -301,12 +301,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
 
     if (!competitionRing) return;
 
-    // Find the cohort
-    const cohort = cohorts.find(c => c.id === competitionRing.cohortId);
-    if (!cohort) return;
+    // Find the category
+    const category = categories.find(c => c.id === competitionRing.categoryId);
+    if (!category) return;
 
-    // Extract cohort ring from the ring name (e.g., "R1" from "Mixed 8-10_R1")
-    const cohortRing = mapping.cohortRingName.match(/_R(\d+)$/)?.[0]?.substring(1) || undefined;
+    // Extract pool from the ring name (e.g., "R1" from "Mixed 8-10_R1")
+    const pool = mapping.cohortRingName.match(/_R(\d+)$/)?.[0]?.substring(1) || undefined;
 
     // Update the participant
     const updatedParticipants = participants.map(p => {
@@ -314,16 +314,16 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         if (type === 'forms') {
           return { 
             ...p, 
-            formsCohortId: cohort.id,
-            formsCohortRing: cohortRing,
-            formsDivision: cohort.division
+            formsCategoryId: category.id,
+            formsPool: pool,
+            formsDivision: category.division
           };
         } else {
           return { 
             ...p, 
-            sparringCohortId: cohort.id,
-            sparringCohortRing: cohortRing,
-            sparringDivision: cohort.division
+            sparringCategoryId: category.id,
+            sparringPool: pool,
+            sparringDivision: category.division
           };
         }
       }
@@ -335,12 +335,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
   // Filter participants based on all filter criteria
   const filteredParticipants = useMemo(() => {
     return participants.filter((p) => {
-      const formsCohort = cohorts.find(c => c.id === p.formsCohortId);
-      const sparringCohort = cohorts.find(c => c.id === p.sparringCohortId);
-      const formsCohortName = formsCohort?.name || '';
-      const sparringCohortName = sparringCohort?.name || '';
-      const formsOrder = p.formsRankOrder ? (p.formsRankOrder * 10).toString() : '';
-      const sparringOrder = p.sparringRankOrder ? (p.sparringRankOrder * 10).toString() : '';
+      const formsCategory = categories.find(c => c.id === p.formsCategoryId);
+      const sparringCategory = categories.find(c => c.id === p.sparringCategoryId);
+      const formsCohortName = formsCategory?.name || '';
+      const sparringCohortName = sparringCategory?.name || '';
+      const formsOrder = p.formsRankOrder ? p.formsRankOrder.toString() : '';
+      const sparringOrder = p.sparringRankOrder ? p.sparringRankOrder.toString() : '';
       
       // Get ring names and physical ring names
       const formsRing = competitionRings.find(r => r.id === p.formsRingId);
@@ -350,10 +350,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       
       // Get physical ring names from mappings
       const formsPhysicalMapping = physicalRingMappings.find(m => 
-        formsCohort && p.formsCohortRing && m.cohortRingName === `${formsCohort.name}_${p.formsCohortRing}`
+        formsCategory && p.formsPool && m.cohortRingName === `${formsCategory.name}_${p.formsPool}`
       );
       const sparringPhysicalMapping = physicalRingMappings.find(m => 
-        sparringCohort && p.sparringCohortRing && m.cohortRingName === `${sparringCohort.name}_${p.sparringCohortRing}`
+        sparringCategory && p.sparringPool && m.cohortRingName === `${sparringCategory.name}_${p.sparringPool}`
       );
       const formsPhysicalRingName = formsPhysicalMapping?.physicalRingName || '';
       const sparringPhysicalRingName = sparringPhysicalMapping?.physicalRingName || '';
@@ -369,8 +369,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         (p.branch || '').toLowerCase().includes(filters.branch.toLowerCase()) &&
         p.formsDivision.toLowerCase().includes(filters.formsDivision.toLowerCase()) &&
         p.sparringDivision.toLowerCase().includes(filters.sparringDivision.toLowerCase()) &&
-        formsCohortName.toLowerCase().includes(filters.formsCohort.toLowerCase()) &&
-        sparringCohortName.toLowerCase().includes(filters.sparringCohort.toLowerCase()) &&
+        formsCohortName.toLowerCase().includes(filters.formsCategory.toLowerCase()) &&
+        sparringCohortName.toLowerCase().includes(filters.sparringCategory.toLowerCase()) &&
         formsRingName.toLowerCase().includes(filters.formsRing.toLowerCase()) &&
         sparringRingName.toLowerCase().includes(filters.sparringRing.toLowerCase()) &&
         formsPhysicalRingName.toLowerCase().includes(filters.formsPhysicalRing.toLowerCase()) &&
@@ -380,7 +380,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         sparringOrder.includes(filters.sparringOrder)
       );
     });
-  }, [participants, filters, cohorts, competitionRings, physicalRingMappings]);
+  }, [participants, filters, categories, competitionRings, physicalRingMappings]);
 
   // Update a specific filter
   const updateFilter = (column: keyof typeof filters, value: string) => {
@@ -400,8 +400,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       branch: '',
       formsDivision: '',
       sparringDivision: '',
-      formsCohort: '',
-      sparringCohort: '',
+      formsCategory: '',
+      sparringCategory: '',
       formsRing: '',
       sparringRing: '',
       formsPhysicalRing: '',
@@ -525,12 +525,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 </select>
               </th>
               <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
-                Forms Cohort
+                Forms Category
                 <input
                   type="text"
                   placeholder="Filter..."
-                  value={filters.formsCohort}
-                  onChange={(e) => updateFilter('formsCohort', e.target.value)}
+                  value={filters.formsCategory}
+                  onChange={(e) => updateFilter('formsCategory', e.target.value)}
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
@@ -578,12 +578,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 </select>
               </th>
               <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
-                Sparring Cohort
+                Sparring Category
                 <input
                   type="text"
                   placeholder="Filter..."
-                  value={filters.sparringCohort}
-                  onChange={(e) => updateFilter('sparringCohort', e.target.value)}
+                  value={filters.sparringCategory}
+                  onChange={(e) => updateFilter('sparringCategory', e.target.value)}
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
@@ -633,15 +633,15 @@ function DataViewer({ globalDivision }: DataViewerProps) {
             {filteredParticipants.map((p) => {
               const formsRing = competitionRings.find(r => r.id === p.formsRingId);
               const sparringRing = competitionRings.find(r => r.id === p.sparringRingId);
-              const formsCohort = cohorts.find(c => c.id === p.formsCohortId);
-              const sparringCohort = cohorts.find(c => c.id === p.sparringCohortId);
+              const formsCategory = categories.find(c => c.id === p.formsCategoryId);
+              const sparringCategory = categories.find(c => c.id === p.sparringCategoryId);
               
               // Get physical ring names from mappings
               const formsPhysicalMapping = physicalRingMappings.find(m => 
-                formsCohort && p.formsCohortRing && m.cohortRingName === `${formsCohort.name}_${p.formsCohortRing}`
+                formsCategory && p.formsPool && m.cohortRingName === `${formsCategory.name}_${p.formsPool}`
               );
               const sparringPhysicalMapping = physicalRingMappings.find(m => 
-                sparringCohort && p.sparringCohortRing && m.cohortRingName === `${sparringCohort.name}_${p.sparringCohortRing}`
+                sparringCategory && p.sparringPool && m.cohortRingName === `${sparringCategory.name}_${p.sparringPool}`
               );
 
               const isHighlighted = p.id === highlightedId;
@@ -690,15 +690,15 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 <td className="forms-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
                   {p.competingForms ? (
                     <select
-                      value={p.formsCohortId || ''}
-                      onChange={(e) => updateParticipantCohort(p.id, 'formsCohortId', e.target.value)}
+                      value={p.formsCategoryId || ''}
+                      onChange={(e) => updateParticipantCohort(p.id, 'formsCategoryId', e.target.value)}
                       style={{ 
                         width: '100%', 
                         padding: '4px',
                         border: '1px solid #ccc',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: p.formsCohortId ? 'white' : '#fff3cd'
+                        background: p.formsCategoryId ? 'white' : '#fff3cd'
                       }}
                     >
                       <option value="">Not assigned</option>
@@ -712,8 +712,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   {p.competingForms ? (
                     <input
                       type="text"
-                      value={p.formsCohortRing || ''}
-                      onChange={(e) => updateParticipantCohortRing(p.id, 'formsCohortRing', e.target.value)}
+                      value={p.formsPool || ''}
+                      onChange={(e) => updateParticipantCohortRing(p.id, 'formsPool', e.target.value)}
                       placeholder="e.g. R1"
                       style={{ 
                         width: '100%', 
@@ -721,7 +721,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                         border: '1px solid #ccc',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: p.formsCohortRing ? 'white' : '#fff3cd'
+                        background: p.formsPool ? 'white' : '#fff3cd'
                       }}
                     />
                   ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
@@ -751,7 +751,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   {p.competingForms ? (
                     <input
                       type="number"
-                      value={p.formsRankOrder ? p.formsRankOrder * 10 : ''}
+                      value={p.formsRankOrder ? p.formsRankOrder : ''}
                       onChange={(e) => updateParticipantOrder(p.id, 'formsRankOrder', e.target.value)}
                       placeholder="Order"
                       style={{ 
@@ -787,15 +787,15 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 <td className="sparring-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
                   {p.competingSparring ? (
                     <select
-                      value={p.sparringCohortId || ''}
-                      onChange={(e) => updateParticipantCohort(p.id, 'sparringCohortId', e.target.value)}
+                      value={p.sparringCategoryId || ''}
+                      onChange={(e) => updateParticipantCohort(p.id, 'sparringCategoryId', e.target.value)}
                       style={{ 
                         width: '100%', 
                         padding: '4px',
                         border: '1px solid #ccc',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: p.sparringCohortId ? 'white' : '#fff3cd'
+                        background: p.sparringCategoryId ? 'white' : '#fff3cd'
                       }}
                     >
                       <option value="">Not assigned</option>
@@ -809,8 +809,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   {p.competingSparring ? (
                     <input
                       type="text"
-                      value={p.sparringCohortRing || ''}
-                      onChange={(e) => updateParticipantCohortRing(p.id, 'sparringCohortRing', e.target.value)}
+                      value={p.sparringPool || ''}
+                      onChange={(e) => updateParticipantCohortRing(p.id, 'sparringPool', e.target.value)}
                       placeholder="e.g. R1"
                       style={{ 
                         width: '100%', 
@@ -818,7 +818,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                         border: '1px solid #ccc',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: p.sparringCohortRing ? 'white' : '#fff3cd'
+                        background: p.sparringPool ? 'white' : '#fff3cd'
                       }}
                     />
                   ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
@@ -878,7 +878,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   {p.competingSparring ? (
                     <input
                       type="number"
-                      value={p.sparringRankOrder ? p.sparringRankOrder * 10 : ''}
+                      value={p.sparringRankOrder ? p.sparringRankOrder : ''}
                       onChange={(e) => updateParticipantOrder(p.id, 'sparringRankOrder', e.target.value)}
                       placeholder="Order"
                       style={{ 

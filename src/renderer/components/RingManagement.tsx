@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
-import { assignRingsForAllCohorts, mapSparringToForms } from '../utils/ringAssignment';
+import { assignRingsForAllCategories, mapSparringToForms } from '../utils/ringAssignment';
 import { CompetitionRing } from '../types/tournament';
 import { computeCompetitionRings } from '../utils/computeRings';
 
@@ -10,16 +10,16 @@ interface RingManagementProps {
 
 function RingManagement({ globalDivision }: RingManagementProps) {
   const participants = useTournamentStore((state) => state.participants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const config = useTournamentStore((state) => state.config);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const setCompetitionRings = useTournamentStore((state) => state.setCompetitionRings);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
 
   const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt');
@@ -32,9 +32,9 @@ function RingManagement({ globalDivision }: RingManagementProps) {
     }
   }, [globalDivision]);
 
-  // Helper function to sort cohorts by age, then gender
-  const sortCohorts = (cohortList: typeof cohorts) => {
-    return cohortList.sort((a, b) => {
+  // Helper function to sort categories by age, then gender
+  const sortCategories = (categoryList: typeof categories) => {
+    return categoryList.sort((a, b) => {
       // First, sort by minimum age
       if (a.minAge !== b.minAge) {
         return a.minAge - b.minAge;
@@ -46,34 +46,34 @@ function RingManagement({ globalDivision }: RingManagementProps) {
     });
   };
 
-  // Get forms cohorts for selected division
-  const formsCohorts = useMemo(() => {
+  // Get forms categories for selected division
+  const formsCategories = useMemo(() => {
     if (!selectedDivision) return [];
-    const filtered = cohorts.filter(c => c.division === selectedDivision && c.type === 'forms');
-    return sortCohorts([...filtered]);
-  }, [cohorts, selectedDivision]);
+    const filtered = categories.filter(c => c.division === selectedDivision && c.type === 'forms');
+    return sortCategories([...filtered]);
+  }, [categories, selectedDivision]);
 
-  // Get sparring cohorts for selected division
-  const sparringCohorts = useMemo(() => {
+  // Get sparring categories for selected division
+  const sparringCategories = useMemo(() => {
     if (!selectedDivision) return [];
-    const filtered = cohorts.filter(c => c.division === selectedDivision && c.type === 'sparring');
-    return sortCohorts([...filtered]);
-  }, [cohorts, selectedDivision]);
+    const filtered = categories.filter(c => c.division === selectedDivision && c.type === 'sparring');
+    return sortCategories([...filtered]);
+  }, [categories, selectedDivision]);
 
   // Calculate total rings needed for forms
   const formsRingsNeeded = useMemo(() => {
-    return formsCohorts.reduce((sum, cohort) => sum + cohort.numRings, 0);
-  }, [formsCohorts]);
+    return formsCategories.reduce((sum, category) => sum + category.numPools, 0);
+  }, [formsCategories]);
 
   // Calculate total rings needed for sparring
   const sparringRingsNeeded = useMemo(() => {
-    return sparringCohorts.reduce((sum, cohort) => sum + cohort.numRings, 0);
-  }, [sparringCohorts]);
+    return sparringCategories.reduce((sum, category) => sum + category.numPools, 0);
+  }, [sparringCategories]);
 
-  // Get cohort rings for a specific cohort and type
-  const getCohortRings = (cohortId: string, type: 'forms' | 'sparring'): CompetitionRing[] => {
+  // Get pools for a specific category and type
+  const getCategoryRings = (categoryId: string, type: 'forms' | 'sparring'): CompetitionRing[] => {
     return competitionRings.filter(ring => 
-      ring.cohortId === cohortId && 
+      ring.categoryId === categoryId && 
       ring.type === type
     ).sort((a, b) => {
       // Sort by ring name (R1, R2, R3, etc.)
@@ -94,27 +94,27 @@ function RingManagement({ globalDivision }: RingManagementProps) {
     }
 
     // We only allow a single unified assign flow: forms then map sparring
-    const targetCohorts = formsCohorts;
-    console.log('Forms cohorts:', targetCohorts);
-    console.log('Forms cohorts length:', targetCohorts.length);
+    const targetCategories = formsCategories;
+    console.log('Forms categories:', targetCategories);
+    console.log('Forms categories length:', targetCategories.length);
 
-    if (targetCohorts.length === 0) {
-      alert(`No forms cohorts found for ${selectedDivision}`);
+    if (targetCategories.length === 0) {
+      alert(`No forms categories found for ${selectedDivision}`);
       return;
     }
 
-    // Check if participants competing in sparring have sparring cohort assignments
+    // Check if participants competing in sparring have sparring category assignments
     const sparringParticipants = participants.filter(p => p.competingSparring);
-    const sparringWithCohorts = participants.filter(p => p.competingSparring && p.sparringCohortId);
+    const sparringWithCohorts = participants.filter(p => p.competingSparring && p.sparringCategoryId);
     
     if (sparringParticipants.length > 0 && sparringWithCohorts.length === 0) {
       alert(
-        `⚠️ Warning: ${sparringParticipants.length} participants are marked as competing in sparring, but NONE are assigned to sparring cohorts!\n\n` +
+        `⚠️ Warning: ${sparringParticipants.length} participants are marked as competing in sparring, but NONE are assigned to sparring categories!\n\n` +
         `Sparring rings will NOT be created.\n\n` +
         `To fix this:\n` +
-        `1. Go to the "Cohort Management" tab\n` +
-        `2. Create or verify sparring cohorts exist\n` +
-        `3. Assign participants to sparring cohorts\n` +
+        `1. Go to the "Category Management" tab\n` +
+        `2. Create or verify sparring categories exist\n` +
+        `3. Assign participants to sparring categories\n` +
         `4. Then return here to assign rings\n\n` +
         `Do you want to continue with Forms ring assignment only?`
       );
@@ -122,9 +122,9 @@ function RingManagement({ globalDivision }: RingManagementProps) {
     } else if (sparringParticipants.length > 0 && sparringWithCohorts.length < sparringParticipants.length) {
       const unassigned = sparringParticipants.length - sparringWithCohorts.length;
       alert(
-        `⚠️ Warning: ${unassigned} of ${sparringParticipants.length} sparring participants are NOT assigned to sparring cohorts.\n\n` +
+        `⚠️ Warning: ${unassigned} of ${sparringParticipants.length} sparring participants are NOT assigned to sparring categories.\n\n` +
         `These participants will not be included in sparring rings.\n\n` +
-        `Consider going to Cohort Management to assign them before continuing.`
+        `Consider going to Category Management to assign them before continuing.`
       );
     }
 
@@ -137,7 +137,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
     console.log('User confirmed, proceeding with ring assignment');
     try {
       // Create temporary physical rings based on user input
-      const maxRingsNeeded = Math.max(...targetCohorts.map(c => c.numRings), numPhysicalRings);
+      const maxRingsNeeded = Math.max(...targetCategories.map(c => c.numPools), numPhysicalRings);
       console.log('Max rings needed:', maxRingsNeeded);
       console.log('Num physical rings:', numPhysicalRings);
       
@@ -149,8 +149,8 @@ function RingManagement({ globalDivision }: RingManagementProps) {
       console.log('Created temp physical rings:', tempPhysicalRings.length);
 
       // Assign forms rings
-      const formsResult = assignRingsForAllCohorts(
-        cohorts,
+      const formsResult = assignRingsForAllCategories(
+        categories,
         participants,
         tempPhysicalRings,
         'forms',
@@ -158,7 +158,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
       );
 
       // Now map sparring participants into the same physical rings
-      const sparringResult = mapSparringToForms(cohorts, formsResult.updatedParticipants, formsResult.competitionRings);
+      const sparringResult = mapSparringToForms(categories, formsResult.updatedParticipants, formsResult.competitionRings);
 
       // Merge forms + sparring competition rings with any other existing rings from other divisions
       const otherRings = competitionRings.filter((r) => r.division !== selectedDivision);
@@ -233,7 +233,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
 
       </div>
 
-      {/* Forms Cohorts Section */}
+      {/* Forms Categories Section */}
       {selectedDivision && (
         <div className="grid grid-2 mt-2">
           {/* Forms + Sparring (single assign) */}
@@ -244,7 +244,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
             <button
               className="btn btn-primary mb-1"
               onClick={() => handleAssignRings('forms')}
-              disabled={formsCohorts.length === 0 || formsRingsNeeded === 0 || formsRingsNeeded > 14}
+              disabled={formsCategories.length === 0 || formsRingsNeeded === 0 || formsRingsNeeded > 14}
             >
               Assign Rings
             </button>
@@ -257,11 +257,11 @@ function RingManagement({ globalDivision }: RingManagementProps) {
               </div>
             )}
 
-            {/* Forms Cohorts Table */}
-            {formsCohorts.length > 0 && (
+            {/* Forms Categories Table */}
+            {formsCategories.length > 0 && (
               <>
                 <h4 style={{ fontSize: '15px', marginTop: '20px', marginBottom: '10px' }}>
-                  Forms Cohorts in {selectedDivision} ({formsCohorts.length})
+                  Forms Categories in {selectedDivision} ({formsCategories.length})
                 </h4>
                 <div style={{ 
                   maxHeight: '300px', 
@@ -274,21 +274,21 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                   <table style={{ width: '100%', fontSize: '14px' }}>
                     <thead>
                       <tr style={{ borderBottom: '2px solid #dee2e6' }}>
-                        <th style={{ padding: '8px', textAlign: 'left' }}>Cohort</th>
+                        <th style={{ padding: '8px', textAlign: 'left' }}>Category</th>
                         <th style={{ padding: '8px', textAlign: 'center' }}>Participants</th>
                         <th style={{ padding: '8px', textAlign: 'center' }}>Rings Needed</th>
                         <th style={{ padding: '8px', textAlign: 'left' }}>Assigned Rings</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {formsCohorts.map(cohort => {
-                        const rings = getCohortRings(cohort.id, 'forms');
+                      {formsCategories.map(category => {
+                        const rings = getCategoryRings(category.id, 'forms');
                         
                         return (
-                          <tr key={cohort.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ padding: '8px' }}>{cohort.name}</td>
-                            <td style={{ padding: '8px', textAlign: 'center' }}>{cohort.participantIds.length}</td>
-                            <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{cohort.numRings}</td>
+                          <tr key={category.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '8px' }}>{category.name}</td>
+                            <td style={{ padding: '8px', textAlign: 'center' }}>{category.participantIds.length}</td>
+                            <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{category.numPools}</td>
                             <td style={{ padding: '8px', fontSize: '12px' }}>
                               {rings.length > 0 ? (
                                 <span style={{ color: '#007bff' }}>
@@ -306,7 +306,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                       <tr style={{ borderTop: '2px solid #dee2e6', fontWeight: 'bold' }}>
                         <td style={{ padding: '8px' }}>TOTAL</td>
                         <td style={{ padding: '8px', textAlign: 'center' }}>
-                          {formsCohorts.reduce((sum, c) => sum + c.participantIds.length, 0)}
+                          {formsCategories.reduce((sum, c) => sum + c.participantIds.length, 0)}
                         </td>
                         <td style={{ 
                           padding: '8px', 
@@ -334,9 +334,9 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                 )}
               </>
             )}
-            {formsCohorts.length === 0 && (
+            {formsCategories.length === 0 && (
               <div className="info" style={{ marginTop: '10px' }}>
-                <p>No forms cohorts created for {selectedDivision} yet.</p>
+                <p>No forms categories created for {selectedDivision} yet.</p>
               </div>
             )}
           </div>
@@ -359,11 +359,11 @@ function RingManagement({ globalDivision }: RingManagementProps) {
               </div>
             )}
 
-            {/* Sparring Cohorts Table */}
-            {sparringCohorts.length > 0 && (
+            {/* Sparring Categories Table */}
+            {sparringCategories.length > 0 && (
               <>
                 <h4 style={{ fontSize: '15px', marginTop: '20px', marginBottom: '10px' }}>
-                  Sparring Cohorts in {selectedDivision} ({sparringCohorts.length})
+                  Sparring Categories in {selectedDivision} ({sparringCategories.length})
                 </h4>
                 <div style={{ 
                   maxHeight: '300px', 
@@ -376,21 +376,21 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                   <table style={{ width: '100%', fontSize: '14px' }}>
                     <thead>
                       <tr style={{ borderBottom: '2px solid #dee2e6' }}>
-                        <th style={{ padding: '8px', textAlign: 'left' }}>Cohort</th>
+                        <th style={{ padding: '8px', textAlign: 'left' }}>Category</th>
                         <th style={{ padding: '8px', textAlign: 'center' }}>Participants</th>
                         <th style={{ padding: '8px', textAlign: 'center' }}>Rings Needed</th>
                         <th style={{ padding: '8px', textAlign: 'left' }}>Assigned Rings</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sparringCohorts.map(cohort => {
-                        const rings = getCohortRings(cohort.id, 'sparring');
+                      {sparringCategories.map(category => {
+                        const rings = getCategoryRings(category.id, 'sparring');
                         
                         return (
-                          <tr key={cohort.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ padding: '8px' }}>{cohort.name}</td>
-                            <td style={{ padding: '8px', textAlign: 'center' }}>{cohort.participantIds.length}</td>
-                            <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{cohort.numRings}</td>
+                          <tr key={category.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '8px' }}>{category.name}</td>
+                            <td style={{ padding: '8px', textAlign: 'center' }}>{category.participantIds.length}</td>
+                            <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{category.numPools}</td>
                             <td style={{ padding: '8px', fontSize: '12px' }}>
                               {rings.length > 0 ? (
                                 <span style={{ color: '#28a745' }}>
@@ -408,7 +408,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                       <tr style={{ borderTop: '2px solid #dee2e6', fontWeight: 'bold' }}>
                         <td style={{ padding: '8px' }}>TOTAL</td>
                         <td style={{ padding: '8px', textAlign: 'center' }}>
-                          {sparringCohorts.reduce((sum, c) => sum + c.participantIds.length, 0)}
+                          {sparringCategories.reduce((sum, c) => sum + c.participantIds.length, 0)}
                         </td>
                         <td style={{ 
                           padding: '8px', 
@@ -436,9 +436,9 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                 )}
               </>
             )}
-            {sparringCohorts.length === 0 && (
+            {sparringCategories.length === 0 && (
               <div className="info" style={{ marginTop: '10px' }}>
-                <p>No sparring cohorts created for {selectedDivision} yet.</p>
+                <p>No sparring categories created for {selectedDivision} yet.</p>
               </div>
             )}
           </div>

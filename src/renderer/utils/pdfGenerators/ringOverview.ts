@@ -65,17 +65,18 @@ function drawTable(
 
 // Helper function to add timestamp footer
 function addFooter(doc: jsPDF, timestamp: string, pageWidth: number, pageHeight: number) {
+  const margin = 10; // Standard margin in mm
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  doc.text(timestamp, pageWidth / 2, pageHeight - 20, { align: 'center' });
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(128, 128, 128); // Gray text
+  doc.text(timestamp, margin + 50, pageHeight - 5);
+  doc.setTextColor(0, 0, 0); // Reset to black
 }
 
 export function generateRingOverviewPDF(
   participants: any[],
   ringPairs: RingPair[],
-  cohorts: any[],
+  categories: any[],
   selectedDivision: string = 'all'
 ) {
   const doc = new jsPDF('portrait', 'pt', 'letter');
@@ -195,7 +196,7 @@ export function generateRingOverviewPDF(
       // Forms Ring (Left Column)
       const formsStartY = yPos;
       if (pair.formsRing) {
-        const cohort = cohorts.find(c => c.id === pair.formsRing.cohortId);
+        const category = categories.find(c => c.id === pair.formsRing.categoryId);
         const formsParticipants = participants
           .filter(p => pair.formsRing.participantIds.includes(p.id))
           .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
@@ -209,8 +210,8 @@ export function generateRingOverviewPDF(
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        if (cohort) {
-          doc.text(`Cohort: ${cohort.gender}, Ages ${cohort.minAge}-${cohort.maxAge}`, leftX, yPos);
+        if (category) {
+          doc.text(`Category: ${category.gender}, Ages ${category.minAge}-${category.maxAge}`, leftX, yPos);
           yPos += 12;
         }
         doc.text(`Participants: ${formsParticipants.length}`, leftX, yPos);
@@ -218,7 +219,7 @@ export function generateRingOverviewPDF(
 
         // Forms table
         const formsRows = formsParticipants.map(p => [
-          p.formsRankOrder ? String(p.formsRankOrder * 10) : '-',
+          p.formsRankOrder ? String(p.formsRankOrder) : '-',
           `${p.firstName} ${p.lastName}`,
           String(p.age),
           p.gender
@@ -250,7 +251,7 @@ export function generateRingOverviewPDF(
       // Sparring Ring (Right Column)
       yPos = formsStartY;
       if (pair.sparringRing) {
-        const cohort = cohorts.find(c => c.id === pair.sparringRing.cohortId);
+        const category = categories.find(c => c.id === pair.sparringRing.categoryId);
         const sparringParticipants = participants
           .filter(p => pair.sparringRing.participantIds.includes(p.id))
           .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
@@ -269,8 +270,8 @@ export function generateRingOverviewPDF(
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        if (cohort) {
-          doc.text(`Cohort: ${cohort.gender}, Ages ${cohort.minAge}-${cohort.maxAge}`, rightX, yPos);
+        if (category) {
+          doc.text(`Category: ${category.gender}, Ages ${category.minAge}-${category.maxAge}`, rightX, yPos);
           yPos += 12;
         }
 

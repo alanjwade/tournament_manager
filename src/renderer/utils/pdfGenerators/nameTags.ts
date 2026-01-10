@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { Participant, PhysicalRing, PhysicalRingMapping, Cohort } from '../../types/tournament';
+import { Participant, PhysicalRing, PhysicalRingMapping, Category } from '../../types/tournament';
 import { getSchoolAbbreviation } from '../schoolAbbreviations';
 
 export interface NameTagConfig {
@@ -32,7 +32,7 @@ export function generateNameTags(
   physicalRingMappings?: PhysicalRingMapping[],
   schoolAbbreviations?: { [schoolName: string]: string },
   logo?: string,
-  cohorts?: Cohort[]
+  categories?: Category[]
 ): jsPDF {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -79,14 +79,15 @@ export function generateNameTags(
     doc.rect(x, y, config.width, config.height);
 
     // Add logo to bottom right inside the tag if provided
-    // 25% of tag height, square, with 1/8" (3.175mm) margin from edges
+    // 27.5% of tag height (25% + 10% bigger), square, positioned to align with division text
     if (logo) {
       try {
-        const logoSize = config.height * 0.25; // 25% of height, square
-        const marginMm = 3.175; // 1/8 inch = 3.175mm
-        // Position inside the tag: bottom right corner
+        const logoSize = config.height * 0.275; // 27.5% of height (25% * 1.1 for 10% bigger), square
+        const marginMm = 3.175; // 1/8 inch = 3.175mm from right edge
+        // Position inside the tag: right side, vertically centered on the division text
+        // Division text is at y + 39, so center logo there
         const logoX = x + config.width - logoSize - marginMm; // From right edge
-        const logoY = y + config.height - logoSize - marginMm; // From bottom edge
+        const logoY = y + 30.85; // Center logo around division text line (y + 39 - logoSize/2)
         
         doc.addImage(
           logo,
@@ -107,13 +108,13 @@ export function generateNameTags(
     let physicalRingName = '';
     let ringColor = '';
     
-    // Get physical ring from cohort ring mapping - use cohort NAME not ID
-    if (participant.formsCohortRing && participant.formsCohortId && physicalRingMappings && cohorts) {
-      // Find the cohort to get its name
-      const formsCohort = cohorts.find(c => c.id === participant.formsCohortId);
+    // Get physical ring from pool mapping - use category NAME not ID
+    if (participant.formsPool && participant.formsCategoryId && physicalRingMappings && categories) {
+      // Find the category to get its name
+      const formsCategory = categories.find(c => c.id === participant.formsCategoryId);
       
-      if (formsCohort) {
-        const cohortRingName = `${formsCohort.name}_${participant.formsCohortRing}`;
+      if (formsCategory) {
+        const categoryRingName = `${formsCategory.name}_${participant.formsPool}`;
         
         const mapping = physicalRingMappings.find(m => m.cohortRingName === cohortRingName);
         
@@ -163,8 +164,31 @@ export function generateNameTags(
     if (physicalRingName && ringColor) {
       textY += 12; // Larger spacing for 24pt font
       
-      // Draw text with colored background - just show ring name (e.g., "PR9")
-      const ringText = physicalRingName;
+      // Convert physical ring name format (e.g., "PR1" -> "Ring 1", "PR1a" -> "Ring 1 Group A")
+      const convertRingName = (prName: string): string => {
+        // Match pattern like "PR1", "PR1a", "PR1b", etc.
+        const match = prName.match(/^PR(\d+)([a-z]?)$/i);
+        if (!match) return prName; // Return original if format doesn't match
+        
+        const ringNum = match[1];
+        const suffix = match[2].toLowerCase();
+        
+        if (!suffix) {
+          return `Ring ${ringNum}`;
+        }
+        
+        const groupMap: { [key: string]: string } = {
+          'a': 'Group A',
+          'b': 'Group B',
+          'c': 'Group C',
+          'd': 'Group D',
+        };
+        
+        return `Ring ${ringNum} ${groupMap[suffix] || suffix}`;
+      };
+      
+      // Draw text with colored background - show converted ring name (e.g., "Ring 1")
+      const ringText = convertRingName(physicalRingName);
       const textWidth = doc.getTextWidth(ringText);
       
       // Convert hex color to RGB for background

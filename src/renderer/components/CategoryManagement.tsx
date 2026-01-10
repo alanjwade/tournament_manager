@@ -1,25 +1,26 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useTournamentStore } from '../store/tournamentStore';
-import { Cohort } from '../types/tournament';
+import { Category } from '../types/tournament';
 import { getEffectiveDivision } from '../utils/excelParser';
+import { autoAssignAndOrderCategory } from '../utils/autoAssignAndOrder';
 
-interface CohortManagementProps {
+interface CategoryManagementProps {
   globalDivision?: string;
 }
 
-function CohortManagement({ globalDivision }: CohortManagementProps) {
+function CategoryManagement({ globalDivision }: CategoryManagementProps) {
   const participants = useTournamentStore((state) => state.participants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
+  const categories = useTournamentStore((state) => state.categories);
   const config = useTournamentStore((state) => state.config);
-  const setCohorts = useTournamentStore((state) => state.setCohorts);
+  const setCategories = useTournamentStore((state) => state.setCategories);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
-  const updateCohort = useTournamentStore((state) => state.updateCohort);
+  const updateCategory = useTournamentStore((state) => state.updateCategory);
 
   const [selectedDivision, setSelectedDivision] = useState(globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt');
   const [selectedGender, setSelectedGender] = useState<'male' | 'female' | 'mixed'>('mixed');
   const [selectedAges, setSelectedAges] = useState<Set<string>>(new Set());
-  const [numRings, setNumRings] = useState(1);
+  const [numPools, setNumPools] = useState(1);
 
   // Sync with global division when it changes
   useEffect(() => {
@@ -74,13 +75,15 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
 
   // Calculate participant counts for the current criteria
   const participantCounts = useMemo(() => {
+    console.log('Calculating participantCounts with:', { selectedDivision, selectedGender, selectedAges: Array.from(selectedAges) });
+    
     const formsMatching = participants.filter((p) => {
       if (!selectedDivision) return false;
       
       const genderMatch = selectedGender === 'mixed' || p.gender.toLowerCase() === selectedGender;
       const effectiveDivision = getEffectiveDivision(p, 'forms');
       const divisionMatch = effectiveDivision === selectedDivision;
-      const unassigned = !p.formsCohortId;
+      const unassigned = !p.formsCategoryId;
 
       // Age matching with checkbox logic
       let ageMatch = false;
@@ -91,7 +94,11 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
         ageMatch = true;
       }
       
-      return ageMatch && genderMatch && divisionMatch && unassigned && p.competingForms;
+      const result = ageMatch && genderMatch && divisionMatch && unassigned && p.competingForms;
+      if (result) {
+        console.log('Forms match:', p.firstName, p.lastName, 'age:', p.age, 'gender:', p.gender);
+      }
+      return result;
     });
 
     const sparringMatching = participants.filter((p) => {
@@ -100,7 +107,7 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
       const genderMatch = selectedGender === 'mixed' || p.gender.toLowerCase() === selectedGender;
       const effectiveDivision = getEffectiveDivision(p, 'sparring');
       const divisionMatch = effectiveDivision === selectedDivision;
-      const unassigned = !p.sparringCohortId;
+      const unassigned = !p.sparringCategoryId;
 
       // Age matching with checkbox logic
       let ageMatch = false;
@@ -111,43 +118,47 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
         ageMatch = true;
       }
       
-      return ageMatch && genderMatch && divisionMatch && unassigned && p.competingSparring;
+      const result = ageMatch && genderMatch && divisionMatch && unassigned && p.competingSparring;
+      if (result) {
+        console.log('Sparring match:', p.firstName, p.lastName, 'age:', p.age, 'gender:', p.gender);
+      }
+      return result;
     });
 
-    const totalFormsInDivision = participants.filter((p) => {
-      const effectiveDivision = getEffectiveDivision(p, 'forms');
-      return effectiveDivision === selectedDivision && p.competingForms;
-    }).length;
+    console.log('Participant counts:', {
+      formsMatching: formsMatching.length,
+      sparringMatching: sparringMatching.length,
+      total: formsMatching.length + sparringMatching.length
+    });
 
-    const totalSparringInDivision = participants.filter((p) => {
-      const effectiveDivision = getEffectiveDivision(p, 'sparring');
-      return effectiveDivision === selectedDivision && p.competingSparring;
-    }).length;
-
-    const unassignedFormsInDivision = participants.filter((p) => {
-      const effectiveDivision = getEffectiveDivision(p, 'forms');
-      return effectiveDivision === selectedDivision && !p.formsCohortId && p.competingForms;
-    }).length;
-
-    const unassignedSparringInDivision = participants.filter((p) => {
-      const effectiveDivision = getEffectiveDivision(p, 'sparring');
-      return effectiveDivision === selectedDivision && !p.sparringCohortId && p.competingSparring;
-    }).length;
+    // Get all unique participants in division (forms or sparring or both)
+    const allInDivision = new Set<string>();
+    const unassignedInDivision = new Set<string>();
+    
+    participants.forEach(p => {
+      const formsDiv = getEffectiveDivision(p, 'forms');
+      const sparringDiv = getEffectiveDivision(p, 'sparring');
+      
+      if ((formsDiv === selectedDivision && p.competingForms) || 
+          (sparringDiv === selectedDivision && p.competingSparring)) {
+        allInDivision.add(p.id);
+        
+        // Check if unassigned in either
+        if ((formsDiv === selectedDivision && p.competingForms && !p.formsCategoryId) ||
+            (sparringDiv === selectedDivision && p.competingSparring && !p.sparringCategoryId)) {
+          unassignedInDivision.add(p.id);
+        }
+      }
+    });
 
     return {
       matching: formsMatching.length + sparringMatching.length,
-      formsMatching: formsMatching.length,
-      sparringMatching: sparringMatching.length,
-      totalInDivision: Math.max(totalFormsInDivision, totalSparringInDivision),
-      totalFormsInDivision,
-      totalSparringInDivision,
-      unassignedInDivision: Math.max(unassignedFormsInDivision, unassignedSparringInDivision),
-      unassignedFormsInDivision,
-      unassignedSparringInDivision,
+      totalInDivision: allInDivision.size,
+      unassignedInDivision: unassignedInDivision.size,
     };
   }, [participants, selectedDivision, selectedGender, selectedAges]);
 
-  const handleAddCohort = () => {
+  const handleAddCategory = () => {
     if (!selectedDivision) {
       alert('Please select a division');
       return;
@@ -158,12 +169,12 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
       return;
     }
 
-    // Find participants for forms cohort
+    // Find participants for forms category
     const formsParticipants = participants.filter((p) => {
       const genderMatch = selectedGender === 'mixed' || p.gender.toLowerCase() === selectedGender;
       const effectiveDivision = getEffectiveDivision(p, 'forms');
       const divisionMatch = effectiveDivision === selectedDivision;
-      const unassigned = !p.formsCohortId;
+      const unassigned = !p.formsCategoryId;
 
       let ageMatch = false;
       if (selectedAges.has('18 and Up') && p.age >= 18) {
@@ -176,12 +187,12 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
       return ageMatch && genderMatch && divisionMatch && unassigned && p.competingForms;
     });
 
-    // Find participants for sparring cohort
+    // Find participants for sparring category
     const sparringParticipants = participants.filter((p) => {
       const genderMatch = selectedGender === 'mixed' || p.gender.toLowerCase() === selectedGender;
       const effectiveDivision = getEffectiveDivision(p, 'sparring');
       const divisionMatch = effectiveDivision === selectedDivision;
-      const unassigned = !p.sparringCohortId;
+      const unassigned = !p.sparringCategoryId;
 
       let ageMatch = false;
       if (selectedAges.has('18 and Up') && p.age >= 18) {
@@ -218,92 +229,98 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
       ageDisplay = ageDisplay ? `${ageDisplay},18+` : '18+';
     }
     
-    const cohortName = `${selectedGender === 'mixed' ? 'Mixed' : selectedGender === 'male' ? 'Male' : 'Female'} ${ageDisplay}`;
+    const categoryName = `${selectedGender === 'mixed' ? 'Mixed' : selectedGender === 'male' ? 'Male' : 'Female'} ${ageDisplay}`;
 
-    // Determine minAge and maxAge for Cohort structure
+    // Determine minAge and maxAge for Category structure
     const allAges = numericAges.concat(hasAdults ? [18] : []);
     const minAgeValue = Math.min(...allAges);
     const maxAgeValue = hasAdults ? 999 : Math.max(...allAges);
 
-    const newCohorts: Cohort[] = [];
+    const newCategories: Category[] = [];
     const updatedParticipants = [...participants];
 
-    // Create Forms cohort if there are forms participants
+    // Create Forms category if there are forms participants
     if (formsParticipants.length > 0) {
-      const formsCohortId = uuidv4();
-      const formsCohort: Cohort = {
-        id: formsCohortId,
-        name: cohortName,
+      const formsCategoryId = uuidv4();
+      const formsCategory: Category = {
+        id: formsCategoryId,
+        name: categoryName,
         division: selectedDivision,
         gender: selectedGender,
         minAge: minAgeValue,
         maxAge: maxAgeValue,
         participantIds: formsParticipants.map((p) => p.id),
-        numRings,
+        numPools,
         type: 'forms',
       };
-      newCohorts.push(formsCohort);
+      newCategories.push(formsCategory);
 
-      // Update participants with forms cohort ID
+      // Update participants with forms category ID
       formsParticipants.forEach((fp) => {
         const index = updatedParticipants.findIndex((p) => p.id === fp.id);
         if (index !== -1) {
           updatedParticipants[index] = { 
             ...updatedParticipants[index], 
-            formsCohortId,
-            cohortId: formsCohortId // For backward compatibility
+            formsCategoryId,
+            cohortId: formsCategoryId // For backward compatibility
           };
         }
       });
     }
 
-    // Create Sparring cohort if there are sparring participants
+    // Create Sparring category if there are sparring participants
     if (sparringParticipants.length > 0) {
-      const sparringCohortId = uuidv4();
-      const sparringCohort: Cohort = {
-        id: sparringCohortId,
-        name: cohortName,
+      const sparringCategoryId = uuidv4();
+      const sparringCategory: Category = {
+        id: sparringCategoryId,
+        name: categoryName,
         division: selectedDivision,
         gender: selectedGender,
         minAge: minAgeValue,
         maxAge: maxAgeValue,
         participantIds: sparringParticipants.map((p) => p.id),
-        numRings,
+        numPools,
         type: 'sparring',
       };
-      newCohorts.push(sparringCohort);
+      newCategories.push(sparringCategory);
 
-      // Update participants with sparring cohort ID
+      // Update participants with sparring category ID
       sparringParticipants.forEach((sp) => {
         const index = updatedParticipants.findIndex((p) => p.id === sp.id);
         if (index !== -1) {
           updatedParticipants[index] = { 
             ...updatedParticipants[index], 
-            sparringCohortId 
+            sparringCategoryId 
           };
         }
       });
     }
 
-    setCohorts([...cohorts, ...newCohorts]);
-    setParticipants(updatedParticipants);
+    setCategories([...categories, ...newCategories]);
+    
+    // Automatically assign participants to pools and order them
+    let finalParticipants = [...updatedParticipants];
+    for (const newCategory of newCategories) {
+      finalParticipants = autoAssignAndOrderCategory(newCategory, finalParticipants);
+    }
+    setParticipants(finalParticipants);
 
     // Reset form
     setSelectedGender('mixed');
     setSelectedAges(new Set());
-    setNumRings(1);
+    setNumPools(1);
   };
 
-  const handleRemoveCohort = (cohortId: string) => {
-    if (!confirm('Remove this cohort? Participants will become unassigned.')) {
+  const handleRemoveCategory = (cohortId: string) => {
+    if (!confirm('Remove this category? Participants will become unassigned.')) {
       return;
     }
-    // Remove the selected cohort and any matching opposite cohort(s)
-    const cohortToRemove = cohorts.find((c) => c.id === cohortId);
+    // Remove the selected category and any matching opposite category(s)
+    const categoryToRemove = categories.find((c) => c.id === cohortId);
     if (!cohortToRemove) return;
 
-    // Find all cohorts that match the same name/division/gender/age range (both/forms/sparring variants)
-    const cohortsToRemove = cohorts.filter((c) =>
+    // Find all categories that match the same name/division/gender/age range (both/forms/sparring variants)
+    const categoriesToRemove = categories.filter((c) =>
       c.name === cohortToRemove.name &&
       c.division === cohortToRemove.division &&
       c.gender === cohortToRemove.gender &&
@@ -311,19 +328,19 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
       c.maxAge === cohortToRemove.maxAge
     );
 
-    const removeIds = new Set(cohortsToRemove.map(c => c.id));
+    const removeIds = new Set(categoriesToRemove.map(c => c.id));
 
-    // Update cohorts list by removing all matching cohorts
-    setCohorts(cohorts.filter((c) => !removeIds.has(c.id)));
+    // Update categories list by removing all matching categories
+    setCategories(categories.filter((c) => !removeIds.has(c.id)));
 
-    // Clear any cohort IDs on participants that referenced any of these removed cohorts
+    // Clear any category IDs on participants that referenced any of these removed categories
     const updatedParticipants = participants.map((p) => {
       let updated = { ...p };
-      if (p.formsCohortId && removeIds.has(p.formsCohortId)) {
-        updated.formsCohortId = undefined;
+      if (p.formsCategoryId && removeIds.has(p.formsCategoryId)) {
+        updated.formsCategoryId = undefined;
       }
-      if (p.sparringCohortId && removeIds.has(p.sparringCohortId)) {
-        updated.sparringCohortId = undefined;
+      if (p.sparringCategoryId && removeIds.has(p.sparringCategoryId)) {
+        updated.sparringCategoryId = undefined;
       }
       if (p.cohortId && removeIds.has(p.cohortId)) {
         updated.cohortId = undefined;
@@ -334,54 +351,65 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
   };
 
   const handleRingsChange = (cohortId: string, rings: number) => {
-    const cohort = cohorts.find((c) => c.id === cohortId);
-    if (!cohort) return;
+    const category = categories.find((c) => c.id === cohortId);
+    if (!category) return;
 
-    // Update the current cohort
-    updateCohort(cohortId, { numRings: rings });
+    // Update the current category
+    updateCategory(cohortId, { numPools: rings });
 
-    // Find the opposite type cohort with matching criteria
+    // Find the opposite type category with matching criteria
     // (Forms and Sparring use the same physical rings sequentially)
-    const oppositeType = cohort.type === 'forms' ? 'sparring' : 'forms';
-    const oppositeCohort = cohorts.find(
+    const oppositeType = category.type === 'forms' ? 'sparring' : 'forms';
+    const oppositeCategory = categories.find(
       (c) =>
         c.type === oppositeType &&
-        c.division === cohort.division &&
-        c.gender === cohort.gender &&
-        c.minAge === cohort.minAge &&
-        c.maxAge === cohort.maxAge
+        c.division === category.division &&
+        c.gender === category.gender &&
+        c.minAge === category.minAge &&
+        c.maxAge === category.maxAge
     );
 
-    // Sync the opposite cohort's ring count
-    if (oppositeCohort) {
-      updateCohort(oppositeCohort.id, { numRings: rings });
+    // Sync the opposite category's ring count
+    if (oppositeCategory) {
+      updateCategory(oppositeCategory.id, { numPools: rings });
     }
+
+    // Automatically reassign and reorder participants for the updated category
+    const updatedCategory = { ...category, numPools: rings };
+    let finalParticipants = autoAssignAndOrderCategory(updatedCategory, participants);
+    
+    // Also update the opposite category if it exists
+    if (oppositeCategory) {
+      const updatedOppositeCategory = { ...oppositeCategory, numPools: rings };
+      finalParticipants = autoAssignAndOrderCategory(updatedOppositeCategory, finalParticipants);
+    }
+    
+    setParticipants(finalParticipants);
   };
 
   // Calculate ring totals per division (only count Forms rings since Sparring uses same physical rings)
   const ringTotalsByDivision = useMemo(() => {
     const totals: { [division: string]: number } = {};
-    cohorts.forEach((cohort) => {
-      // Only count Forms cohorts - Sparring will use the same physical rings after Forms
-      if (cohort.type === 'forms') {
-        if (!totals[cohort.division]) {
-          totals[cohort.division] = 0;
+    categories.forEach((category) => {
+      // Only count Forms categories - Sparring will use the same physical rings after Forms
+      if (category.type === 'forms') {
+        if (!totals[category.division]) {
+          totals[category.division] = 0;
         }
-        totals[cohort.division] += cohort.numRings;
+        totals[category.division] += category.numPools;
       }
     });
     return totals;
-  }, [cohorts]);
+  }, [categories]);
 
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <h2 className="card-title" style={{ flexShrink: 0 }}>Cohort Management</h2>
+    <div className="card">
+      <h2 className="card-title">Category Management</h2>
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
-        <div className="grid grid-2">
-        {/* Create Cohort Form */}
+      <div className="grid grid-2">
+        {/* Create Category Form */}
         <div>
-          <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Create Cohort</h3>
+          <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Create Category</h3>
 
           <div className="form-group">
             <label className="form-label">Division</label>
@@ -454,7 +482,7 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
             <input
               type="number"
               className="form-control"
-              value={numRings}
+              value={numPools}
               onChange={(e) => setNumRings(parseInt(e.target.value) || 1)}
               min={1}
               max={10}
@@ -466,36 +494,37 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
             <div className="info" style={{ marginBottom: '15px' }}>
               <p style={{ margin: '5px 0' }}>
                 <strong>Matching participants:</strong> {participantCounts.matching}
-                {' '}
-                (<span style={{ color: '#007bff' }}>Forms: {participantCounts.formsMatching}</span>
-                {' / '}
-                <span style={{ color: '#28a745' }}>Sparring: {participantCounts.sparringMatching}</span>)
               </p>
               <p style={{ margin: '5px 0' }}>
-                <strong>Unassigned Forms:</strong> {participantCounts.unassignedFormsInDivision} / {participantCounts.totalFormsInDivision}
-              </p>
-              <p style={{ margin: '5px 0' }}>
-                <strong>Unassigned Sparring:</strong> {participantCounts.unassignedSparringInDivision} / {participantCounts.totalSparringInDivision}
+                <strong>Unassigned participants:</strong> {participantCounts.unassignedInDivision} / {participantCounts.totalInDivision}
               </p>
             </div>
           )}
 
           <button 
             className="btn btn-primary" 
-            onClick={handleAddCohort}
+            onClick={(e) => {
+              console.log('Add Category clicked', { 
+                selectedDivision, 
+                selectedAgesSize: selectedAges.size, 
+                matching: participantCounts.matching,
+                disabled: !selectedDivision || selectedAges.size === 0 || participantCounts.matching === 0
+              });
+              handleAddCategory();
+            }}
             disabled={!selectedDivision || selectedAges.size === 0 || participantCounts.matching === 0}
           >
-            Add Cohort
+            Add Category
           </button>
         </div>
 
-        {/* Cohorts List */}
+        {/* Categories List */}
         <div>
           <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
-            Cohorts ({cohorts.length})
+            Categories ({categories.length})
           </h3>
 
-          {cohorts.length > 0 ? (
+          {categories.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>
               <table className="table">
                 <thead>
@@ -503,52 +532,51 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
                     <th>Division</th>
                     <th>Gender</th>
                     <th>Age</th>
-                    <th>Form Count</th>
-                    <th>Sparring Count</th>
-                    <th>Rings</th>
+                    <th>Participants</th>
+                    <th>Pools</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {cohorts.map((cohort) => {
-                    // Find matching cohort of opposite type
-                    const oppositeCohort = cohorts.find(c => 
-                      c.id !== cohort.id &&
-                      c.name === cohort.name &&
-                      c.division === cohort.division &&
-                      c.type !== cohort.type
+                  {categories.map((category) => {
+                    // Find matching category of opposite type
+                    const oppositeCategory = categories.find(c => 
+                      c.id !== category.id &&
+                      c.name === category.name &&
+                      c.division === category.division &&
+                      c.type !== category.type
                     );
                     
-                    // Only show forms cohorts or sparring-only cohorts (avoid duplicates)
-                    if (cohort.type === 'sparring' && oppositeCohort) {
+                    // Only show forms categories or sparring-only categories (avoid duplicates)
+                    if (category.type === 'sparring' && oppositeCategory) {
                       return null;
                     }
 
-                    const formCount = cohort.type === 'forms' ? cohort.participantIds.length : (oppositeCohort?.participantIds.length || 0);
-                    const sparringCount = cohort.type === 'sparring' ? cohort.participantIds.length : (oppositeCohort?.participantIds.length || 0);
+                    // Combine participant counts from both forms and sparring
+                    const allParticipantIds = new Set([
+                      ...category.participantIds,
+                      ...(oppositeCategory?.participantIds || [])
+                    ]);
+                    const participantCount = allParticipantIds.size;
                     
                     return (
-                      <tr key={cohort.id}>
-                        <td>{cohort.division}</td>
-                        <td style={{ textTransform: 'capitalize' }}>{cohort.gender}</td>
+                      <tr key={category.id}>
+                        <td>{category.division}</td>
+                        <td style={{ textTransform: 'capitalize' }}>{category.gender}</td>
                         <td>
-                          {cohort.maxAge === 999 ? `${cohort.minAge}+` : `${cohort.minAge}-${cohort.maxAge}`}
+                          {category.maxAge === 999 ? `${category.minAge}+` : `${category.minAge}-${category.maxAge}`}
                         </td>
-                        {/* type column removed - cohorts may represent forms/sparring but UI hides type */}
-                        <td style={{ color: formCount > 0 ? '#007bff' : '#999' }}>
-                          {formCount > 0 ? formCount : '-'}
-                        </td>
-                        <td style={{ color: sparringCount > 0 ? '#28a745' : '#999' }}>
-                          {sparringCount > 0 ? sparringCount : '-'}
+                        <td style={{ color: participantCount > 0 ? '#007bff' : '#999' }}>
+                          {participantCount > 0 ? participantCount : '-'}
                         </td>
                         <td>
                           <input
                             type="number"
                             min={1}
                             max={10}
-                            value={cohort.numRings}
+                            value={category.numPools}
                             onChange={(e) =>
-                              handleRingsChange(cohort.id, parseInt(e.target.value) || 1)
+                              handleRingsChange(category.id, parseInt(e.target.value) || 1)
                             }
                             style={{ width: '50px', padding: '4px' }}
                           />
@@ -556,7 +584,7 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
                         <td>
                           <button
                             className="btn btn-danger"
-                            onClick={() => handleRemoveCohort(cohort.id)}
+                            onClick={() => handleRemoveCategory(category.id)}
                             style={{ padding: '5px 10px', fontSize: '12px' }}
                           >
                             Remove
@@ -570,7 +598,7 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
             </div>
           ) : (
             <div className="info">
-              <p>No cohorts created yet. Use the form on the left to create cohorts.</p>
+              <p>No categories created yet. Use the form on the left to create categories.</p>
             </div>
           )}
 
@@ -578,7 +606,7 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
           {Object.keys(ringTotalsByDivision).length > 0 && (
             <div style={{ marginTop: '30px' }}>
               <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
-                Forms Rings Needed by Division
+                Rings Needed by Division
               </h3>
               <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>
                 (Sparring will use the same physical rings after Forms are completed)
@@ -601,17 +629,14 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
                       style={{ 
                         display: 'flex', 
                         justifyContent: 'space-between',
+                        alignItems: 'center',
                         padding: '8px 0',
                         borderBottom: '1px solid #dee2e6'
                       }}
                     >
                       <span style={{ fontWeight: 500 }}>{division}:</span>
-                      <span style={{ 
-                        fontWeight: 'bold',
-                        color: total > 14 ? '#dc3545' : '#28a745'
-                      }}>
-                        {total} ring{total !== 1 ? 's' : ''}
-                        {total > 14 && ' ⚠️ (max 14)'}
+                      <span style={{ fontWeight: 'bold' }}>
+                        {total} rings
                       </span>
                     </div>
                   ))}
@@ -620,9 +645,8 @@ function CohortManagement({ globalDivision }: CohortManagementProps) {
           )}
         </div>
       </div>
-      </div>
     </div>
   );
 }
 
-export default CohortManagement;
+export default CategoryManagement;

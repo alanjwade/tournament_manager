@@ -1,37 +1,39 @@
-import { Participant, Cohort, CompetitionRing, CohortRingMapping } from '../types/tournament';
+import { Participant, Category, CompetitionRing, CategoryPoolMapping } from '../types/tournament';
 
 /**
  * Computes CompetitionRing objects from participant data.
  * This makes participants the single source of truth for ring assignments.
  * 
  * @param participants - All participants
- * @param cohorts - All cohorts
- * @param cohortRingMappings - Mappings from cohort rings to physical rings
+ * @param categories - All categories
+ * @param categoryPoolMappings - Mappings from category pools to physical rings
  * @returns Array of CompetitionRing objects with participantIds populated
  */
 export function computeCompetitionRings(
   participants: Participant[],
-  cohorts: Cohort[],
-  cohortRingMappings: CohortRingMapping[]
+  categories: Category[],
+  categoryPoolMappings: CategoryPoolMapping[]
 ): CompetitionRing[] {
   const rings: CompetitionRing[] = [];
   
-  // Group participants by their cohort and ring assignments
+  // Group participants by their category and pool assignments
   const ringGroups = new Map<string, {
-    cohortId: string;
-    cohortRing: string;
+    categoryId: string;
+    pool: string;
     type: 'forms' | 'sparring';
     participantIds: string[];
   }>();
   
   participants.forEach(participant => {
     // Process Forms
-    if (participant.competingForms && participant.formsCohortId && participant.formsCohortRing) {
-      const key = `forms-${participant.formsCohortId}-${participant.formsCohortRing}`;
+    if (participant.competingForms && (participant.formsCategoryId || participant.formsCohortId) && (participant.formsPool || participant.formsCohortRing)) {
+      const categoryId = participant.formsCategoryId || participant.formsCohortId;
+      const pool = participant.formsPool || participant.formsCohortRing;
+      const key = `forms-${categoryId}-${pool}`;
       if (!ringGroups.has(key)) {
         ringGroups.set(key, {
-          cohortId: participant.formsCohortId,
-          cohortRing: participant.formsCohortRing,
+          categoryId: categoryId!,
+          pool: pool!,
           type: 'forms',
           participantIds: []
         });
@@ -40,12 +42,14 @@ export function computeCompetitionRings(
     }
     
     // Process Sparring
-    if (participant.competingSparring && participant.sparringCohortId && participant.sparringCohortRing) {
-      const key = `sparring-${participant.sparringCohortId}-${participant.sparringCohortRing}`;
+    if (participant.competingSparring && (participant.sparringCategoryId || participant.sparringCohortId) && (participant.sparringPool || participant.sparringCohortRing)) {
+      const categoryId = participant.sparringCategoryId || participant.sparringCohortId;
+      const pool = participant.sparringPool || participant.sparringCohortRing;
+      const key = `sparring-${categoryId}-${pool}`;
       if (!ringGroups.has(key)) {
         ringGroups.set(key, {
-          cohortId: participant.sparringCohortId,
-          cohortRing: participant.sparringCohortRing,
+          categoryId: categoryId!,
+          pool: pool!,
           type: 'sparring',
           participantIds: []
         });
@@ -56,24 +60,25 @@ export function computeCompetitionRings(
   
   // Convert groups to CompetitionRing objects
   ringGroups.forEach((group, key) => {
-    const cohort = cohorts.find(c => c.id === group.cohortId);
-    if (!cohort) return;
+    const category = categories.find(c => c.id === group.categoryId);
+    if (!category) return;
     
     // Look up physical ring mapping
-    const mapping = cohortRingMappings.find(m => 
-      m.cohortId === group.cohortId && 
-      m.cohortRing === group.cohortRing
+    const mapping = categoryPoolMappings.find(m => 
+      (m.categoryId === group.categoryId || m.cohortId === group.categoryId) && 
+      m.pool === group.pool
     );
     
     const physicalRingId = mapping?.physicalRingId || 'unassigned';
     
     // Create ring name (e.g., "Mixed 8-10_R1")
-    const ringName = `${cohort.name}_${group.cohortRing}`;
+    const ringName = `${category.name}_${group.pool}`;
     
     rings.push({
       id: key,
-      division: cohort.division,
-      cohortId: group.cohortId,
+      division: category.division,
+      categoryId: group.categoryId,
+      cohortId: group.categoryId, // Legacy
       physicalRingId,
       type: group.type,
       participantIds: group.participantIds,
@@ -85,38 +90,42 @@ export function computeCompetitionRings(
 }
 
 /**
- * Gets all participants in a specific ring
+ * Gets all participants in a specific pool
  */
 export function getParticipantsInRing(
   participants: Participant[],
-  cohortId: string,
-  cohortRing: string,
+  categoryId: string,
+  pool: string,
   type: 'forms' | 'sparring'
 ): Participant[] {
   return participants.filter(p => {
     if (type === 'forms') {
+      const pCategoryId = p.formsCategoryId || p.formsCohortId;
+      const pPool = p.formsPool || p.formsCohortRing;
       return p.competingForms && 
-             p.formsCohortId === cohortId && 
-             p.formsCohortRing === cohortRing;
+             pCategoryId === categoryId && 
+             pPool === pool;
     } else {
+      const pCategoryId = p.sparringCategoryId || p.sparringCohortId;
+      const pPool = p.sparringPool || p.sparringCohortRing;
       return p.competingSparring && 
-             p.sparringCohortId === cohortId && 
-             p.sparringCohortRing === cohortRing;
+             pCategoryId === categoryId && 
+             pPool === pool;
     }
   });
 }
 
 /**
- * Updates a participant's ring assignment
+ * Updates a participant's pool assignment
  */
 export function updateParticipantRing(
   participant: Participant,
-  cohortRing: string,
+  pool: string,
   type: 'forms' | 'sparring'
 ): Participant {
   if (type === 'forms') {
-    return { ...participant, formsCohortRing: cohortRing };
+    return { ...participant, formsPool: pool, formsCohortRing: pool };
   } else {
-    return { ...participant, sparringCohortRing: cohortRing };
+    return { ...participant, sparringPool: pool, sparringCohortRing: pool };
   }
 }

@@ -19,8 +19,8 @@ interface TournamentDayProps {
 
 function TournamentDay({ globalDivision }: TournamentDayProps) {
   const participants = useTournamentStore((state) => state.participants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
   const checkpoints = useTournamentStore((state) => state.checkpoints);
@@ -38,8 +38,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
 
   // Get the latest checkpoint
@@ -510,7 +510,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
           backgroundColor: '#f8f9fa',
           borderRadius: '8px'
         }}>
-          No rings found. Make sure participants are assigned to cohorts and rings.
+          No rings found. Make sure participants are assigned to categories and rings.
         </div>
       )}
     </div>

@@ -1,13 +1,13 @@
 import jsPDF from 'jspdf';
-import { Participant, CompetitionRing, PhysicalRing, PhysicalRingMapping, Cohort } from '../../types/tournament';
-import { getExpandedRingName } from '../ringNameFormatter';
+import { Participant, CompetitionRing, PhysicalRing, PhysicalRingMapping, Category } from '../../types/tournament';
+import { getExpandedRingName, formatPdfTimestamp } from '../ringNameFormatter';
 
 export function generateCheckInSheet(
   participants: Participant[],
   division: string,
   physicalRings: PhysicalRing[],
   physicalRingMappings?: PhysicalRingMapping[],
-  cohorts?: Cohort[]
+  categories?: Category[]
 ): jsPDF {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -85,7 +85,7 @@ export function generateCheckInSheet(
       doc.setFontSize(9);
     }
 
-    // Get ring info - use formsCohortRing with physical ring mappings (same as name tags)
+    // Get ring info - use formsPool with physical ring mappings (same as name tags)
     let ringNumber = '';
     let ringColor = '';
     
@@ -98,12 +98,12 @@ export function generateCheckInSheet(
       console.log('  sparringDivision:', participant.sparringDivision);
     }
     
-    if (participant.formsCohortRing && participant.formsCohortId && physicalRingMappings && cohorts) {
-      // Find the cohort to get its name
-      const formsCohort = cohorts.find(c => c.id === participant.formsCohortId);
+    if (participant.formsPool && participant.formsCategoryId && physicalRingMappings && categories) {
+      // Find the category to get its name
+      const formsCategory = categories.find(c => c.id === participant.formsCategoryId);
       
-      if (formsCohort) {
-        const cohortRingName = `${formsCohort.name}_${participant.formsCohortRing}`;
+      if (formsCategory) {
+        const categoryRingName = `${formsCategory.name}_${participant.formsPool}`;
         const mapping = physicalRingMappings.find(m => m.cohortRingName === cohortRingName);
         
         if (mapping) {
@@ -205,6 +205,16 @@ export function generateCheckInSheet(
     doc.line(15, y - 3.5, 195, y - 3.5);
     doc.setDrawColor(0, 0, 0); // Reset to black
   });
+
+  // Add timestamp to document
+  const timestamp = formatPdfTimestamp();
+  const margin = 10; // mm
+  const pageHeight = doc.internal.pageSize.getHeight();
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(128, 128, 128); // Gray text
+  doc.text(timestamp, margin + 50, pageHeight - 5);
+  doc.setTextColor(0, 0, 0); // Reset to black
 
   return doc;
 }

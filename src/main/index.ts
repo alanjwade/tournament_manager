@@ -74,11 +74,42 @@ ipcMain.handle('select-file', async () => {
 });
 
 // Autosave handlers
+// For portable builds, prefer saving in the app directory if possible
+function getDataPath(): string {
+  // Check if running as portable (look for "portable" in process.execPath or app.isPackaged)
+  const isPortable = process.env.PORTABLE_EXECUTABLE_DIR || 
+                     app.getPath('exe').includes('portable') ||
+                     app.getName().toLowerCase().includes('portable');
+  
+  if (isPortable && app.isPackaged) {
+    // For portable: save next to the executable
+    const appDir = path.dirname(app.getPath('exe'));
+    const dataDir = path.join(appDir, 'tournament-data');
+    
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(dataDir)) {
+      try {
+        fs.mkdirSync(dataDir, { recursive: true });
+      } catch (error) {
+        console.warn('Could not create portable data directory, falling back to userData:', error);
+        return app.getPath('userData');
+      }
+    }
+    
+    return dataDir;
+  }
+  
+  // Default: use userData directory
+  return app.getPath('userData');
+}
+
 ipcMain.handle('save-autosave', async (event, data: string) => {
   try {
-    const autosavePath = path.join(app.getPath('userData'), 'tournament-autosave.json');
+    const dataPath = getDataPath();
+    const autosavePath = path.join(dataPath, 'tournament-autosave.json');
     fs.writeFileSync(autosavePath, data, 'utf8');
-    return { success: true };
+    console.log('Saved tournament data to:', autosavePath);
+    return { success: true, path: autosavePath };
   } catch (error) {
     console.error('Error saving autosave:', error);
     return { success: false, error: String(error) };
@@ -87,12 +118,15 @@ ipcMain.handle('save-autosave', async (event, data: string) => {
 
 ipcMain.handle('load-autosave', async () => {
   try {
-    const autosavePath = path.join(app.getPath('userData'), 'tournament-autosave.json');
+    const dataPath = getDataPath();
+    const autosavePath = path.join(dataPath, 'tournament-autosave.json');
+    console.log('Loading tournament data from:', autosavePath);
+    
     if (fs.existsSync(autosavePath)) {
       const data = fs.readFileSync(autosavePath, 'utf8');
-      return { success: true, data };
+      return { success: true, data, path: autosavePath };
     }
-    return { success: true, data: null };
+    return { success: true, data: null, path: autosavePath };
   } catch (error) {
     console.error('Error loading autosave:', error);
     return { success: false, error: String(error) };

@@ -6,14 +6,14 @@ import { computeCompetitionRings } from '../utils/computeRings';
 function ParticipantEditor() {
   const participants = useTournamentStore((state) => state.participants);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const config = useTournamentStore((state) => state.config);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -138,10 +138,10 @@ function ParticipantEditor() {
               <th>School</th>
               <th>Branch</th>
               <th className="forms-column">Forms Division</th>
-              <th className="forms-column">Forms Cohort</th>
+              <th className="forms-column">Forms Category</th>
               <th className="forms-column">Forms Ring</th>
               <th className="sparring-column">Sparring Division</th>
-              <th className="sparring-column">Sparring Cohort</th>
+              <th className="sparring-column">Sparring Category</th>
               <th className="sparring-column">Sparring Ring</th>
               <th className="sparring-alt-column">Sparring Alt Ring</th>
               <th>Forms Order</th>
@@ -154,8 +154,8 @@ function ParticipantEditor() {
               const isEditing = editingId === p.id;
               const formsRing = competitionRings.find(r => r.id === p.formsRingId);
               const sparringRing = competitionRings.find(r => r.id === p.sparringRingId);
-              const formsCohort = cohorts.find(c => c.id === p.formsCohortId);
-              const sparringCohort = cohorts.find(c => c.id === p.sparringCohortId);
+              const formsCategory = categories.find(c => c.id === p.formsCategoryId);
+              const sparringCategory = categories.find(c => c.id === p.sparringCategoryId);
               
               // Check if participant is in multiple rings
               const allFormsRings = competitionRings.filter(
@@ -256,9 +256,9 @@ function ParticipantEditor() {
                   <td className="forms-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
                     {p.formsDivision || '-'}
                   </td>
-                  {/* Forms Cohort */}
+                  {/* Forms Category */}
                   <td className="forms-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                    {formsCohort?.name || (p.competingForms ? <span style={{ color: '#999' }}>Not assigned</span> : '-')}
+                    {formsCategory?.name || (p.competingForms ? <span style={{ color: '#999' }}>Not assigned</span> : '-')}
                   </td>
                   {/* Forms Ring */}
                   <td className="forms-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
@@ -275,9 +275,9 @@ function ParticipantEditor() {
                   <td className="sparring-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
                     {p.sparringDivision || '-'}
                   </td>
-                  {/* Sparring Cohort */}
+                  {/* Sparring Category */}
                   <td className="sparring-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                    {sparringCohort?.name || (p.competingSparring ? <span style={{ color: '#999' }}>Not assigned</span> : '-')}
+                    {sparringCategory?.name || (p.competingSparring ? <span style={{ color: '#999' }}>Not assigned</span> : '-')}
                   </td>
                   {/* Sparring Ring */}
                   <td className="sparring-column" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>

@@ -17,8 +17,8 @@ interface OrderRingsProps {
 
 function OrderRings({ globalDivision }: OrderRingsProps) {
   const participants = useTournamentStore((state) => state.participants);
-  const cohorts = useTournamentStore((state) => state.cohorts);
-  const cohortRingMappings = useTournamentStore((state) => state.cohortRingMappings);
+  const categories = useTournamentStore((state) => state.categories);
+  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
@@ -34,8 +34,8 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, cohorts, cohortRingMappings),
-    [participants, cohorts, cohortRingMappings]
+    computeCompetitionRings(participants, categories, categoryPoolMappings),
+    [participants, categories, categoryPoolMappings]
   );
 
   const formsRings = competitionRings.filter((r) => r.type === 'forms');
@@ -76,7 +76,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
       pairs = pairs.filter(p => p.division === selectedDivision);
     }
 
-    // Sort by physical ring name if available, otherwise by cohort ring name
+    // Sort by physical ring name if available, otherwise by pool name
     return pairs.sort((a, b) => {
       if (a.physicalRingName && b.physicalRingName) {
         // Custom sort for physical ring names (PR1, PR1a, PR1b, PR2, etc.)
@@ -116,14 +116,14 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
     
     // Order all forms rings
     formsRings.forEach(ring => {
-      // Extract cohortRing from ring ID
-      // Format: "forms-{UUID}-{cohortRing}"
-      const prefix = `forms-${ring.cohortId}-`;
-      const cohortRing = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;
+      // Extract pool from ring ID
+      // Format: "forms-{UUID}-{pool}"
+      const prefix = `forms-${ring.categoryId}-`;
+      const pool = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;
       
-      if (cohortRing) {
-        // New approach: use cohortId and cohortRing
-        updatedParticipants = orderFormsRing(updatedParticipants, ring.cohortId, cohortRing);
+      if (pool) {
+        // New approach: use categoryId and pool
+        updatedParticipants = orderFormsRing(updatedParticipants, ring.categoryId, pool);
       } else {
         // Legacy approach: use ring.id
         updatedParticipants = orderFormsRing(updatedParticipants, ring.id);
@@ -132,14 +132,14 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
     
     // Order all sparring rings
     sparringRings.forEach(ring => {
-      // Extract cohortRing from ring ID
-      // Format: "sparring-{UUID}-{cohortRing}"
-      const prefix = `sparring-${ring.cohortId}-`;
-      const cohortRing = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;
+      // Extract pool from ring ID
+      // Format: "sparring-{UUID}-{pool}"
+      const prefix = `sparring-${ring.categoryId}-`;
+      const pool = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;
       
-      if (cohortRing) {
-        // New approach: use cohortId and cohortRing
-        updatedParticipants = orderSparringRing(updatedParticipants, ring.cohortId, cohortRing);
+      if (pool) {
+        // New approach: use categoryId and pool
+        updatedParticipants = orderSparringRing(updatedParticipants, ring.categoryId, pool);
       } else {
         // Legacy approach: use ring.id
         updatedParticipants = orderSparringRing(updatedParticipants, ring.id);
@@ -150,31 +150,31 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
     alert('All rings have been ordered');
   };
 
-  const handleOrderFormsRing = (ringId: string, cohortId: string) => {
-    console.log('handleOrderFormsRing called:', { ringId, cohortId });
+  const handleOrderFormsRing = (ringId: string, categoryId: string) => {
+    console.log('handleOrderFormsRing called:', { ringId, categoryId });
     
-    // Extract cohortRing from ring ID
-    // Format: "forms-{UUID}-{cohortRing}"
+    // Extract pool from ring ID
+    // Format: "forms-{UUID}-{pool}"
     // Since UUID contains dashes, we need to remove "forms-{UUID}-" prefix
-    const prefix = `forms-${cohortId}-`;
-    const cohortRing = ringId.startsWith(prefix) ? ringId.substring(prefix.length) : undefined;
+    const prefix = `forms-${categoryId}-`;
+    const pool = ringId.startsWith(prefix) ? ringId.substring(prefix.length) : undefined;
     
-    const updatedParticipants = cohortRing 
-      ? orderFormsRing(participants, cohortId, cohortRing)
+    const updatedParticipants = pool 
+      ? orderFormsRing(participants, categoryId, pool)
       : orderFormsRing(participants, ringId);
       
     setParticipants(updatedParticipants);
   };
 
-  const handleOrderSparringRing = (ringId: string, cohortId: string) => {
-    // Extract cohortRing from ring ID
-    // Format: "sparring-{UUID}-{cohortRing}"
+  const handleOrderSparringRing = (ringId: string, categoryId: string) => {
+    // Extract pool from ring ID
+    // Format: "sparring-{UUID}-{pool}"
     // Since UUID contains dashes, we need to remove "sparring-{UUID}-" prefix
-    const prefix = `sparring-${cohortId}-`;
-    const cohortRing = ringId.startsWith(prefix) ? ringId.substring(prefix.length) : undefined;
+    const prefix = `sparring-${categoryId}-`;
+    const pool = ringId.startsWith(prefix) ? ringId.substring(prefix.length) : undefined;
     
-    const updatedParticipants = cohortRing
-      ? orderSparringRing(participants, cohortId, cohortRing)
+    const updatedParticipants = pool
+      ? orderSparringRing(participants, categoryId, pool)
       : orderSparringRing(participants, ringId);
     setParticipants(updatedParticipants);
   };
@@ -188,7 +188,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
       );
     }
 
-    const cohort = cohorts.find((c) => c.id === ring.cohortId);
+    const category = categories.find((c) => c.id === ring.categoryId);
 
     const ringParticipants = participants
       .filter((p) => ring.participantIds.includes(p.id))
@@ -216,8 +216,8 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
           <button
             className="btn btn-primary"
             onClick={() => type === 'forms' 
-              ? handleOrderFormsRing(ring.id, ring.cohortId) 
-              : handleOrderSparringRing(ring.id, ring.cohortId)
+              ? handleOrderFormsRing(ring.id, ring.categoryId) 
+              : handleOrderSparringRing(ring.id, ring.categoryId)
             }
             style={{ padding: '3px 8px', fontSize: '11px' }}
           >
@@ -227,7 +227,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
 
         <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
           <div>
-            <strong>Cohort:</strong> {cohort?.gender}, Ages {cohort?.minAge}-{cohort?.maxAge}
+            <strong>Category:</strong> {category?.gender}, Ages {category?.minAge}-{category?.maxAge}
           </div>
           <div>
             <strong>Division:</strong> {ring.division}
@@ -236,7 +236,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
             <strong>Participants:</strong> {ringParticipants.length}
           </div>
           {type === 'sparring' && (() => {
-            const altStatus = checkSparringAltRingStatus(participants, ring.cohortId, ring.name?.split('_').pop() || '');
+            const altStatus = checkSparringAltRingStatus(participants, ring.categoryId, ring.name?.split('_').pop() || '');
             if (altStatus.status === 'mixed') {
               return (
                 <div style={{ color: '#d9534f', fontWeight: 'bold', marginTop: '4px' }}>
@@ -322,7 +322,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
       <div className="card">
         <h2 className="card-title">Order Rings</h2>
         <div className="info">
-          <p>No rings assigned yet. Please assign rings in the Cohort Ring Assignment tab first.</p>
+          <p>No rings assigned yet. Please assign rings in the Category Ring Assignment tab first.</p>
         </div>
       </div>
     );
