@@ -79,8 +79,14 @@ function getDataPath(): string {
   // Check if running as portable (look for "portable" in the exe path/name)
   const exePath = app.getPath('exe');
   const exeName = path.basename(exePath);
-  const isPortable = exePath.toLowerCase().includes('portable') || 
-                     exeName.toLowerCase().includes('portable') ||
+  const lowerExePath = exePath.toLowerCase();
+  const lowerExeName = exeName.toLowerCase();
+  
+  // More robust portable detection
+  const isPortable = lowerExePath.includes('portable') || 
+                     lowerExeName.includes('portable') ||
+                     lowerExePath.includes('appdata\\local\\temp') === false && 
+                     lowerExePath.includes('program files') === false &&
                      process.env.PORTABLE_EXECUTABLE_DIR;
   
   console.log('===== PORTABLE DETECTION =====');
@@ -96,20 +102,20 @@ function getDataPath(): string {
     const appDir = path.dirname(exePath);
     const dataDir = path.join(appDir, 'tournament-data');
     
-    console.log('Using portable data directory:', dataDir);
+    console.log('[PORTABLE MODE] Using portable data directory:', dataDir);
     
     // Create directory if it doesn't exist
     if (!fs.existsSync(dataDir)) {
       try {
         fs.mkdirSync(dataDir, { recursive: true });
-        console.log('Successfully created portable data directory:', dataDir);
+        console.log('[PORTABLE MODE] Successfully created portable data directory:', dataDir);
       } catch (error) {
-        console.error('Error creating portable data directory:', error);
-        console.warn('Falling back to userData');
+        console.error('[PORTABLE MODE] Error creating portable data directory:', error);
+        console.warn('[PORTABLE MODE] Falling back to userData');
         return app.getPath('userData');
       }
     } else {
-      console.log('Portable data directory already exists:', dataDir);
+      console.log('[PORTABLE MODE] Portable data directory already exists:', dataDir);
     }
     
     return dataDir;
@@ -117,13 +123,20 @@ function getDataPath(): string {
   
   // Default: use userData directory
   const userDataPath = app.getPath('userData');
-  console.log('Using userData directory:', userDataPath);
+  console.log('[NON-PORTABLE MODE] Using userData directory:', userDataPath);
   return userDataPath;
 }
 
 ipcMain.handle('save-autosave', async (event, data: string) => {
   try {
     const dataPath = getDataPath();
+    
+    // Ensure directory exists before writing
+    if (!fs.existsSync(dataPath)) {
+      fs.mkdirSync(dataPath, { recursive: true });
+      console.log('Created data directory:', dataPath);
+    }
+    
     const autosavePath = path.join(dataPath, 'tournament-autosave.json');
     fs.writeFileSync(autosavePath, data, 'utf8');
     console.log('Saved tournament data to:', autosavePath);
