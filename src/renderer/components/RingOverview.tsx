@@ -107,7 +107,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     const diff = diffCheckpoint(latestCheckpoint.id);
     if (!diff) return new Set<string>();
     return diff.ringsAffected;
-  }, [checkpoints, diffCheckpoint]);
+  }, [checkpoints, diffCheckpoint, participants, categories]);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -460,59 +460,65 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               </div>
             )}
 
-            {/* Division Selector */}
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                Division:
-              </label>
-              <select
-                value={formsDivision || ''}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  handleSave({ formsDivision: value });
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  fontSize: '14px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                }}
-              >
-                <option value="">Select division...</option>
-                <option value="not participating">Not participating</option>
-                <option value="same as sparring">Same as sparring</option>
-                {config.divisions.map(d => (
-                  <option key={d.name} value={d.name}>{d.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Physical Ring Selector for Forms */}
-            {buildPhysicalRingOptions(formsDivision).length > 0 && formsDivision && formsDivision !== 'not participating' && (
+            {/* Category/Pool Selector */}
+            {formsDivision && formsDivision !== 'not participating' && formsDivision !== 'same as sparring' && (
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                  Physical Ring:
+                  Category & Pool:
                 </label>
                 <select
-                  value={formsPhysicalMapping?.physicalRingName || ''}
-                  onChange={(e) => handlePhysicalRingChange('forms', e.target.value)}
+                  value={formsCategoryId && formsPool ? `${formsCategoryId}|||${formsPool}` : ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value) {
+                      const [categoryId, pool] = value.split('|||');
+                      handleSave({ formsCategoryId: categoryId, formsPool: pool });
+                    } else {
+                      handleSave({ formsCategoryId: undefined, formsPool: undefined });
+                    }
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px',
-                    fontSize: '13px',
+                    fontSize: '14px',
                     border: '1px solid #ccc',
                     borderRadius: '4px',
                   }}
-                  disabled={!formsCohortRingName}
                 >
-                  <option value="">No physical ring assigned</option>
-                  {buildPhysicalRingOptions(formsDivision).map(option => (
-                    <option key={option.physicalRingName} value={option.physicalRingName}>
-                      {option.label}
-                    </option>
-                  ))}
+                  <option value="">Select category & pool...</option>
+                  {categories
+                    .filter(c => c.type === 'forms' && c.division === formsDivision)
+                    .flatMap(c => 
+                      Array.from({ length: c.numPools }, (_, i) => ({
+                        categoryId: c.id,
+                        categoryName: c.name,
+                        pool: `P${i + 1}`,
+                        label: `${c.name} - Pool ${i + 1}`
+                      }))
+                    )
+                    .map(item => (
+                      <option key={`${item.categoryId}|||${item.pool}`} value={`${item.categoryId}|||${item.pool}`}>
+                        {item.label}
+                      </option>
+                    ))
+                  }
                 </select>
+                <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+                  Changing category/pool will update physical ring assignment
+                </div>
+              </div>
+            )}
+
+            {/* Show physical ring assignment (read-only) */}
+            {formsPhysicalMapping && (
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Physical Ring Assignment:</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                  {formsPhysicalMapping.physicalRingName}
+                </div>
+                <div style={{ fontSize: '11px', color: '#999', marginTop: '5px' }}>
+                  Use Ring Map tab to change physical ring assignments
+                </div>
               </div>
             )}
 
@@ -594,33 +600,65 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               </select>
             </div>
 
-            {/* Physical Ring Selector for Sparring */}
-            {buildPhysicalRingOptions(sparringDivision).length > 0 && sparringDivision && sparringDivision !== 'not participating' && (
+            {/* Category/Pool Selector */}
+            {sparringDivision && sparringDivision !== 'not participating' && sparringDivision !== 'same as forms' && (
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                  Physical Ring:
+                  Category & Pool:
                 </label>
                 <select
-                  value={sparringPhysicalMapping?.physicalRingName || ''}
-                  onChange={(e) => handlePhysicalRingChange('sparring', e.target.value)}
+                  value={sparringCategoryId && sparringPool ? `${sparringCategoryId}|||${sparringPool}` : ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value) {
+                      const [categoryId, pool] = value.split('|||');
+                      handleSave({ sparringCategoryId: categoryId, sparringPool: pool });
+                    } else {
+                      handleSave({ sparringCategoryId: undefined, sparringPool: undefined });
+                    }
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px',
-                    fontSize: '13px',
+                    fontSize: '14px',
                     border: '1px solid #ccc',
                     borderRadius: '4px',
-                    opacity: sparringDivision === 'same as forms' ? 0.5 : 1,
-                    cursor: sparringDivision === 'same as forms' ? 'not-allowed' : 'pointer',
                   }}
-                  disabled={!sparringCohortRingName || sparringDivision === 'same as forms'}
                 >
-                  <option value="">No physical ring assigned</option>
-                  {buildPhysicalRingOptions(sparringDivision).map(option => (
-                    <option key={option.physicalRingName} value={option.physicalRingName}>
-                      {option.label}
-                    </option>
-                  ))}
+                  <option value="">Select category & pool...</option>
+                  {categories
+                    .filter(c => c.type === 'sparring' && c.division === sparringDivision)
+                    .flatMap(c => 
+                      Array.from({ length: c.numPools }, (_, i) => ({
+                        categoryId: c.id,
+                        categoryName: c.name,
+                        pool: `P${i + 1}`,
+                        label: `${c.name} - Pool ${i + 1}`
+                      }))
+                    )
+                    .map(item => (
+                      <option key={`${item.categoryId}|||${item.pool}`} value={`${item.categoryId}|||${item.pool}`}>
+                        {item.label}
+                      </option>
+                    ))
+                  }
                 </select>
+                <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+                  Changing category/pool will update physical ring assignment
+                </div>
+              </div>
+            )}
+
+            {/* Show physical ring assignment (read-only) */}
+            {sparringPhysicalMapping && (
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Physical Ring Assignment:</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                  {sparringPhysicalMapping.physicalRingName}
+                </div>
+                <div style={{ fontSize: '11px', color: '#999', marginTop: '5px' }}>
+                  Use Ring Map tab to change physical ring assignments
+                </div>
               </div>
             )}
 
