@@ -226,9 +226,12 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
 
     setPrinting('all-changed');
     try {
-      // Create master PDF
-      const masterPdf = new jsPDF();
-      let isFirstPage = true;
+      // Create master PDF and add all content directly
+      const masterPdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'in',
+        format: 'letter',
+      });
 
       // Group by division for forms
       const formsByDivision = new Map<string, CompetitionRing[]>();
@@ -237,49 +240,18 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
         formsByDivision.set(ring.division, [...existing, ring]);
       });
 
-      // Generate forms content and add to master PDF
+      // Generate all forms PDFs, adding directly to master
       for (const [division, rings] of formsByDivision) {
         if (rings.length > 0) {
-          const pdf = generateFormsScoringSheets(
+          generateFormsScoringSheets(
             participants,
             rings,
             config.physicalRings,
             division,
             config.watermarkImage,
-            physicalRingMappings
+            physicalRingMappings,
+            masterPdf  // Pass master PDF to add to
           );
-          
-          // Get the dimension of pages
-          const width = (pdf as any).internal.pageSize.getWidth();
-          const height = (pdf as any).internal.pageSize.getHeight();
-          const pageCount = (pdf as any).internal.pages.length - 1;
-          
-          // Convert PDF to image data and add each page
-          for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-            if (!isFirstPage) {
-              masterPdf.addPage([width, height]);
-            }
-            
-            // Render current page to canvas
-            const canvas = document.createElement('canvas');
-            canvas.width = width * 2; // 2x for better quality
-            canvas.height = height * 2;
-            
-            // Add page as image (convert PDF to PNG first)
-            try {
-              const imgData = pdf.output('dataurlstring');
-              // Copy page internal structure directly
-              const srcPage = (pdf as any).internal.pages[pageNum];
-              const dstPageIdx = isFirstPage ? 1 : (masterPdf as any).internal.pages.length - 1;
-              if (srcPage && (masterPdf as any).internal.pages[dstPageIdx]) {
-                Object.assign((masterPdf as any).internal.pages[dstPageIdx], srcPage);
-              }
-            } catch (e) {
-              console.warn('Could not add PDF page, trying alternate method');
-            }
-            
-            isFirstPage = false;
-          }
         }
       }
 
@@ -290,41 +262,18 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
         sparringByDivision.set(ring.division, [...existing, ring]);
       });
 
-      // Generate sparring content and add to master PDF
+      // Generate all sparring PDFs, adding directly to master
       for (const [division, rings] of sparringByDivision) {
         if (rings.length > 0) {
-          const pdf = generateSparringBrackets(
+          generateSparringBrackets(
             participants,
             rings,
             config.physicalRings,
             division,
             config.watermarkImage,
-            physicalRingMappings
+            physicalRingMappings,
+            masterPdf  // Pass master PDF to add to
           );
-          
-          const width = (pdf as any).internal.pageSize.getWidth();
-          const height = (pdf as any).internal.pageSize.getHeight();
-          const pageCount = (pdf as any).internal.pages.length - 1;
-          
-          for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-            if (!isFirstPage) {
-              masterPdf.addPage([width, height]);
-            }
-            
-            try {
-              const imgData = pdf.output('dataurlstring');
-              // Copy page internal structure directly
-              const srcPage = (pdf as any).internal.pages[pageNum];
-              const dstPageIdx = isFirstPage ? 1 : (masterPdf as any).internal.pages.length - 1;
-              if (srcPage && (masterPdf as any).internal.pages[dstPageIdx]) {
-                Object.assign((masterPdf as any).internal.pages[dstPageIdx], srcPage);
-              }
-            } catch (e) {
-              console.warn('Could not add PDF page');
-            }
-            
-            isFirstPage = false;
-          }
         }
       }
 

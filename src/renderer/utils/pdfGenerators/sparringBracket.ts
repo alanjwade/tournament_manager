@@ -24,13 +24,19 @@ export function generateSparringBrackets(
   physicalRings: PhysicalRing[],
   division: string,
   watermark?: string,
-  physicalRingMappings?: { cohortRingName: string; physicalRingName: string }[]
+  physicalRingMappings?: { cohortRingName: string; physicalRingName: string }[],
+  masterPdf?: jsPDF
 ): jsPDF {
-  const doc = new jsPDF({
+  const doc = masterPdf || new jsPDF({
     orientation: 'portrait',
     unit: 'in',
     format: 'letter',
   });
+  
+  // If using master PDF, start fresh page
+  if (masterPdf) {
+    doc.addPage();
+  }
 
   const pageWidth = 8.5; // Letter width in inches
   const pageHeight = 11; // Letter height in inches
