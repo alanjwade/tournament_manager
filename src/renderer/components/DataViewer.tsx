@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { getEffectiveDivision } from '../utils/excelParser';
+import { formatPoolOnly } from '../utils/ringNameFormatter';
 import { Participant } from '../types/tournament';
 import { computeCompetitionRings } from '../utils/computeRings';
 
@@ -147,8 +148,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     const ringToDivisions = new Map<string, Set<string>>();
     
     physicalRingMappings.forEach(mapping => {
-      // Extract category name from cohortRingName (e.g., "Mixed 8-10_R1" -> "Mixed 8-10")
-      const categoryName = mapping.cohortRingName.split('_')[0];
+      const categoryPoolName = mapping.categoryPoolName || mapping.cohortRingName;
+      if (!categoryPoolName) return;
+      
+      // Extract category name from categoryPoolName (e.g., "Mixed 8-10_P1" -> "Mixed 8-10")
+      const categoryName = categoryPoolName.split('_')[0];
       
       // Find category and its division
       const category = categories.find(c => c.name === categoryName);
@@ -210,6 +214,19 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     const sparringCohorts = categories.filter(c => c.type === 'sparring');
     return sparringCohorts.map(c => ({ id: c.id, name: c.name }));
   }, [categories]);
+
+  // Build pool options for a given category
+  const getPoolOptionsForCategory = (categoryId: string | undefined) => {
+    if (!categoryId) return [];
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return [];
+    
+    const pools: Array<{ value: string; label: string }> = [];
+    for (let i = 1; i <= category.numPools; i++) {
+      pools.push({ value: `P${i}`, label: `Pool ${i}` });
+    }
+    return pools;
+  };
 
   // Update participant division
   const updateParticipantDivision = (participantId: string, field: 'formsDivision' | 'sparringDivision', value: string) => {
@@ -276,10 +293,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     const participant = participants.find(p => p.id === participantId);
     if (!participant) return;
 
-    // Find the pool mapping for this physical ring
-    const mapping = physicalRingMappings.find(m => m.physicalRingName === physicalRingName);
-    if (!mapping) {
-      // If no mapping found, just clear the assignments
+    // If clearing the selection
+    if (!physicalRingName) {
       const updatedParticipants = participants.map(p => {
         if (p.id === participantId) {
           if (type === 'forms') {
@@ -294,19 +309,33 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       return;
     }
 
-    // Find the competition ring for this mapping
-    const competitionRing = competitionRings.find(r => 
-      r.name === mapping.cohortRingName && r.type === type
+    // Find the pool mapping for this physical ring
+    const mapping = physicalRingMappings.find(m => m.physicalRingName === physicalRingName);
+    const categoryPoolName = mapping?.categoryPoolName || mapping?.cohortRingName;
+    if (!mapping || !categoryPoolName) {
+      console.warn('No mapping found for physical ring:', physicalRingName);
+      return;
+    }
+
+    // Parse category name and pool from categoryPoolName (e.g., "Mixed 8-10_P1")
+    const poolMatch = categoryPoolName.match(/_P(\d+)$/);
+    if (!poolMatch) {
+      console.warn('Could not parse pool from categoryPoolName:', categoryPoolName);
+      return;
+    }
+    
+    const pool = `P${poolMatch[1]}`; // e.g., "P1"
+    const categoryName = categoryPoolName.replace(/_P\d+$/, ''); // e.g., "Mixed 8-10"
+
+    // Find the category by name and type
+    const category = categories.find(c => 
+      c.name === categoryName && c.type === type
     );
-
-    if (!competitionRing) return;
-
-    // Find the category
-    const category = categories.find(c => c.id === competitionRing.categoryId);
-    if (!category) return;
-
-    // Extract pool from the ring name (e.g., "R1" from "Mixed 8-10_R1")
-    const pool = mapping.cohortRingName.match(/_R(\d+)$/)?.[0]?.substring(1) || undefined;
+    
+    if (!category) {
+      console.warn('Could not find category:', categoryName, 'type:', type);
+      return;
+    }
 
     // Update the participant
     const updatedParticipants = participants.map(p => {
@@ -350,13 +379,28 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       
       // Get physical ring names from mappings
       const formsPhysicalMapping = physicalRingMappings.find(m => 
-        formsCategory && p.formsPool && m.cohortRingName === `${formsCategory.name}_${p.formsPool}`
+        formsCategory && p.formsPool && (m.categoryPoolName || m.cohortRingName) === `${formsCategory.name}_${p.formsPool}`
       );
       const sparringPhysicalMapping = physicalRingMappings.find(m => 
-        sparringCategory && p.sparringPool && m.cohortRingName === `${sparringCategory.name}_${p.sparringPool}`
+        sparringCategory && p.sparringPool && (m.categoryPoolName || m.cohortRingName) === `${sparringCategory.name}_${p.sparringPool}`
       );
       const formsPhysicalRingName = formsPhysicalMapping?.physicalRingName || '';
       const sparringPhysicalRingName = sparringPhysicalMapping?.physicalRingName || '';
+      
+      // For division filters, check if EITHER forms OR sparring division matches
+      // This allows filtering by division even if one is "same as forms" or "none"
+      const formsDivisionMatch = filters.formsDivision 
+        ? p.formsDivision.toLowerCase().includes(filters.formsDivision.toLowerCase())
+        : true;
+      const sparringDivisionMatch = filters.sparringDivision
+        ? p.sparringDivision.toLowerCase().includes(filters.sparringDivision.toLowerCase())
+        : true;
+      
+      // If both division filters are set to the same value (from global filter),
+      // use OR logic: match if EITHER division matches
+      const divisionMatch = filters.formsDivision && filters.sparringDivision && filters.formsDivision === filters.sparringDivision
+        ? (formsDivisionMatch || sparringDivisionMatch)
+        : (formsDivisionMatch && sparringDivisionMatch);
       
       return (
         p.firstName.toLowerCase().includes(filters.firstName.toLowerCase()) &&
@@ -367,8 +411,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         p.heightInches.toString().includes(filters.heightInches) &&
         p.school.toLowerCase().includes(filters.school.toLowerCase()) &&
         (p.branch || '').toLowerCase().includes(filters.branch.toLowerCase()) &&
-        p.formsDivision.toLowerCase().includes(filters.formsDivision.toLowerCase()) &&
-        p.sparringDivision.toLowerCase().includes(filters.sparringDivision.toLowerCase()) &&
+        divisionMatch &&
         formsCohortName.toLowerCase().includes(filters.formsCategory.toLowerCase()) &&
         sparringCohortName.toLowerCase().includes(filters.sparringCategory.toLowerCase()) &&
         formsRingName.toLowerCase().includes(filters.formsRing.toLowerCase()) &&
@@ -429,9 +472,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
 
       <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-          <thead style={{ position: 'sticky', top: 0, background: '#f0f0f0', zIndex: 1 }}>
+          <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-tertiary)', zIndex: 1 }}>
             <tr>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '120px', color: 'var(--text-primary)' }}>
                 First Name
                 <input
                   type="text"
@@ -441,7 +484,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '120px' }}>
                 Last Name
                 <input
                   type="text"
@@ -451,7 +494,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '80px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '80px' }}>
                 Age
                 <input
                   type="text"
@@ -461,7 +504,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '100px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
                 Gender
                 <input
                   type="text"
@@ -471,7 +514,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '80px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '80px' }}>
                 Feet
                 <input
                   type="text"
@@ -481,7 +524,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '80px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '80px' }}>
                 Inches
                 <input
                   type="text"
@@ -491,7 +534,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px' }}>
                 School
                 <input
                   type="text"
@@ -501,7 +544,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '120px' }}>
                 Branch
                 <input
                   type="text"
@@ -511,7 +554,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+              <th className="forms-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px' }}>
                 Forms Division
                 <select
                   value={filters.formsDivision}
@@ -524,7 +567,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   ))}
                 </select>
               </th>
-              <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+              <th className="forms-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px' }}>
                 Forms Category
                 <input
                   type="text"
@@ -534,17 +577,17 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th className="forms-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
-                Forms Ring
+              <th className="forms-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px', color: 'var(--text-primary)' }}>
+                Forms Pool
                 <input
                   type="text"
                   placeholder="Filter..."
                   value={filters.formsRing}
                   onChange={(e) => updateFilter('formsRing', e.target.value)}
-                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', border: '1px solid var(--input-border)' }}
                 />
               </th>
-              <th className="forms-physical-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
+              <th className="forms-physical-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '120px' }}>
                 Forms Physical Ring
                 <input
                   type="text"
@@ -554,7 +597,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '100px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
                 Forms Order
                 <input
                   type="text"
@@ -564,7 +607,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+              <th className="sparring-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px' }}>
                 Sparring Division
                 <select
                   value={filters.sparringDivision}
@@ -577,7 +620,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   ))}
                 </select>
               </th>
-              <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
+              <th className="sparring-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px' }}>
                 Sparring Category
                 <input
                   type="text"
@@ -587,17 +630,17 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th className="sparring-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '150px' }}>
-                Sparring Ring
+              <th className="sparring-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px', color: 'var(--text-primary)' }}>
+                Sparring Pool
                 <input
                   type="text"
                   placeholder="Filter..."
                   value={filters.sparringRing}
                   onChange={(e) => updateFilter('sparringRing', e.target.value)}
-                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', border: '1px solid var(--input-border)' }}
                 />
               </th>
-              <th className="sparring-physical-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '120px' }}>
+              <th className="sparring-physical-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '120px' }}>
                 Sparring Physical Ring
                 <input
                   type="text"
@@ -607,7 +650,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th className="sparring-alt-column" style={{ padding: '10px', border: '1px solid #ddd', minWidth: '80px' }}>
+              <th className="sparring-alt-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '80px' }}>
                 Sparring Alt Ring
                 <input
                   type="text"
@@ -617,7 +660,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', minWidth: '100px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
                 Sparring Order
                 <input
                   type="text"
@@ -656,30 +699,30 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   animation: isHighlighted ? 'highlight-pulse 1s ease-in-out 3' : undefined,
                 }}
               >
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{p.firstName}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{p.lastName}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.firstName}</td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.lastName}</td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
                   {p.age >= 18 ? '18+' : p.age}
                 </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd', textTransform: 'capitalize' }}>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textTransform: 'capitalize' }}>
                   {p.gender}
                 </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{p.heightFeet}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{p.heightInches}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{p.school}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{p.branch || ''}</td>
-                <td className="forms-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>{p.heightFeet}</td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>{p.heightInches}</td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.school}</td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.branch || ''}</td>
+                <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   <select
                     value={p.formsDivision}
                     onChange={(e) => updateParticipantDivision(p.id, 'formsDivision', e.target.value)}
                     style={{ 
                       width: '100%', 
                       padding: '4px',
-                      border: '1px solid #ccc',
+                      border: '1px solid var(--input-border)',
                       borderRadius: '3px',
                       fontSize: '13px',
-                      background: p.formsDivision === 'not participating' ? '#fff3cd' : 
-                                  p.formsDivision === 'same as sparring' ? '#d1ecf1' : 'white'
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)'
                     }}
                   >
                     {formsOptions.map(option => (
@@ -687,7 +730,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                     ))}
                   </select>
                 </td>
-                <td className="forms-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
                     <select
                       value={p.formsCategoryId || ''}
@@ -695,10 +738,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: p.formsCategoryId ? 'white' : '#fff3cd'
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--input-bg)'
                       }}
                     >
                       <option value="">Not assigned</option>
@@ -706,27 +750,31 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                         <option key={option.id} value={option.id}>{option.name}</option>
                       ))}
                     </select>
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td className="forms-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
-                    <input
-                      type="text"
+                    <select
                       value={p.formsPool || ''}
                       onChange={(e) => updateParticipantCohortRing(p.id, 'formsPool', e.target.value)}
-                      placeholder="e.g. R1"
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: p.formsPool ? 'white' : '#fff3cd'
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--input-bg)'
                       }}
-                    />
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
+                    >
+                      <option value="">Not assigned</option>
+                      {getPoolOptionsForCategory(p.formsCategoryId).map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td className="forms-physical-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="forms-physical-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
                     <select
                       value={formsPhysicalMapping?.physicalRingName || ''}
@@ -734,10 +782,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: formsPhysicalMapping?.physicalRingName ? 'white' : '#fff3cd'
+                        color: 'var(--text-primary)',
+                        background: formsPhysicalMapping?.physicalRingName ? 'var(--input-bg)' : 'var(--warning-bg)'
                       }}
                     >
                       <option value="">Not assigned</option>
@@ -745,9 +794,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                         <option key={`${option.division}-${option.value}`} value={option.value}>{option.label}</option>
                       ))}
                     </select>
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
                     <input
                       type="number"
@@ -757,26 +806,27 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
+                        color: 'var(--text-primary)',
                         textAlign: 'center'
                       }}
                     />
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>-</span>}
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>}
                 </td>
-                <td className="sparring-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   <select
                     value={p.sparringDivision}
                     onChange={(e) => updateParticipantDivision(p.id, 'sparringDivision', e.target.value)}
                     style={{ 
                       width: '100%', 
                       padding: '4px',
-                      border: '1px solid #ccc',
+                      border: '1px solid var(--input-border)',
                       borderRadius: '3px',
                       fontSize: '13px',
-                      background: p.sparringDivision === 'not participating' ? '#fff3cd' : 
-                                  p.sparringDivision === 'same as forms' ? '#d1ecf1' : 'white'
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)'
                     }}
                   >
                     {sparringOptions.map(option => (
@@ -784,7 +834,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                     ))}
                   </select>
                 </td>
-                <td className="sparring-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
                     <select
                       value={p.sparringCategoryId || ''}
@@ -792,10 +842,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: p.sparringCategoryId ? 'white' : '#fff3cd'
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--input-bg)'
                       }}
                     >
                       <option value="">Not assigned</option>
@@ -803,27 +854,31 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                         <option key={option.id} value={option.id}>{option.name}</option>
                       ))}
                     </select>
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td className="sparring-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
-                    <input
-                      type="text"
+                    <select
                       value={p.sparringPool || ''}
                       onChange={(e) => updateParticipantCohortRing(p.id, 'sparringPool', e.target.value)}
-                      placeholder="e.g. R1"
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: p.sparringPool ? 'white' : '#fff3cd'
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--input-bg)'
                       }}
-                    />
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
+                    >
+                      <option value="">Not assigned</option>
+                      {getPoolOptionsForCategory(p.sparringCategoryId).map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td className="sparring-physical-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="sparring-physical-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
                     <select
                       value={sparringPhysicalMapping?.physicalRingName || ''}
@@ -831,10 +886,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
-                        background: sparringPhysicalMapping?.physicalRingName ? 'white' : '#fff3cd'
+                        color: 'var(--text-primary)',
+                        background: sparringPhysicalMapping?.physicalRingName ? 'var(--input-bg)' : 'var(--warning-bg)'
                       }}
                     >
                       <option value="">Not assigned</option>
@@ -842,9 +898,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                         <option key={`${option.division}-${option.value}`} value={option.value}>{option.label}</option>
                       ))}
                     </select>
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>Not competing</span>}
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
-                <td className="sparring-alt-column" style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td className="sparring-alt-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
                     <input
                       type="text"
@@ -866,15 +922,16 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
+                        color: 'var(--text-primary)',
                         textAlign: 'center'
                       }}
                     />
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>-</span>}
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>}
                 </td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
                     <input
                       type="number"
@@ -884,13 +941,14 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       style={{ 
                         width: '100%', 
                         padding: '4px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
                         fontSize: '12px',
+                        color: 'var(--text-primary)',
                         textAlign: 'center'
                       }}
                     />
-                  ) : <span style={{ color: '#999', fontSize: '12px' }}>-</span>}
+                  ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>}
                 </td>
               </tr>
               );
@@ -899,7 +957,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         </table>
         
         {filteredParticipants.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
             {participants.length === 0 ? 'No participants loaded' : 'No participants match the current filters'}
           </div>
         )}

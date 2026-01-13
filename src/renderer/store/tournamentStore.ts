@@ -48,7 +48,7 @@ const initialConfig: TournamentConfig = {
   ],
   physicalRings: [],
   watermarkImage: undefined,
-  pdfOutputDirectory: undefined,
+  pdfOutputDirectory: 'pdf_outputs',
   schoolAbbreviations: {
     // Branch-based abbreviations (exact matches from GAS code)
     'Longmont': 'REMA LM',

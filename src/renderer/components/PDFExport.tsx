@@ -246,7 +246,8 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       selectedDivision,
       config.physicalRings,
       physicalRingMappings,
-      categories
+      categories,
+      config.schoolAbbreviations
     );
     await savePDF(pdf, `check-in-${selectedDivision}.pdf`);
   };

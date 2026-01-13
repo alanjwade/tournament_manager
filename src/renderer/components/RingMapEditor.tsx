@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { getEffectiveDivision } from '../utils/excelParser';
+import { formatPoolNameForDisplay } from '../utils/ringNameFormatter';
 import { PhysicalRing } from '../types/tournament';
 
 interface RingAssignmentRow {
@@ -260,7 +261,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
   return (
     <div>
       <h2>Ring Map Editor</h2>
-      <p style={{ color: '#666', marginBottom: '20px' }}>
+      <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
         Assign pools to physical rings. Select a division, specify the number of physical rings,
         then click "Assign Physical Rings" to auto-assign. You can also manually edit assignments.
       </p>
@@ -318,20 +319,20 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f5f5f5', borderBottom: '2px solid #ddd' }}>
-                <th style={{ padding: '10px', textAlign: 'left', fontWeight: '600' }}>
+              <tr style={{ backgroundColor: 'var(--bg-tertiary)', borderBottom: '2px solid var(--border-color)' }}>
+                <th style={{ padding: '10px', textAlign: 'left', fontWeight: '600', color: 'var(--text-primary)' }}>
                   Category Ring Name
                 </th>
-                <th style={{ padding: '10px', textAlign: 'left', fontWeight: '600' }}>
+                <th style={{ padding: '10px', textAlign: 'left', fontWeight: '600', color: 'var(--text-primary)' }}>
                   Division
                 </th>
-                <th style={{ padding: '10px', textAlign: 'center', fontWeight: '600' }}>
+                <th style={{ padding: '10px', textAlign: 'center', fontWeight: '600', color: 'var(--text-primary)' }}>
                   Min Age
                 </th>
-                <th style={{ padding: '10px', textAlign: 'center', fontWeight: '600' }}>
+                <th style={{ padding: '10px', textAlign: 'center', fontWeight: '600', color: 'var(--text-primary)' }}>
                   Participants
                 </th>
-                <th style={{ padding: '10px', textAlign: 'left', fontWeight: '600' }}>
+                <th style={{ padding: '10px', textAlign: 'left', fontWeight: '600', color: 'var(--text-primary)' }}>
                   Physical Ring
                 </th>
               </tr>
@@ -341,20 +342,20 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
                 <tr
                   key={`${assignment.cohortRingName}`}
                   style={{
-                    borderBottom: '1px solid #e0e0e0',
-                    backgroundColor: index % 2 === 0 ? '#fff' : '#fafafa',
+                    borderBottom: '1px solid var(--border-color)',
+                    backgroundColor: index % 2 === 0 ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
                   }}
                 >
-                  <td style={{ padding: '10px' }}>
-                    {assignment.cohortRingName}
+                  <td style={{ padding: '10px', color: 'var(--text-primary)' }}>
+                    {formatPoolNameForDisplay(assignment.cohortRingName)}
                   </td>
-                  <td style={{ padding: '10px' }}>
+                  <td style={{ padding: '10px', color: 'var(--text-primary)' }}>
                     {assignment.division}
                   </td>
-                  <td style={{ padding: '10px', textAlign: 'center' }}>
+                  <td style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>
                     {assignment.minAge}
                   </td>
-                  <td style={{ padding: '10px', textAlign: 'center' }}>
+                  <td style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>
                     {assignment.participantCount}
                   </td>
                   <td style={{ padding: '10px' }}>
@@ -369,8 +370,10 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
                         width: '120px',
                         padding: '5px',
                         fontSize: '13px',
-                        border: '1px solid #ccc',
+                        border: '1px solid var(--input-border)',
                         borderRadius: '3px',
+                        backgroundColor: 'var(--input-bg)',
+                        color: 'var(--text-primary)',
                       }}
                     />
                   </td>
@@ -383,7 +386,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
 
       {/* Summary */}
       {assignments.length > 0 && (
-        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f0f8ff', borderRadius: '5px' }}>
+        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: 'var(--info-bg)', border: '1px solid var(--info-border)', borderRadius: '5px', color: 'var(--info-text)' }}>
           <strong>Summary:</strong>
           <div style={{ marginTop: '5px' }}>
             Total pools for {selectedDivision}: {assignments.length}
@@ -391,7 +394,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
           <div>
             Physical rings used: {new Set(assignments.map(a => a.physicalRingName).filter(Boolean)).size}
           </div>
-          <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+          <div style={{ marginTop: '10px', fontSize: '12px' }}>
             Changes are saved automatically as you edit.
           </div>
         </div>

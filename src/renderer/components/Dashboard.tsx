@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
+import { formatPoolNameForDisplay } from '../utils/ringNameFormatter';
 import { getEffectiveDivision } from '../utils/excelParser';
 
 interface DashboardProps {
@@ -25,30 +26,45 @@ function Dashboard({ onNavigate }: DashboardProps) {
   const divisionStats = useMemo(() => {
     const stats = new Map<string, {
       total: number;
-      cohortAssigned: number;
-      ringAssigned: number;
+      formsAssigned: number;
+      sparringAssigned: number;
+      formsRingAssigned: number;
+      sparringRingAssigned: number;
     }>();
 
     // Initialize stats for each division
     config.divisions.forEach(div => {
       stats.set(div.name, {
         total: 0,
-        cohortAssigned: 0,
-        ringAssigned: 0,
+        formsAssigned: 0,
+        sparringAssigned: 0,
+        formsRingAssigned: 0,
+        sparringRingAssigned: 0,
       });
     });
 
-    // Count participants per division
+    // Count participants per division - only count those assigned to a pool
     participants.forEach(p => {
       const formsDivision = getEffectiveDivision(p, 'forms');
+      const sparringDivision = getEffectiveDivision(p, 'sparring');
       
-      if (formsDivision && stats.has(formsDivision)) {
+      // Count by forms division for participants with a forms pool
+      if (formsDivision && stats.has(formsDivision) && p.formsPool) {
         const s = stats.get(formsDivision)!;
         s.total++;
-        // A participant is assigned to a category if they have either forms or sparring category (usually the same)
-        if (p.formsCategoryId || p.sparringCategoryId) s.cohortAssigned++;
-        // A participant has a ring if they have either forms or sparring ring (usually the same)
-        if (p.formsPool || p.sparringPool) s.ringAssigned++;
+        if (p.formsCategoryId) s.formsAssigned++;
+        if (p.formsPool) s.formsRingAssigned++;
+      }
+      
+      // Count sparring separately
+      if (sparringDivision && sparringDivision !== 'not participating' && sparringDivision !== 'same as forms' && stats.has(sparringDivision) && p.sparringPool) {
+        const s = stats.get(sparringDivision)!;
+        // Only increment total if not already counted via forms (to avoid double counting)
+        if (!formsDivision || formsDivision !== sparringDivision || !p.formsPool) {
+          s.total++;
+        }
+        if (p.sparringCategoryId) s.sparringAssigned++;
+        if (p.sparringPool) s.sparringRingAssigned++;
       }
     });
 
@@ -82,12 +98,13 @@ function Dashboard({ onNavigate }: DashboardProps) {
     
     competitionRings.forEach(ring => {
       const count = ring.participantIds.length;
+      const displayName = ring.name ? formatPoolNameForDisplay(ring.name) : ring.id;
       if (count === 0) {
-        issues.push({ ring: ring.name || ring.id, issue: 'Empty ring (0 participants)', severity: 'error' });
+        issues.push({ ring: displayName, issue: 'Empty pool (0 participants)', severity: 'error' });
       } else if (count < 3) {
-        issues.push({ ring: ring.name || ring.id, issue: `Very small ring (${count} participants)`, severity: 'warning' });
+        issues.push({ ring: displayName, issue: `Very small pool (${count} participants)`, severity: 'warning' });
       } else if (count > 16) {
-        issues.push({ ring: ring.name || ring.id, issue: `Large ring (${count} participants)`, severity: 'warning' });
+        issues.push({ ring: displayName, issue: `Large pool (${count} participants)`, severity: 'warning' });
       }
     });
 
@@ -101,7 +118,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
     competitionRings.forEach(ring => {
       const hasMapping = physicalRingMappings.some(m => m.cohortRingName === ring.name);
       if (!hasMapping && ring.name) {
-        unmappedRings.push(ring.name);
+        unmappedRings.push(formatPoolNameForDisplay(ring.name));
       }
     });
 
@@ -230,13 +247,13 @@ function Dashboard({ onNavigate }: DashboardProps) {
 
       {/* Workflow Progress */}
       <div style={{
-        backgroundColor: 'white',
-        border: '1px solid #ddd',
+        backgroundColor: 'var(--bg-primary)',
+        border: '1px solid var(--border-color)',
         borderRadius: '8px',
         padding: '20px',
         marginBottom: '25px',
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>Workflow Progress</h3>
+        <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>Workflow Progress</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {workflowStatus.map((step, idx) => (
             <div 
@@ -246,21 +263,21 @@ function Dashboard({ onNavigate }: DashboardProps) {
                 display: 'flex',
                 alignItems: 'center',
                 padding: '12px 15px',
-                backgroundColor: '#f8f9fa',
+                backgroundColor: 'var(--bg-secondary)',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 border: `2px solid ${step.status === 'in-progress' ? '#ffc107' : 'transparent'}`,
                 transition: 'background-color 0.2s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e9ecef'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
             >
               <span style={{ fontSize: '20px', marginRight: '12px' }}>{getStatusIcon(step.status)}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 'bold', color: getStatusColor(step.status) }}>{step.name}</div>
-                <div style={{ fontSize: '12px', color: '#666' }}>{step.detail}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{step.detail}</div>
               </div>
-              <span style={{ color: '#999', fontSize: '18px' }}>→</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '18px' }}>→</span>
             </div>
           ))}
         </div>
@@ -268,22 +285,22 @@ function Dashboard({ onNavigate }: DashboardProps) {
 
       {/* Division Breakdown */}
       <div style={{
-        backgroundColor: 'white',
-        border: '1px solid #ddd',
+        backgroundColor: 'var(--bg-primary)',
+        border: '1px solid var(--border-color)',
         borderRadius: '8px',
         padding: '20px',
         marginBottom: '25px',
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>Participants by Division</h3>
+        <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>Participants by Division</h3>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ borderBottom: '2px solid #ddd' }}>
-              <th style={{ padding: '10px', textAlign: 'left' }}>Division</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Total</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Forms Category</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Sparring Category</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Forms Ring</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Sparring Ring</th>
+            <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
+              <th style={{ padding: '10px', textAlign: 'left', color: 'var(--text-primary)' }}>Division</th>
+              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Total</th>
+              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Forms Category</th>
+              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Sparring Category</th>
+              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Forms Ring</th>
+              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Sparring Ring</th>
             </tr>
           </thead>
           <tbody>
@@ -291,7 +308,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
               const stats = divisionStats.get(div.name);
               if (!stats || stats.total === 0) return null;
               return (
-                <tr key={div.name} style={{ borderBottom: '1px solid #eee' }}>
+                <tr key={div.name} style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <td style={{ padding: '10px' }}>
                     <span style={{ 
                       display: 'inline-block',
@@ -339,13 +356,13 @@ function Dashboard({ onNavigate }: DashboardProps) {
         overallStats.formsWithCohort < overallStats.formsParticipants ||
         overallStats.sparringWithCohort < overallStats.sparringParticipants) && (
         <div style={{
-          backgroundColor: '#fff3cd',
-          border: '1px solid #ffc107',
+          backgroundColor: 'var(--warning-bg)',
+          border: '1px solid var(--warning-border)',
           borderRadius: '8px',
           padding: '20px',
           marginBottom: '25px',
         }}>
-          <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#856404' }}>⚠️ Warnings & Issues</h3>
+          <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--warning-text)' }}>⚠️ Warnings & Issues</h3>
           
           {/* Unassigned participants */}
           {overallStats.formsWithCohort < overallStats.formsParticipants && (
@@ -353,14 +370,15 @@ function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => onNavigate('categories')}
               style={{ 
                 padding: '10px', 
-                backgroundColor: 'rgba(255,255,255,0.5)', 
+                backgroundColor: 'var(--bg-secondary)', 
                 borderRadius: '4px', 
                 marginBottom: '8px',
                 cursor: 'pointer',
+                color: 'var(--text-primary)',
               }}
             >
               <strong>{overallStats.formsParticipants - overallStats.formsWithCohort}</strong> forms participants not assigned to categories
-              <span style={{ float: 'right', color: '#007bff' }}>Go to Categories →</span>
+              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Categories →</span>
             </div>
           )}
           
@@ -369,14 +387,15 @@ function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => onNavigate('categories')}
               style={{ 
                 padding: '10px', 
-                backgroundColor: 'rgba(255,255,255,0.5)', 
+                backgroundColor: 'var(--bg-secondary)', 
                 borderRadius: '4px', 
                 marginBottom: '8px',
                 cursor: 'pointer',
+                color: 'var(--text-primary)',
               }}
             >
               <strong>{overallStats.sparringParticipants - overallStats.sparringWithCohort}</strong> sparring participants not assigned to categories
-              <span style={{ float: 'right', color: '#007bff' }}>Go to Cohorts →</span>
+              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Cohorts →</span>
             </div>
           )}
 
@@ -387,14 +406,15 @@ function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => onNavigate('overview')}
               style={{ 
                 padding: '10px', 
-                backgroundColor: issue.severity === 'error' ? 'rgba(220,53,69,0.1)' : 'rgba(255,255,255,0.5)', 
+                backgroundColor: issue.severity === 'error' ? 'rgba(220,53,69,0.2)' : 'var(--bg-secondary)', 
                 borderRadius: '4px', 
                 marginBottom: '8px',
                 cursor: 'pointer',
+                color: 'var(--text-primary)',
               }}
             >
               <strong>{issue.ring}:</strong> {issue.issue}
-              <span style={{ float: 'right', color: '#007bff' }}>Go to Overview →</span>
+              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Overview →</span>
             </div>
           ))}
 
@@ -404,14 +424,15 @@ function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => onNavigate('ringmap')}
               style={{ 
                 padding: '10px', 
-                backgroundColor: 'rgba(255,255,255,0.5)', 
+                backgroundColor: 'var(--bg-secondary)', 
                 borderRadius: '4px', 
                 marginBottom: '8px',
                 cursor: 'pointer',
+                color: 'var(--text-primary)',
               }}
             >
               <strong>{mappingAnalysis.length}</strong> rings not mapped to physical rings
-              <span style={{ float: 'right', color: '#007bff' }}>Go to Ring Map →</span>
+              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Ring Map →</span>
             </div>
           )}
         </div>
@@ -419,12 +440,12 @@ function Dashboard({ onNavigate }: DashboardProps) {
 
       {/* Quick Actions */}
       <div style={{
-        backgroundColor: 'white',
-        border: '1px solid #ddd',
+        backgroundColor: 'var(--bg-primary)',
+        border: '1px solid var(--border-color)',
         borderRadius: '8px',
         padding: '20px',
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>Quick Actions</h3>
+        <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>Quick Actions</h3>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button
             onClick={() => onNavigate('tournament-day')}

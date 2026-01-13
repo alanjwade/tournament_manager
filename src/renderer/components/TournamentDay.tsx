@@ -4,6 +4,7 @@ import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
+import { formatPoolNameForDisplay } from '../utils/ringNameFormatter';
 import { CompetitionRing } from '../types/tournament';
 
 interface RingPair {
@@ -140,6 +141,17 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
   const changedRingsCount = useMemo(() => {
     return filteredRingPairs.filter(pair => changedRings.has(pair.cohortRingName)).length;
   }, [filteredRingPairs, changedRings]);
+
+  // Count changed rings by type (forms vs sparring)
+  const changedRingsCounts = useMemo(() => {
+    const changedFormsCount = competitionRings
+      .filter(ring => ring.type === 'forms' && changedRings.has(ring.name || ring.division))
+      .length;
+    const changedSparringCount = competitionRings
+      .filter(ring => ring.type === 'sparring' && changedRings.has(ring.name || ring.division))
+      .length;
+    return { forms: changedFormsCount, sparring: changedSparringCount };
+  }, [competitionRings, changedRings]);
 
   // Print a single ring's forms
   const handlePrintForms = async (ring: CompetitionRing) => {
@@ -343,7 +355,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
                 fontWeight: 'bold',
               }}
             >
-              🖨️ Print All Changed ({changedRingsCount})
+              🖨️ Print All Changed ({changedRingsCounts.forms} forms, {changedRingsCounts.sparring} sparring)
             </button>
           )}
         </div>
@@ -354,21 +366,23 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
         <div style={{ 
           marginBottom: '15px', 
           padding: '10px 15px', 
-          backgroundColor: changedRingsCount > 0 ? '#fff3cd' : '#d4edda',
+          backgroundColor: 'var(--bg-secondary)',
+          border: changedRingsCount > 0 ? '2px solid #dc3545' : '2px solid #28a745',
           borderRadius: '4px',
-          fontSize: '14px'
+          fontSize: '14px',
+          color: 'var(--text-primary)'
         }}>
           {changedRingsCount > 0 ? (
             <>
               ⚠️ <strong>{changedRingsCount} ring{changedRingsCount !== 1 ? 's' : ''}</strong> changed since checkpoint "{latestCheckpoint.name}" 
-              <span style={{ color: '#666', marginLeft: '8px' }}>
+              <span style={{ color: 'var(--text-secondary)', marginLeft: '8px' }}>
                 ({new Date(latestCheckpoint.timestamp).toLocaleString()})
               </span>
             </>
           ) : (
             <>
               ✅ No changes since checkpoint "{latestCheckpoint.name}"
-              <span style={{ color: '#666', marginLeft: '8px' }}>
+              <span style={{ color: 'var(--text-secondary)', marginLeft: '8px' }}>
                 ({new Date(latestCheckpoint.timestamp).toLocaleString()})
               </span>
             </>
@@ -401,9 +415,9 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
             <div 
               key={idx}
               style={{
-                border: isChanged ? '2px solid #dc3545' : '1px solid #ddd',
+                border: isChanged ? '2px solid #dc3545' : '1px solid var(--border-color)',
                 borderRadius: '8px',
-                backgroundColor: isChanged ? '#fff8f8' : 'white',
+                backgroundColor: isChanged ? 'var(--bg-secondary)' : 'var(--bg-primary)',
                 padding: '15px',
                 position: 'relative',
               }}
@@ -430,12 +444,12 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
                 <div style={{ 
                   fontSize: '16px', 
                   fontWeight: 'bold',
-                  color: '#333'
+                  color: 'var(--text-primary)'
                 }}>
                   {pair.physicalRingName || 'Unassigned'}
                 </div>
-                <div style={{ fontSize: '12px', color: '#666' }}>
-                  {getDivisionAbbr(pair.division)} • {pair.cohortRingName}
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  {getDivisionAbbr(pair.division)} • {formatPoolNameForDisplay(pair.cohortRingName)}
                 </div>
               </div>
 
@@ -504,8 +518,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
         <div style={{ 
           textAlign: 'center', 
           padding: '40px', 
-          color: '#666',
-          backgroundColor: '#f8f9fa',
+          color: 'var(--text-secondary)',
+          backgroundColor: 'var(--bg-secondary)',
           borderRadius: '8px'
         }}>
           No rings found. Make sure participants are assigned to categories and rings.

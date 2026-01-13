@@ -77,14 +77,14 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
   const participantCounts = useMemo(() => {
     console.log('Calculating participantCounts with:', { selectedDivision, selectedGender, selectedAges: Array.from(selectedAges) });
     
-    const formsMatching = participants.filter((p) => {
-      if (!selectedDivision) return false;
+    // Track unique participants who match the criteria (not double-counting)
+    const matchingParticipantIds = new Set<string>();
+    
+    participants.forEach((p) => {
+      if (!selectedDivision) return;
       
       const genderMatch = selectedGender === 'mixed' || p.gender.toLowerCase() === selectedGender;
-      const effectiveDivision = getEffectiveDivision(p, 'forms');
-      const divisionMatch = effectiveDivision === selectedDivision;
-      const unassigned = !p.formsCategoryId;
-
+      
       // Age matching with checkbox logic
       let ageMatch = false;
       if (selectedAges.has('18 and Up') && p.age >= 18) {
@@ -94,41 +94,24 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
         ageMatch = true;
       }
       
-      const result = ageMatch && genderMatch && divisionMatch && unassigned && p.competingForms;
-      if (result) {
-        console.log('Forms match:', p.firstName, p.lastName, 'age:', p.age, 'gender:', p.gender);
-      }
-      return result;
-    });
-
-    const sparringMatching = participants.filter((p) => {
-      if (!selectedDivision) return false;
+      if (!ageMatch || !genderMatch) return;
       
-      const genderMatch = selectedGender === 'mixed' || p.gender.toLowerCase() === selectedGender;
-      const effectiveDivision = getEffectiveDivision(p, 'sparring');
-      const divisionMatch = effectiveDivision === selectedDivision;
-      const unassigned = !p.sparringCategoryId;
-
-      // Age matching with checkbox logic
-      let ageMatch = false;
-      if (selectedAges.has('18 and Up') && p.age >= 18) {
-        ageMatch = true;
-      }
-      if (selectedAges.has(p.age.toString())) {
-        ageMatch = true;
-      }
+      // Check if they match for forms
+      const formsDiv = getEffectiveDivision(p, 'forms');
+      const formsMatch = formsDiv === selectedDivision && !p.formsCategoryId && p.competingForms;
       
-      const result = ageMatch && genderMatch && divisionMatch && unassigned && p.competingSparring;
-      if (result) {
-        console.log('Sparring match:', p.firstName, p.lastName, 'age:', p.age, 'gender:', p.gender);
+      // Check if they match for sparring
+      const sparringDiv = getEffectiveDivision(p, 'sparring');
+      const sparringMatch = sparringDiv === selectedDivision && !p.sparringCategoryId && p.competingSparring;
+      
+      // Add to set if they match either (counts person once)
+      if (formsMatch || sparringMatch) {
+        matchingParticipantIds.add(p.id);
       }
-      return result;
     });
 
     console.log('Participant counts:', {
-      formsMatching: formsMatching.length,
-      sparringMatching: sparringMatching.length,
-      total: formsMatching.length + sparringMatching.length
+      matching: matchingParticipantIds.size,
     });
 
     // Get all unique participants in division (forms or sparring or both)
@@ -152,11 +135,19 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
     });
 
     return {
-      matching: formsMatching.length + sparringMatching.length,
+      matching: matchingParticipantIds.size,
       totalInDivision: allInDivision.size,
       unassignedInDivision: unassignedInDivision.size,
     };
   }, [participants, selectedDivision, selectedGender, selectedAges]);
+
+  // Auto-calculate pools needed based on 12 participants per pool max
+  useEffect(() => {
+    if (participantCounts.matching > 0) {
+      const poolsNeeded = Math.max(1, Math.ceil(participantCounts.matching / 12));
+      setNumPools(poolsNeeded);
+    }
+  }, [participantCounts.matching]);
 
   const handleAddCategory = () => {
     if (!selectedDivision) {
@@ -311,21 +302,18 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
     setNumPools(1);
   };
 
-  const handleRemoveCategory = (cohortId: string) => {
-    if (!confirm('Remove this category? Participants will become unassigned.')) {
-      return;
-    }
+  const handleRemoveCategory = (categoryId: string) => {
     // Remove the selected category and any matching opposite category(s)
-    const categoryToRemove = categories.find((c) => c.id === cohortId);
-    if (!cohortToRemove) return;
+    const categoryToRemove = categories.find((c) => c.id === categoryId);
+    if (!categoryToRemove) return;
 
     // Find all categories that match the same name/division/gender/age range (both/forms/sparring variants)
     const categoriesToRemove = categories.filter((c) =>
-      c.name === cohortToRemove.name &&
-      c.division === cohortToRemove.division &&
-      c.gender === cohortToRemove.gender &&
-      c.minAge === cohortToRemove.minAge &&
-      c.maxAge === cohortToRemove.maxAge
+      c.name === categoryToRemove.name &&
+      c.division === categoryToRemove.division &&
+      c.gender === categoryToRemove.gender &&
+      c.minAge === categoryToRemove.minAge &&
+      c.maxAge === categoryToRemove.maxAge
     );
 
     const removeIds = new Set(categoriesToRemove.map(c => c.id));
@@ -449,10 +437,10 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
               <div style={{ 
                 maxHeight: '200px', 
                 overflowY: 'auto', 
-                border: '1px solid #ddd', 
+                border: '1px solid var(--border-color)', 
                 padding: '10px',
                 borderRadius: '4px',
-                backgroundColor: '#f9f9f9'
+                backgroundColor: 'var(--bg-secondary)'
               }}>
                 {availableAges.length > 0 ? (
                   availableAges.map((age) => (
@@ -469,16 +457,16 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
                     </div>
                   ))
                 ) : (
-                  <p style={{ color: '#666', fontSize: '14px', margin: 0 }}>No participants in this division</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>No participants in this division</p>
                 )}
               </div>
             ) : (
-              <p style={{ color: '#666', fontSize: '14px' }}>Select a division first</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Select a division first</p>
             )}
           </div>
 
           <div className="form-group">
-            <label className="form-label">Rings Needed</label>
+            <label className="form-label">Pools Needed</label>
             <input
               type="number"
               className="form-control"
@@ -606,16 +594,16 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
           {Object.keys(ringTotalsByDivision).length > 0 && (
             <div style={{ marginTop: '30px' }}>
               <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
-                Rings Needed by Division
+                Pools Needed by Division
               </h3>
-              <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '10px' }}>
                 (Sparring will use the same physical rings after Forms are completed)
               </p>
               <div style={{ 
-                background: '#f8f9fa', 
+                background: 'var(--bg-secondary)', 
                 padding: '15px', 
                 borderRadius: '4px',
-                border: '1px solid #dee2e6'
+                border: '1px solid var(--border-color)'
               }}>
                 {Object.entries(ringTotalsByDivision)
                   .sort(([divA], [divB]) => {
@@ -631,12 +619,12 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         padding: '8px 0',
-                        borderBottom: '1px solid #dee2e6'
+                        borderBottom: '1px solid var(--border-color)'
                       }}
                     >
                       <span style={{ fontWeight: 500 }}>{division}:</span>
                       <span style={{ fontWeight: 'bold' }}>
-                        {total} rings
+                        {total} pools
                       </span>
                     </div>
                   ))}

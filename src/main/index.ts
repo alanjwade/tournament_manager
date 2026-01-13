@@ -76,69 +76,41 @@ ipcMain.handle('select-file', async () => {
 // Autosave handlers
 // For portable builds, prefer saving in the app directory if possible
 function getDataPath(): string {
-  const exePath = app.getPath('exe');
-  const exeName = path.basename(exePath);
-  
-  console.log('===== PORTABLE DETECTION DEBUG =====');
-  console.log('app.isPackaged:', app.isPackaged);
-  console.log('exePath:', exePath);
-  console.log('exeName:', exeName);
-  console.log('process.env.PORTABLE_EXECUTABLE_DIR:', process.env.PORTABLE_EXECUTABLE_DIR || 'NOT SET');
-  console.log('process.env.PORTABLE_EXECUTABLE_FILE:', process.env.PORTABLE_EXECUTABLE_FILE || 'NOT SET');
-  console.log('process.cwd():', process.cwd());
-  console.log('__dirname:', __dirname);
-  
   // PRIMARY: Check for PORTABLE_EXECUTABLE_DIR env var (set by electron-builder portable)
   const portableDir = process.env.PORTABLE_EXECUTABLE_DIR;
   if (portableDir) {
     const dataDir = path.join(portableDir, 'tournament-data');
-    console.log('[PORTABLE MODE] Detected via PORTABLE_EXECUTABLE_DIR');
-    console.log('[PORTABLE MODE] Using portable data directory:', dataDir);
     
     // Create directory if it doesn't exist
     try {
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
-        console.log('[PORTABLE MODE] Created tournament-data directory:', dataDir);
-      } else {
-        console.log('[PORTABLE MODE] tournament-data directory exists:', dataDir);
       }
-      console.log('=====================================');
       return dataDir;
     } catch (error) {
-      console.error('[PORTABLE MODE] Error creating data directory:', error);
-      console.log('[PORTABLE MODE] Falling back to userData');
+      console.error('Error creating portable data directory:', error);
     }
   }
   
-  // FALLBACK: Check if "portable" is in the exe name or path (for manual detection)
+  // FALLBACK: Check if "portable" is in the exe name or path
+  const exePath = app.getPath('exe');
   const lowerExePath = exePath.toLowerCase();
-  const lowerExeName = exeName.toLowerCase();
-  const hasPortableInPath = lowerExePath.includes('portable') || lowerExeName.includes('portable');
-  console.log('Fallback check - "portable" in path/name:', hasPortableInPath);
-  
-  if (hasPortableInPath && app.isPackaged) {
+  if (lowerExePath.includes('portable') && app.isPackaged) {
     const appDir = path.dirname(exePath);
     const dataDir = path.join(appDir, 'tournament-data');
-    console.log('[PORTABLE MODE FALLBACK] Using app directory:', dataDir);
     
     try {
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
-        console.log('[PORTABLE MODE FALLBACK] Created tournament-data directory');
       }
-      console.log('=====================================');
       return dataDir;
     } catch (error) {
-      console.error('[PORTABLE MODE FALLBACK] Error creating data directory:', error);
+      console.error('Error creating fallback portable directory:', error);
     }
   }
   
   // DEFAULT: use userData directory
-  const userDataPath = app.getPath('userData');
-  console.log('[NON-PORTABLE MODE] Using userData directory:', userDataPath);
-  console.log('=====================================');
-  return userDataPath;
+  return app.getPath('userData');
 }
 
 ipcMain.handle('save-autosave', async (event, data: string) => {

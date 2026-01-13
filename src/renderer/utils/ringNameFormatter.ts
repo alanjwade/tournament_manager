@@ -1,6 +1,23 @@
 import { PhysicalRing, CompetitionRing } from '../types/tournament';
 
 /**
+ * Format a pool name for display (e.g., "Mixed 8-10_P1" -> "Mixed 8-10 Pool 1")
+ * Converts internal pool naming to user-friendly display format
+ */
+export function formatPoolNameForDisplay(poolName: string): string {
+  // Replace _P1, _P2, etc. with " Pool 1", " Pool 2", etc.
+  return poolName.replace(/_P(\d+)$/, ' Pool $1');
+}
+
+/**
+ * Format a single pool identifier (e.g., "P1" -> "Pool 1")
+ */
+export function formatPoolOnly(pool: string): string {
+  if (!pool) return '';
+  return pool.replace(/^P(\d+)$/, 'Pool $1');
+}
+
+/**
  * Get the ordinal suffix for a number (1st, 2nd, 3rd, etc.)
  */
 function getOrdinalSuffix(num: number): string {

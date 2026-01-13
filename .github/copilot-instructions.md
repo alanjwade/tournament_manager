@@ -1,54 +1,34 @@
-<!-- Use this file to provide workspace-specific custom instructions to Copilot. For more details, visit https://code.visualstudio.com/docs/copilot/copilot-customization#_use-a-githubcopilotinstructionsmd-file -->
-- [x] Verify that the copilot-instructions.md file in the .github directory is created.
+# Tournament Manager - Copilot Instructions
 
-- [x] Clarify Project Requirements
-	<!-- Electron app with React, TypeScript for martial arts tournament management -->
+## Project Overview
 
-- [ ] Scaffold the Project
-	<!--
-	Ensure that the previous step has been marked as completed.
-	Call project setup tool with projectType parameter.
-	Run scaffolding command to create project files and folders.
-	Use '.' as the working directory.
-	If no appropriate projectType is available, search documentation using available tools.
-	Otherwise, create the project structure manually using available file creation tools.
-	-->
+This is an Electron application built with React and TypeScript for managing martial arts tournament participant registration, ring assignments, and PDF generation.
 
-- [ ] Customize the Project
-	<!--
-	Verify that all previous steps have been completed successfully and you have marked the step as completed.
-	Develop a plan to modify codebase according to user requirements.
-	Apply modifications using appropriate tools and user-provided references.
-	Skip this step for "Hello World" projects.
-	-->
+## Tech Stack
 
-- [ ] Install Required Extensions
-	<!-- ONLY install extensions provided mentioned in the get_project_setup_info. Skip this step otherwise and mark as completed. -->
+- **Electron 28.0.0** - Desktop application framework
+- **React 18** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool
+- **Zustand** - State management
+- **jsPDF** - PDF generation
 
-- [ ] Compile the Project
-	<!--
-	Verify that all previous steps have been completed.
-	Install any missing dependencies.
-	Run diagnostics and resolve any issues.
-	Check for markdown files in project folder for relevant instructions on how to do this.
-	-->
+## Key Concepts
 
-- [ ] Create and Run Task
-	<!--
-	Verify that all previous steps have been completed.
-	Check https://code.visualstudio.com/docs/debugtest/tasks to determine if the project needs a task. If so, use the create_and_run_task to create and launch a task based on package.json, README.md, and project structure.
-	Skip this step otherwise.
-	 -->
+- **Divisions**: Age/skill groups (e.g., "Youth", "Adult")
+- **Categories**: Competition groupings within divisions (forms or sparring)
+- **Pools**: Subgroups within categories (Pool 1, Pool 2, etc.) - previously called "rings"
+- **Physical Rings**: The actual competition areas (PR1, PR2, etc.)
 
-- [ ] Launch the Project
-	<!--
-	Verify that all previous steps have been completed.
-	Prompt user for debug mode, launch only if confirmed.
-	 -->
+## Development Commands
 
-- [ ] Ensure Documentation is Complete
-	<!--
-	Verify that all previous steps have been completed.
-	Verify that README.md and the copilot-instructions.md file in the .github directory exists and contains current project information.
-	Clean up the copilot-instructions.md file in the .github directory by removing all HTML comments.
-	 -->
+- `npm run dev` - Start development mode
+- `npm run build` - Build for production
+- `npm run dist` - Create distributable
+
+## Theming
+
+The app supports light/dark themes via CSS variables. Default is dark theme.
+- Theme toggle is in the app header
+- Variables defined in `src/renderer/styles/index.css`
+

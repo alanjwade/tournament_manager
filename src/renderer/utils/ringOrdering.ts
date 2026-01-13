@@ -1,17 +1,20 @@
 import { Participant } from '../types/tournament';
+import { getEffectiveSparringInfo, getEffectiveFormsInfo } from './computeRings';
 
 /**
  * Check if a sparring ring has mixed alt ring assignments (some set, some not).
  * Returns validation status for alt ring assignments.
+ * Resolves "same as forms" sparring division to use forms category/pool.
  */
 export function checkSparringAltRingStatus(
   participants: Participant[],
   categoryId: string,
   pool: string
 ): { status: 'none' | 'all' | 'mixed'; countA: number; countB: number; countEmpty: number } {
-  const ringParticipants = participants.filter(p => 
-    p.sparringCategoryId === categoryId && p.sparringPool === pool
-  );
+  const ringParticipants = participants.filter(p => {
+    const effective = getEffectiveSparringInfo(p);
+    return effective.categoryId === categoryId && effective.pool === pool;
+  });
 
   const countA = ringParticipants.filter(p => p.sparringAltRing === 'a').length;
   const countB = ringParticipants.filter(p => p.sparringAltRing === 'b').length;
@@ -40,6 +43,7 @@ function hashName(firstName: string, lastName: string): number {
 
 /**
  * Order Forms participants by distributing schools and assigning rank order.
+ * Resolves "same as sparring" forms division to use sparring category/pool.
  * @param participants - All participants
  * @param categoryId - The category ID (or legacy ringId for backward compatibility)
  * @param pool - Optional: The pool identifier (e.g., "R1", "R2")
@@ -49,11 +53,12 @@ export function orderFormsRing(
   categoryId: string,
   pool?: string
 ): Participant[] {
-  // Filter participants for this ring
+  // Filter participants for this ring - resolve "same as sparring" automatically
   const ringParticipants = participants.filter((p) => {
-    // New approach: use formsCategoryId and formsPool
+    const effective = getEffectiveFormsInfo(p);
+    // New approach: use effective formsCategoryId and formsPool
     if (pool) {
-      return p.formsCategoryId === categoryId && p.formsPool === pool;
+      return effective.categoryId === categoryId && effective.pool === pool;
     }
     // Legacy approach: use formsRingId (for backward compatibility)
     return p.formsRingId === categoryId;
@@ -150,6 +155,7 @@ export function orderFormsRing(
 /**
  * Order Sparring participants by height and assign rank order.
  * Handles sparringAltRing subdivision ('a' and 'b' groups).
+ * Resolves "same as forms" sparring division to use forms category/pool.
  * @param participants - All participants
  * @param categoryId - The category ID (or legacy ringId for backward compatibility)
  * @param pool - Optional: The pool identifier (e.g., "R1", "R2")
@@ -159,11 +165,12 @@ export function orderSparringRing(
   categoryId: string,
   pool?: string
 ): Participant[] {
-  // Filter participants for this ring
+  // Filter participants for this ring - resolve "same as forms" automatically
   const ringParticipants = participants.filter((p) => {
-    // New approach: use sparringCategoryId and sparringPool
+    const effective = getEffectiveSparringInfo(p);
+    // New approach: use effective sparringCategoryId and sparringPool
     if (pool) {
-      return p.sparringCategoryId === categoryId && p.sparringPool === pool;
+      return effective.categoryId === categoryId && effective.pool === pool;
     }
     // Legacy approach: use sparringRingId (for backward compatibility)
     return p.sparringRingId === categoryId;

@@ -1,13 +1,17 @@
 import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing, PhysicalRingMapping, Category } from '../../types/tournament';
 import { getExpandedRingName, formatPdfTimestamp } from '../ringNameFormatter';
+import { getSchoolAbbreviation } from '../schoolAbbreviations';
+import { getEffectiveFormsInfo } from '../computeRings';
+import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
 export function generateCheckInSheet(
   participants: Participant[],
   division: string,
   physicalRings: PhysicalRing[],
   physicalRingMappings?: PhysicalRingMapping[],
-  categories?: Category[]
+  categories?: Category[],
+  schoolAbbreviations?: { [schoolName: string]: string }
 ): jsPDF {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -85,7 +89,7 @@ export function generateCheckInSheet(
       doc.setFontSize(9);
     }
 
-    // Get ring info - use formsPool with physical ring mappings (same as name tags)
+    // Get ring info - use effective forms pool (resolves "same as sparring")
     let ringNumber = '';
     let ringColor = '';
     
@@ -98,13 +102,16 @@ export function generateCheckInSheet(
       console.log('  sparringDivision:', participant.sparringDivision);
     }
     
-    if (participant.formsPool && participant.formsCategoryId && physicalRingMappings && categories) {
+    const effectiveForms = getEffectiveFormsInfo(participant);
+    if (effectiveForms.pool && effectiveForms.categoryId && physicalRingMappings && categories) {
       // Find the category to get its name
-      const formsCategory = categories.find(c => c.id === participant.formsCategoryId);
+      const formsCategory = categories.find(c => c.id === effectiveForms.categoryId);
       
       if (formsCategory) {
-        const categoryRingName = `${formsCategory.name}_${participant.formsPool}`;
-        const mapping = physicalRingMappings.find(m => m.cohortRingName === cohortRingName);
+        const categoryRingName = `${formsCategory.name}_${effectiveForms.pool}`;
+        const mapping = physicalRingMappings.find(m => 
+          (m.categoryPoolName || m.cohortRingName) === categoryRingName
+        );
         
         if (mapping) {
           const physicalRingName = mapping.physicalRingName;
@@ -116,15 +123,31 @@ export function generateCheckInSheet(
           if (ringNumberMatch) {
             const baseRingNumber = ringNumberMatch[1];
             
-            // Find the physical ring by the base number
+            // Find the physical ring by the base number - any physical ring should have a color
             const ring = physicalRings.find((r) => r.id === `ring-${baseRingNumber}`);
             
-            if (ring) {
-              // Extract full ring identifier (e.g., "6a" from "PR6a")
-              const fullRingMatch = physicalRingName.match(/PR(\d+[a-z]?)/i);
-              ringNumber = fullRingMatch ? fullRingMatch[1] : baseRingNumber;
-              ringColor = ring.color;
+            // Extract full ring identifier (e.g., "6a" from "PR6a")
+            const fullRingMatch = physicalRingName.match(/PR(\d+)([a-z]?)/i);
+            if (fullRingMatch) {
+              const num = fullRingMatch[1];
+              const suffix = fullRingMatch[2]?.toLowerCase() || '';
+              
+              // Convert to "Ring x" or "Ring x Group A" format
+              if (suffix) {
+                const groupMap: { [key: string]: string } = {
+                  'a': 'Group A',
+                  'b': 'Group B',
+                  'c': 'Group C',
+                  'd': 'Group D',
+                };
+                ringNumber = `${num} ${groupMap[suffix] || suffix}`;
+              } else {
+                ringNumber = num;
+              }
             }
+            
+            // Get color from ring number using color map
+            ringColor = getRingColorFromName(physicalRingName) || '';
           }
         }
       }
@@ -132,32 +155,27 @@ export function generateCheckInSheet(
 
     doc.text(participant.lastName, 15, y);
     doc.text(participant.firstName, 55, y);
-    doc.text(participant.school.substring(0, 25), 95, y);
+    
+    // School - Use abbreviation based on branch field (or school if no branch)
+    const schoolKey = participant.branch || participant.school;
+    const schoolDisplay = getSchoolAbbreviation(schoolKey, schoolAbbreviations);
+    doc.text(schoolDisplay.substring(0, 25), 95, y);
     
     // Draw ring with colored background
     if (ringNumber && ringColor) {
       const ringText = `Ring ${ringNumber}`;
       const textWidth = doc.getTextWidth(ringText);
       
-      // Convert hex color to RGB for background
-      const hexToRgb = (hex: string) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-          r: parseInt(result[1], 16),
-          g: parseInt(result[2], 16),
-          b: parseInt(result[3], 16)
-        } : { r: 200, g: 200, b: 200 };
-      };
-      
       const bgColor = hexToRgb(ringColor);
+      const fgColor = getForegroundColor(ringColor);
       
       // Draw colored background rectangle
       doc.setFillColor(bgColor.r, bgColor.g, bgColor.b);
       doc.rect(134, y - 3.5, textWidth + 2, 5, 'F');
       
-      // Determine text color (white for dark backgrounds, black for light)
-      const brightness = (bgColor.r * 299 + bgColor.g * 587 + bgColor.b * 114) / 1000;
-      doc.setTextColor(brightness > 128 ? 0 : 255);
+      // Set text color based on background
+      const fgRgb = hexToRgb(fgColor);
+      doc.setTextColor(fgRgb.r, fgRgb.g, fgRgb.b);
       
       doc.text(ringText, 135, y);
       

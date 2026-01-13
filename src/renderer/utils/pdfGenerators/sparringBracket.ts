@@ -1,7 +1,8 @@
 import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing } from '../../types/tournament';
-import { getPhysicalRingId, getFullyQualifiedRingName, formatPdfTimestamp } from '../ringNameFormatter';
+import { getPhysicalRingId, getFullyQualifiedRingName, formatPdfTimestamp, formatPoolNameForDisplay } from '../ringNameFormatter';
 import { checkSparringAltRingStatus } from '../ringOrdering';
+import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
 interface BracketSlot {
   participantId?: string;
@@ -107,6 +108,12 @@ export function generateSparringBrackets(
       
       const fullyQualifiedRingName = getFullyQualifiedRingName(division, physicalRingId, physicalRings);
       const titleWithAlt = altRingLabel ? `${fullyQualifiedRingName} ${altRingLabel}` : fullyQualifiedRingName;
+      
+      // Get ring color for title styling
+      let ringColor = '';
+      if (physicalRingId) {
+        ringColor = getRingColorFromName(physicalRingId) || '';
+      }
 
       // Add watermark if provided - centered, as large as possible without cutting off
       if (watermark) {
@@ -153,16 +160,33 @@ export function generateSparringBrackets(
         }
       }
 
-      // Title
+      // Title with colored background using ring color
+      const titleText = `${titleWithAlt} Sparring Bracket`;
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${titleWithAlt} Sparring Bracket`, margin, margin + 0.3);
+      
+      if (ringColor) {
+        const bgColor = hexToRgb(ringColor);
+        const fgColor = getForegroundColor(ringColor);
+        const fgRgb = hexToRgb(fgColor);
+        const titleWidth = doc.getTextWidth(titleText);
+        
+        // Draw colored background rectangle
+        doc.setFillColor(bgColor.r, bgColor.g, bgColor.b);
+        doc.rect(margin - 0.05, margin + 0.1, titleWidth + 0.1, 0.3, 'F');
+        
+        // Set text color based on background
+        doc.setTextColor(fgRgb.r, fgRgb.g, fgRgb.b);
+      }
+      
+      doc.text(titleText, margin, margin + 0.3);
+      doc.setTextColor(0); // Reset to black
       
       // Category ring name subtitle
       if (ring.name) {
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text(`${ring.name}${altRingLabel}`, margin, margin + 0.5);
+        doc.text(`${formatPoolNameForDisplay(ring.name)}${altRingLabel}`, margin, margin + 0.5);
       }
 
       console.log(`Ring ${ring.name}${altRingLabel}: ${ringParticipants.length} participants`);
@@ -179,17 +203,17 @@ export function generateSparringBrackets(
       // Draw bracket
       drawBracket(doc, matches, ringParticipants, watermark);
 
-      // Placement table - upper right corner
+      // Final places table - upper right corner
       let x = pageWidth - 2.5; // 2.5" from right edge
       let y = margin + 0.5; // 0.5" below top margin
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
-      doc.text('Placements:', x, y);
+      doc.text('Final Places:', x, y);
       
       y += 0.3;
       doc.setFontSize(10);
-      const placements = ['1st Place:', '2nd Place:', '3rd Place:'];
-      placements.forEach((place) => {
+      const finalPlaces = ['1st Place:', '2nd Place:', '3rd Place:'];
+      finalPlaces.forEach((place) => {
         doc.text(place, x, y);
         doc.setLineWidth(0.01);
         doc.line(x + 1.0, y, x + 2.2, y);
@@ -456,10 +480,20 @@ function drawBracket(
   participants: Participant[],
   watermark?: string
 ) {
-  const startX = 0.5; // Moved left from 0.6
-  const startY = 1.0;
-  const matchHeight = 0.55; // Reduced from 0.6
-  const roundSpacing = 1.8; // Reduced from 2.0 to fit placement lines
+  const startX = 0.5;
+  const startY = 1.4; // Shifted down to be clearly below the pool name
+  const roundSpacing = 1.8; // Fixed width for all rounds
+  const matchWidth = 1.6; // Fixed width for all matches
+  
+  // Progressive heights for each round - 1.5x increase each round
+  const baseHeight = 0.4;
+  const matchHeights = [
+    baseHeight,            // Round 1: 0.4"
+    baseHeight * 1.5,      // Round 2: 0.6"
+    baseHeight * 1.5 * 1.5, // Round 3: 0.9"
+    baseHeight * 1.5 * 1.5 * 1.5, // Finals: 1.35"
+  ];
+  const baseMatchHeight = 0.55; // Base height for spacing calculations
   
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
@@ -477,74 +511,74 @@ function drawBracket(
     const match = matches[i];
     const x = startX;
     
-    drawMatch(doc, x, y, match, participants, colorShades[0]);
-    y += matchHeight * 2;
+    drawMatch(doc, x, y, match, participants, colorShades[0], matchWidth, matchHeights[0]);
+    y += baseMatchHeight * 2;
   }
 
   // Round 2 (4 matches) - centered between Round 1 matches
-  y = startY + matchHeight; // Start one matchHeight down to center
+  y = startY + baseMatchHeight; // Start one matchHeight down to center
   for (let i = 8; i < 12; i++) {
     const match = matches[i];
     const x = startX + roundSpacing;
     
-    drawMatch(doc, x, y, match, participants, colorShades[1]);
+    drawMatch(doc, x, y, match, participants, colorShades[1], matchWidth, matchHeights[1]);
     
     // Draw lines connecting from previous round
-    const prevY1 = startY + (i - 8) * 4 * matchHeight + matchHeight / 2;
-    const prevY2 = prevY1 + 2 * matchHeight;
-    doc.line(startX + 1.6, prevY1, x, y + 0.24);
-    doc.line(startX + 1.6, prevY2, x, y + 0.24);
+    const prevY1 = startY + (i - 8) * 4 * baseMatchHeight + matchHeights[0] / 2;
+    const prevY2 = prevY1 + 2 * baseMatchHeight;
+    doc.line(startX + matchWidth, prevY1, x, y + matchHeights[1] / 2);
+    doc.line(startX + matchWidth, prevY2, x, y + matchHeights[1] / 2);
     
-    y += matchHeight * 4;
+    y += baseMatchHeight * 4;
   }
 
   // Round 3 (2 matches) - centered between Round 2 matches
-  y = startY + matchHeight * 3; // Start three matchHeights down to center
+  y = startY + baseMatchHeight * 3; // Start three matchHeights down to center
   for (let i = 12; i < 14; i++) {
     const match = matches[i];
     const x = startX + roundSpacing * 2;
     
-    drawMatch(doc, x, y, match, participants, colorShades[2]);
+    drawMatch(doc, x, y, match, participants, colorShades[2], matchWidth, matchHeights[2]);
     
     // Draw connecting lines
-    const prevY1 = startY + matchHeight + (i - 12) * 8 * matchHeight + matchHeight / 2;
-    const prevY2 = prevY1 + 4 * matchHeight;
-    doc.line(startX + roundSpacing + 1.6, prevY1, x, y + 0.24);
-    doc.line(startX + roundSpacing + 1.6, prevY2, x, y + 0.24);
+    const prevY1 = startY + baseMatchHeight + (i - 12) * 8 * baseMatchHeight + matchHeights[1] / 2;
+    const prevY2 = prevY1 + 4 * baseMatchHeight;
+    doc.line(startX + roundSpacing + matchWidth, prevY1, x, y + matchHeights[2] / 2);
+    doc.line(startX + roundSpacing + matchWidth, prevY2, x, y + matchHeights[2] / 2);
     
-    y += matchHeight * 8;
+    y += baseMatchHeight * 8;
   }
 
   // Finals - centered between semifinals
   const finalsMatch = matches[14];
   const finalsX = startX + roundSpacing * 3;
-  const finalsY = startY + matchHeight * 7; // Centered between the two semifinals
-  drawMatch(doc, finalsX, finalsY, finalsMatch, participants, colorShades[3]);
+  const finalsY = startY + baseMatchHeight * 7; // Centered between the two semifinals
+  drawMatch(doc, finalsX, finalsY, finalsMatch, participants, colorShades[3], matchWidth, matchHeights[3]);
   
   // Draw lines to finals
-  const semi1Y = startY + matchHeight * 3 + 0.24;
-  const semi2Y = startY + matchHeight * 11 + 0.24;
-  doc.line(startX + roundSpacing * 2 + 1.6, semi1Y, finalsX, finalsY + 0.24);
-  doc.line(startX + roundSpacing * 2 + 1.6, semi2Y, finalsX, finalsY + 0.24);
+  const semi1Y = startY + baseMatchHeight * 3 + matchHeights[2] / 2;
+  const semi2Y = startY + baseMatchHeight * 11 + matchHeights[2] / 2;
+  doc.line(startX + roundSpacing * 2 + matchWidth, semi1Y, finalsX, finalsY + matchHeights[3] / 2);
+  doc.line(startX + roundSpacing * 2 + matchWidth, semi2Y, finalsX, finalsY + matchHeights[3] / 2);
 
   // Winner line for championship
   doc.setLineWidth(0.008);
-  doc.line(finalsX + 1.6, finalsY + 0.24, finalsX + 2.2, finalsY + 0.24);
+  doc.line(finalsX + matchWidth, finalsY + matchHeights[3] / 2, finalsX + matchWidth + 0.6, finalsY + matchHeights[3] / 2);
   doc.setFontSize(7);
-  doc.text('1st Place', finalsX + 1.7, finalsY + 0.42);
+  doc.text('1st Place', finalsX + matchWidth + 0.1, finalsY + matchHeights[3] / 2 - 0.08);
 
   // Third place match - moved to lower right, horizontally aligned with finals
   const thirdPlaceMatch = matches[15];
   const thirdX = finalsX; // Same X position as finals (horizontally aligned)
-  const thirdY = startY + matchHeight * 13; // Moved down to lower right where there's more space
-  drawMatch(doc, thirdX, thirdY, thirdPlaceMatch, participants, colorShades[2]);
+  const thirdY = startY + baseMatchHeight * 13; // Moved down to lower right where there's more space
+  drawMatch(doc, thirdX, thirdY, thirdPlaceMatch, participants, colorShades[2], matchWidth, matchHeights[2]);
   doc.setFontSize(7);
   doc.text('3rd Place Match', thirdX - 0.6, thirdY - 0.08);
   
   // Winner line for 3rd place
   doc.setLineWidth(0.008);
-  doc.line(thirdX + 1.6, thirdY + 0.24, thirdX + 2.2, thirdY + 0.24);
-  doc.text('3rd Place', thirdX + 1.7, thirdY + 0.42);
+  doc.line(thirdX + matchWidth, thirdY + matchHeights[2] / 2, thirdX + matchWidth + 0.6, thirdY + matchHeights[2] / 2);
+  doc.text('3rd Place', thirdX + matchWidth + 0.1, thirdY + matchHeights[2] / 2 - 0.08);
 }
 
 function drawMatch(
@@ -553,22 +587,25 @@ function drawMatch(
   y: number,
   match: Match,
   participants: Participant[],
-  bgColor: number[]
+  bgColor: number[],
+  matchWidth?: number,
+  matchHeight?: number
 ) {
-  const width = 1.6; // 1.6" wide
-  const height = 0.48; // 0.48" tall
+  const width = matchWidth || 1.6;
+  const height = matchHeight || 0.48;
 
-  // Draw background with 50% transparency
+  // Draw background with 50% transparency (shading between top and bottom lines)
   doc.saveGraphicsState();
   (doc as any).setGState(new (doc as any).GState({ opacity: 0.5 }));
   doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
   doc.rect(x, y, width, height, 'F');
   doc.restoreGraphicsState();
 
-  // Draw border
+  // Draw only top and bottom lines (no middle line, no side borders)
   doc.setDrawColor(0);
   doc.setLineWidth(0.01);
-  doc.rect(x, y, width, height);
+  doc.line(x, y, x + width, y); // Top line
+  doc.line(x, y + height, x + width, y + height); // Bottom line
 
   const p1 = match.participant1
     ? participants.find((p) => p.id === match.participant1)
@@ -577,12 +614,12 @@ function drawMatch(
     ? participants.find((p) => p.id === match.participant2)
     : null;
 
-  // Top participant (smaller font)
+  // Top participant - positioned above the top line
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   if (p1) {
     const name = `${p1.firstName} ${p1.lastName}`;
-    doc.text(name, x + 0.05, y + 0.12);
+    doc.text(name, x + 0.05, y - 0.02); // Positioned above the top line
   }
 
   // Match number in center (larger, bold)
@@ -592,7 +629,7 @@ function drawMatch(
     doc.text(`Match #${match.number}`, x + width / 2, y + height / 2 + 0.03, { align: 'center' });
   }
 
-  // Bottom participant (smaller font)
+  // Bottom participant - positioned on top of the bottom line (just above it)
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   if (p2) {
@@ -600,7 +637,7 @@ function drawMatch(
     doc.text(name, x + 0.05, y + height - 0.05);
   }
 
-  // Winner line
-  doc.setLineWidth(0.008);
-  doc.line(x + width - 0.4, y + height / 2, x + width, y + height / 2);
+  // Winner line extending from middle right edge (not from inside the box)
+  // This line connects to the next round's match in drawBracket function
+  // Removed as the connector lines are drawn in drawBracket
 }

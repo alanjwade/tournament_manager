@@ -14,12 +14,18 @@ import CheckpointManager from './components/CheckpointManager';
 import TournamentDay from './components/TournamentDay';
 
 type Tab = 'dashboard' | 'import' | 'categories' | 'editor' | 'overview' | 'ringmap' | 'export' | 'checkpoints' | 'tournament-day';
+type Theme = 'light' | 'dark';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [globalDivision, setGlobalDivision] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchFocused, setSearchFocused] = useState<boolean>(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    // Default to dark theme, but check localStorage for user preference
+    const savedTheme = localStorage.getItem('tournament-theme') as Theme;
+    return savedTheme || 'dark';
+  });
   const participants = useTournamentStore((state) => state.participants);
   const categories = useTournamentStore((state) => state.categories);
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
@@ -27,6 +33,16 @@ function App() {
   const checkpoints = useTournamentStore((state) => state.checkpoints);
   const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
   const config = useTournamentStore((state) => state.config);
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('tournament-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   // Search results
   const searchResults = useMemo(() => {
@@ -56,10 +72,12 @@ function App() {
     const parts: string[] = [];
     
     if (formsDivision && formsDivision !== 'not participating') {
-      parts.push(`F: ${p.formsPool || 'unassigned'}`);
+      const formsPoolDisplay = p.formsPool ? p.formsPool.replace(/^P(\d+)$/, 'Pool $1') : 'unassigned';
+      parts.push(`F: ${formsPoolDisplay}`);
     }
     if (sparringDivision && sparringDivision !== 'not participating') {
-      parts.push(`S: ${p.sparringPool || 'unassigned'}`);
+      const sparringPoolDisplay = p.sparringPool ? p.sparringPool.replace(/^P(\d+)$/, 'Pool $1') : 'unassigned';
+      parts.push(`S: ${sparringPoolDisplay}`);
     }
     return parts.join(' | ') || 'Not competing';
   };
@@ -233,7 +251,9 @@ function App() {
                   padding: '8px 12px',
                   fontSize: '14px',
                   borderRadius: '4px',
-                  border: '1px solid #ccc',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--input-bg)',
+                  color: 'var(--text-primary)',
                   width: '220px',
                 }}
               />
@@ -244,10 +264,10 @@ function App() {
                   top: '100%',
                   left: 0,
                   right: 0,
-                  backgroundColor: 'white',
-                  border: '1px solid #ccc',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
                   borderRadius: '4px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  boxShadow: '0 4px 12px var(--card-shadow)',
                   zIndex: 1000,
                   maxHeight: '400px',
                   overflowY: 'auto',
@@ -259,18 +279,18 @@ function App() {
                       style={{
                         padding: '10px 12px',
                         cursor: 'pointer',
-                        borderBottom: '1px solid #eee',
+                        borderBottom: '1px solid var(--border-color)',
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f7ff'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
                     >
-                      <div style={{ fontWeight: 'bold', color: '#333' }}>
+                      <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>
                         {p.firstName} {p.lastName}
                       </div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                         {getEffectiveDivision(p, 'forms') || getEffectiveDivision(p, 'sparring') || 'No division'} • {p.age}yo • {p.gender}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#888' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                         {getParticipantRingInfo(p)}
                       </div>
                     </div>
@@ -283,13 +303,13 @@ function App() {
                   top: '100%',
                   left: 0,
                   right: 0,
-                  backgroundColor: 'white',
-                  border: '1px solid #ccc',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
                   borderRadius: '4px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  boxShadow: '0 4px 12px var(--card-shadow)',
                   zIndex: 1000,
                   padding: '12px',
-                  color: '#666',
+                  color: 'var(--text-muted)',
                   fontStyle: 'italic',
                 }}>
                   No participants found
@@ -300,7 +320,7 @@ function App() {
           
           {/* Division Selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label style={{ fontWeight: 'bold', color: '#555' }}>Division:</label>
+            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Division:</label>
             <select
               value={globalDivision}
               onChange={(e) => setGlobalDivision(e.target.value)}
@@ -308,8 +328,9 @@ function App() {
                 padding: '8px 12px',
                 fontSize: '14px',
                 borderRadius: '4px',
-                border: '2px solid #007bff',
-                backgroundColor: globalDivision === 'all' ? 'white' : '#e7f3ff',
+                border: '2px solid var(--accent-primary)',
+                backgroundColor: 'var(--input-bg)',
+                color: 'var(--text-primary)',
                 fontWeight: globalDivision === 'all' ? 'normal' : 'bold',
                 minWidth: '150px',
               }}
@@ -322,6 +343,26 @@ function App() {
               ))}
             </select>
           </div>
+
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            style={{
+              padding: '8px 12px',
+              fontSize: '14px',
+              borderRadius: '4px',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+          </button>
         </div>
       </div>
 

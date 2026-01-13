@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf';
 import { Participant, PhysicalRing, PhysicalRingMapping, Category } from '../../types/tournament';
 import { getSchoolAbbreviation } from '../schoolAbbreviations';
+import { getEffectiveFormsInfo } from '../computeRings';
+import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
 export interface NameTagConfig {
   width: number; // in mm
@@ -108,31 +110,23 @@ export function generateNameTags(
     let physicalRingName = '';
     let ringColor = '';
     
-    // Get physical ring from pool mapping - use category NAME not ID
-    if (participant.formsPool && participant.formsCategoryId && physicalRingMappings && categories) {
+    // Get physical ring from pool mapping - use effective forms info (resolves "same as sparring")
+    const effectiveForms = getEffectiveFormsInfo(participant);
+    if (effectiveForms.pool && effectiveForms.categoryId && physicalRingMappings && categories) {
       // Find the category to get its name
-      const formsCategory = categories.find(c => c.id === participant.formsCategoryId);
+      const formsCategory = categories.find(c => c.id === effectiveForms.categoryId);
       
       if (formsCategory) {
-        const categoryRingName = `${formsCategory.name}_${participant.formsPool}`;
+        const categoryRingName = `${formsCategory.name}_${effectiveForms.pool}`;
         
-        const mapping = physicalRingMappings.find(m => m.cohortRingName === cohortRingName);
+        const mapping = physicalRingMappings.find(m => 
+          (m.categoryPoolName || m.cohortRingName) === categoryRingName
+        );
         
         if (mapping) {
           physicalRingName = mapping.physicalRingName;
-          
-          // Extract ring number from physicalRingName (e.g., "PR5" or "PR5a" -> 5)
-          const ringNumberMatch = physicalRingName.match(/PR(\d+)/);
-          if (ringNumberMatch) {
-            const ringNumber = parseInt(ringNumberMatch[1], 10);
-            // Physical rings are stored as "Ring 1", "Ring 2", etc. or by index
-            const ring = physicalRings.find((r) => 
-              r.name === `Ring ${ringNumber}` || r.id === `ring-${ringNumber}`
-            );
-            if (ring) {
-              ringColor = ring.color;
-            }
-          }
+          // Get color from ring number using color map
+          ringColor = getRingColorFromName(physicalRingName) || '';
         }
       }
     }
@@ -160,15 +154,14 @@ export function generateNameTags(
     const displayDivision = participant.formsDivision || participant.sparringDivision || participant.division || division;
     doc.text(displayDivision, x + 5, textY);
 
-    // Physical Ring with colored background (match GAS ringDesignator with fg/bg colors)
+    // Physical Ring with colored background
     if (physicalRingName && ringColor) {
       textY += 12; // Larger spacing for 24pt font
       
       // Convert physical ring name format (e.g., "PR1" -> "Ring 1", "PR1a" -> "Ring 1 Group A")
       const convertRingName = (prName: string): string => {
-        // Match pattern like "PR1", "PR1a", "PR1b", etc.
         const match = prName.match(/^PR(\d+)([a-z]?)$/i);
-        if (!match) return prName; // Return original if format doesn't match
+        if (!match) return prName;
         
         const ringNum = match[1];
         const suffix = match[2].toLowerCase();
@@ -187,29 +180,19 @@ export function generateNameTags(
         return `Ring ${ringNum} ${groupMap[suffix] || suffix}`;
       };
       
-      // Draw text with colored background - show converted ring name (e.g., "Ring 1")
       const ringText = convertRingName(physicalRingName);
       const textWidth = doc.getTextWidth(ringText);
       
-      // Convert hex color to RGB for background
-      const hexToRgb = (hex: string) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-          r: parseInt(result[1], 16),
-          g: parseInt(result[2], 16),
-          b: parseInt(result[3], 16)
-        } : { r: 200, g: 200, b: 200 };
-      };
-      
       const bgColor = hexToRgb(ringColor);
+      const fgColor = getForegroundColor(ringColor);
+      const fgRgb = hexToRgb(fgColor);
       
       // Draw colored background rectangle
       doc.setFillColor(bgColor.r, bgColor.g, bgColor.b);
       doc.rect(x + 4, textY - 6, textWidth + 4, 8, 'F');
       
-      // Determine text color (white for dark backgrounds, black for light)
-      const brightness = (bgColor.r * 299 + bgColor.g * 587 + bgColor.b * 114) / 1000;
-      doc.setTextColor(brightness > 128 ? 0 : 255);
+      // Set text color based on background
+      doc.setTextColor(fgRgb.r, fgRgb.g, fgRgb.b);
       
       doc.setFont('helvetica', 'bold');
       doc.text(ringText, x + 5, textY);

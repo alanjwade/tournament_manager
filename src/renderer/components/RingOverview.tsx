@@ -1,7 +1,9 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
-import { computeCompetitionRings } from '../utils/computeRings';
+import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
 import { checkSparringAltRingStatus } from '../utils/ringOrdering';
+import { formatPoolNameForDisplay, formatPoolOnly } from '../utils/ringNameFormatter';
+import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { Participant } from '../types/tournament';
 
 interface RingPair {
@@ -50,17 +52,21 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     const participant = participants.find(p => p.id === participantId);
     if (!participant) return;
 
-    // Get all participants in the same ring
-    const categoryId = ringType === 'forms' ? participant.formsCategoryId : participant.sparringCategoryId;
-    const pool = ringType === 'forms' ? participant.formsPool : participant.sparringPool;
+    // Get effective category/pool (resolves "same as forms" / "same as sparring")
+    const effective = ringType === 'forms' 
+      ? getEffectiveFormsInfo(participant)
+      : getEffectiveSparringInfo(participant);
+    const categoryId = effective.categoryId;
+    const pool = effective.pool;
     
     if (!categoryId || !pool) return;
 
     const ringParticipants = participants
       .filter(p => {
-        const pCategoryId = ringType === 'forms' ? p.formsCategoryId : p.sparringCategoryId;
-        const pPool = ringType === 'forms' ? p.formsPool : p.sparringPool;
-        return pCategoryId === categoryId && pPool === pool;
+        const pEffective = ringType === 'forms' 
+          ? getEffectiveFormsInfo(p)
+          : getEffectiveSparringInfo(p);
+        return pEffective.categoryId === categoryId && pEffective.pool === pool;
       })
       .sort((a, b) => {
         const aRank = ringType === 'forms' ? (a.formsRankOrder || 0) : (a.sparringRankOrder || 0);
@@ -255,20 +261,30 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     });
   }, [quickEdit, categories, physicalRingMappings]);
 
-  // Render clickable participant name
-  const renderParticipantName = (p: Participant, ringType: 'forms' | 'sparring', ringName: string) => (
-    <span
-      onClick={() => handleParticipantClick(p, ringType, ringName)}
-      style={{
-        cursor: 'pointer',
-        color: '#0056b3',
-        textDecoration: 'underline',
-      }}
-      title="Click to edit"
-    >
-      {p.firstName} {p.lastName}
-    </span>
-  );
+  // Render clickable participant name (without school abbreviation - that's now in its own column)
+  const renderParticipantName = (p: Participant, ringType: 'forms' | 'sparring', ringName: string) => {
+    return (
+      <span
+        onClick={() => handleParticipantClick(p, ringType, ringName)}
+        style={{
+          cursor: 'pointer',
+          color: 'var(--link-color, #4da6ff)',
+          textDecoration: 'underline',
+          fontSize: '14px',
+          fontWeight: '500',
+        }}
+        title="Click to edit"
+      >
+        {p.firstName} {p.lastName}
+      </span>
+    );
+  };
+  
+  // Get school abbreviation for a participant
+  const getParticipantSchool = (p: Participant) => {
+    const schoolKey = p.branch || p.school;
+    return getSchoolAbbreviation(schoolKey, config.schoolAbbreviations);
+  };
 
   // Quick Edit Modal Component
   const renderQuickEditModal = () => {
@@ -304,7 +320,86 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       : null;
 
     const handleSave = (updates: Partial<Participant>) => {
+      // Check if pool is changing for forms or sparring
+      const formsPoolChanging = updates.formsPool !== undefined && updates.formsPool !== participant.formsPool;
+      const sparringPoolChanging = updates.sparringPool !== undefined && updates.sparringPool !== participant.sparringPool;
+      
+      // Get old pool info before update
+      const oldFormsCategoryId = participant.formsCategoryId;
+      const oldFormsPool = participant.formsPool;
+      const oldSparringCategoryId = participant.sparringCategoryId;
+      const oldSparringPool = participant.sparringPool;
+      
+      // If forms pool is changing, set rank order to 0 to put at top
+      if (formsPoolChanging && updates.formsPool) {
+        updates.formsRankOrder = 0;
+      }
+      
+      // If sparring pool is changing, set rank order to 0 to put at top
+      if (sparringPoolChanging && updates.sparringPool) {
+        updates.sparringRankOrder = 0;
+      }
+      
+      // Update the participant
       updateParticipant(participant.id, updates);
+      
+      // Close the gap in old pool(s) by renumbering
+      if (formsPoolChanging && oldFormsCategoryId && oldFormsPool) {
+        // Get all participants in the old pool and renumber
+        const oldPoolParticipants = participants
+          .filter(p => p.id !== participant.id && p.formsCategoryId === oldFormsCategoryId && p.formsPool === oldFormsPool)
+          .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
+        
+        oldPoolParticipants.forEach((p, index) => {
+          updateParticipant(p.id, { formsRankOrder: index + 1 });
+        });
+      }
+      
+      if (sparringPoolChanging && oldSparringCategoryId && oldSparringPool) {
+        // Get all participants in the old pool and renumber
+        const oldPoolParticipants = participants
+          .filter(p => p.id !== participant.id && p.sparringCategoryId === oldSparringCategoryId && p.sparringPool === oldSparringPool)
+          .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
+        
+        oldPoolParticipants.forEach((p, index) => {
+          updateParticipant(p.id, { sparringRankOrder: index + 1 });
+        });
+      }
+      
+      // Renumber the new pool(s) to include the new participant at position 1
+      const newFormsCategoryId = updates.formsCategoryId ?? participant.formsCategoryId;
+      const newFormsPool = updates.formsPool ?? participant.formsPool;
+      const newSparringCategoryId = updates.sparringCategoryId ?? participant.sparringCategoryId;
+      const newSparringPool = updates.sparringPool ?? participant.sparringPool;
+      
+      if (formsPoolChanging && newFormsCategoryId && newFormsPool) {
+        // Get all OTHER participants in the new pool and shift them down
+        const newPoolParticipants = participants
+          .filter(p => p.id !== participant.id && p.formsCategoryId === newFormsCategoryId && p.formsPool === newFormsPool)
+          .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
+        
+        newPoolParticipants.forEach((p, index) => {
+          updateParticipant(p.id, { formsRankOrder: index + 2 }); // Start at 2 since new person is at 1
+        });
+        
+        // Set the moved participant to position 1
+        updateParticipant(participant.id, { formsRankOrder: 1 });
+      }
+      
+      if (sparringPoolChanging && newSparringCategoryId && newSparringPool) {
+        // Get all OTHER participants in the new pool and shift them down
+        const newPoolParticipants = participants
+          .filter(p => p.id !== participant.id && p.sparringCategoryId === newSparringCategoryId && p.sparringPool === newSparringPool)
+          .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
+        
+        newPoolParticipants.forEach((p, index) => {
+          updateParticipant(p.id, { sparringRankOrder: index + 2 }); // Start at 2 since new person is at 1
+        });
+        
+        // Set the moved participant to position 1
+        updateParticipant(participant.id, { sparringRankOrder: 1 });
+      }
+      
       // Refresh the participant data in the modal
       const updatedParticipant = { ...participant, ...updates };
       setQuickEdit({ ...quickEdit, participant: updatedParticipant });
@@ -341,7 +436,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         .map(m => ({
           physicalRingName: m.physicalRingName,
           cohortRingName: m.cohortRingName,
-          label: `${m.physicalRingName} (${m.cohortRingName})`
+          label: `${m.physicalRingName} (${formatPoolNameForDisplay(m.cohortRingName)})`
         }))
         .sort((a, b) => {
           // Sort by ring number (PR1, PR1a, PR2, etc.)
@@ -411,7 +506,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       >
         <div
           style={{
-            backgroundColor: 'white',
+            backgroundColor: 'var(--bg-primary)',
             borderRadius: '8px',
             padding: '20px',
             minWidth: '500px',
@@ -422,11 +517,11 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>
             Quick Edit: {participant.firstName} {participant.lastName}
           </h3>
           
-          <div style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
             <div><strong>Age:</strong> {participant.age} | <strong>Gender:</strong> {participant.gender}</div>
             {participant.heightFeet && (
               <div><strong>Height:</strong> {participant.heightFeet}'{participant.heightInches}"</div>
@@ -437,7 +532,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           <div style={{ 
             marginBottom: '25px', 
             paddingBottom: '20px', 
-            borderBottom: '1px solid #e0e0e0'
+            borderBottom: '1px solid var(--border-color)'
           }}>
             <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#007bff', fontSize: '14px' }}>
               Forms
@@ -448,12 +543,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               <div style={{ 
                 marginBottom: '15px', 
                 padding: '10px', 
-                backgroundColor: '#f0f7ff',
+                backgroundColor: 'var(--bg-secondary)',
                 borderRadius: '4px',
                 fontSize: '12px',
               }}>
                 <div><strong>Category:</strong> {formsCategory.name}</div>
-                <div><strong>Category Ring:</strong> {formsPool}</div>
+                <div><strong>Category Ring:</strong> {formatPoolOnly(formsPool)}</div>
                 {formsPhysicalMapping && (
                   <div><strong>Physical Ring:</strong> {formsPhysicalMapping.physicalRingName}</div>
                 )}
@@ -481,7 +576,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     width: '100%',
                     padding: '8px',
                     fontSize: '14px',
-                    border: '1px solid #ccc',
+                    border: '1px solid var(--input-border)',
                     borderRadius: '4px',
                   }}
                 >
@@ -503,7 +598,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     ))
                   }
                 </select>
-                <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
                   Changing category/pool will update physical ring assignment
                 </div>
               </div>
@@ -511,12 +606,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
             {/* Show physical ring assignment (read-only) */}
             {formsPhysicalMapping && (
-              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Physical Ring Assignment:</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '5px' }}>Physical Ring Assignment:</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
                   {formsPhysicalMapping.physicalRingName}
                 </div>
-                <div style={{ fontSize: '11px', color: '#999', marginTop: '5px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '5px' }}>
                   Use Ring Map tab to change physical ring assignments
                 </div>
               </div>
@@ -538,12 +633,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   width: '100%',
                   padding: '8px',
                   fontSize: '14px',
-                  border: '1px solid #ccc',
+                  border: '1px solid var(--input-border)',
                   borderRadius: '4px',
                 }}
                 placeholder="e.g., 1, 2, 3..."
               />
-              <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
                 Use decimals like 1.5 to insert between 1 and 2.
               </div>
             </div>
@@ -560,12 +655,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               <div style={{ 
                 marginBottom: '15px', 
                 padding: '10px', 
-                backgroundColor: '#fff5f5',
+                backgroundColor: 'var(--bg-secondary)',
                 borderRadius: '4px',
                 fontSize: '12px',
               }}>
                 <div><strong>Category:</strong> {sparringCategory.name}</div>
-                <div><strong>Category Ring:</strong> {sparringPool}</div>
+                <div><strong>Category Ring:</strong> {formatPoolOnly(sparringPool)}</div>
                 {sparringPhysicalMapping && (
                   <div><strong>Physical Ring:</strong> {sparringPhysicalMapping.physicalRingName}</div>
                 )}
@@ -587,7 +682,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   width: '100%',
                   padding: '8px',
                   fontSize: '14px',
-                  border: '1px solid #ccc',
+                  border: '1px solid var(--input-border)',
                   borderRadius: '4px',
                 }}
               >
@@ -621,7 +716,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     width: '100%',
                     padding: '8px',
                     fontSize: '14px',
-                    border: '1px solid #ccc',
+                    border: '1px solid var(--input-border)',
                     borderRadius: '4px',
                   }}
                 >
@@ -643,7 +738,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     ))
                   }
                 </select>
-                <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
                   Changing category/pool will update physical ring assignment
                 </div>
               </div>
@@ -651,12 +746,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
             {/* Show physical ring assignment (read-only) */}
             {sparringPhysicalMapping && (
-              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>Physical Ring Assignment:</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '5px' }}>Physical Ring Assignment:</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
                   {sparringPhysicalMapping.physicalRingName}
                 </div>
-                <div style={{ fontSize: '11px', color: '#999', marginTop: '5px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '5px' }}>
                   Use Ring Map tab to change physical ring assignments
                 </div>
               </div>
@@ -678,12 +773,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   width: '100%',
                   padding: '8px',
                   fontSize: '14px',
-                  border: '1px solid #ccc',
+                  border: '1px solid var(--input-border)',
                   borderRadius: '4px',
                 }}
                 placeholder="e.g., 1, 2, 3..."
               />
-              <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
                 Use decimals like 1.5 to insert between 1 and 2.
               </div>
             </div>
@@ -703,7 +798,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   width: '100%',
                   padding: '8px',
                   fontSize: '14px',
-                  border: '1px solid #ccc',
+                  border: '1px solid var(--input-border)',
                   borderRadius: '4px',
                 }}
               >
@@ -738,7 +833,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const renderRingTable = (ring: any, type: 'forms' | 'sparring', ringDisplayName: string) => {
     if (!ring) {
       return (
-        <div style={{ color: '#999', fontStyle: 'italic', padding: '10px' }}>
+        <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: '10px' }}>
           No {type} ring
         </div>
       );
@@ -843,12 +938,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 }}
               >
                 <thead>
-                  <tr style={{ backgroundColor: '#f8f9fa' }}>
-                    <th style={{ padding: '4px', width: '80px' }}>Position</th>
-                    <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
-                    <th style={{ padding: '4px' }}>Age</th>
-                    <th style={{ padding: '4px' }}>Gender</th>
-                    <th style={{ padding: '4px' }}>Height</th>
+                  <tr style={{ backgroundColor: 'var(--table-header-bg)' }}>
+                    <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>Position</th>
+                    <th style={{ padding: '4px', textAlign: 'left', color: 'var(--text-primary)' }}>Name</th>
+                    <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>School</th>
+                    <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Age</th>
+                    <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Gender</th>
+                    <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Height</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -856,7 +952,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     const isFirst = index === 0;
                     const isLast = index === participantsA.length - 1;
                     return (
-                      <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                      <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                         <td style={{ padding: '4px', textAlign: 'center' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
                             <button
@@ -865,7 +961,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                               style={{
                                 padding: '2px 6px',
                                 fontSize: '10px',
-                                border: '1px solid #ccc',
+                                border: '1px solid var(--input-border)',
                                 borderRadius: '3px',
                                 backgroundColor: isFirst ? '#f0f0f0' : 'white',
                                 cursor: isFirst ? 'not-allowed' : 'pointer',
@@ -884,9 +980,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                               style={{
                                 padding: '2px 6px',
                                 fontSize: '10px',
-                                border: '1px solid #ccc',
+                                border: '1px solid var(--input-border)',
                                 borderRadius: '3px',
-                                backgroundColor: isLast ? '#f0f0f0' : 'white',
+                                backgroundColor: isLast ? 'var(--bg-secondary)' : 'var(--input-bg)', color: 'var(--text-primary)',
                                 cursor: isLast ? 'not-allowed' : 'pointer',
                                 opacity: isLast ? 0.5 : 1,
                               }}
@@ -899,6 +995,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                         <td style={{ padding: '4px' }}>
                           {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt A)')}
                         </td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>{getParticipantSchool(p)}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>
@@ -931,12 +1028,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 }}
               >
                 <thead>
-                  <tr style={{ backgroundColor: '#f8f9fa' }}>
-                    <th style={{ padding: '4px', width: '80px' }}>Position</th>
-                    <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
-                    <th style={{ padding: '4px' }}>Age</th>
-                    <th style={{ padding: '4px' }}>Gender</th>
-                    <th style={{ padding: '4px' }}>Height</th>
+                  <tr style={{ backgroundColor: 'var(--table-header-bg)' }}>
+                    <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>Position</th>
+                    <th style={{ padding: '4px', textAlign: 'left', color: 'var(--text-primary)' }}>Name</th>
+                    <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>School</th>
+                    <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Age</th>
+                    <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Gender</th>
+                    <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Height</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -944,7 +1042,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     const isFirst = index === 0;
                     const isLast = index === participantsB.length - 1;
                     return (
-                      <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                      <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                         <td style={{ padding: '4px', textAlign: 'center' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
                             <button
@@ -953,7 +1051,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                               style={{
                                 padding: '2px 6px',
                                 fontSize: '10px',
-                                border: '1px solid #ccc',
+                                border: '1px solid var(--input-border)',
                                 borderRadius: '3px',
                                 backgroundColor: isFirst ? '#f0f0f0' : 'white',
                                 cursor: isFirst ? 'not-allowed' : 'pointer',
@@ -972,9 +1070,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                               style={{
                                 padding: '2px 6px',
                                 fontSize: '10px',
-                                border: '1px solid #ccc',
+                                border: '1px solid var(--input-border)',
                                 borderRadius: '3px',
-                                backgroundColor: isLast ? '#f0f0f0' : 'white',
+                                backgroundColor: isLast ? 'var(--bg-secondary)' : 'var(--input-bg)', color: 'var(--text-primary)',
                                 cursor: isLast ? 'not-allowed' : 'pointer',
                                 opacity: isLast ? 0.5 : 1,
                               }}
@@ -987,6 +1085,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                         <td style={{ padding: '4px' }}>
                           {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt B)')}
                         </td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>{getParticipantSchool(p)}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>
@@ -1016,7 +1115,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         >
           {type === 'forms' ? 'Forms' : 'Sparring'}
         </h5>
-        <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
           <div>
             <strong>Category:</strong> {category?.gender}, Ages {category?.minAge}-{category?.maxAge}
           </div>
@@ -1033,12 +1132,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           }}
         >
           <thead>
-            <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <th style={{ padding: '4px', width: '80px' }}>Position</th>
-              <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
-              <th style={{ padding: '4px' }}>Age</th>
-              <th style={{ padding: '4px' }}>Gender</th>
-              {type === 'sparring' && <th style={{ padding: '4px' }}>Height</th>}
+            <tr style={{ backgroundColor: 'var(--table-header-bg)' }}>
+              <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>Position</th>
+              <th style={{ padding: '4px', textAlign: 'left', color: 'var(--text-primary)' }}>Name</th>
+              <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>School</th>
+              <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Age</th>
+              <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Gender</th>
+              {type === 'sparring' && <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Height</th>}
             </tr>
           </thead>
           <tbody>
@@ -1056,9 +1156,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                         style={{
                           padding: '2px 6px',
                           fontSize: '10px',
-                          border: '1px solid #ccc',
+                          border: '1px solid var(--input-border)',
                           borderRadius: '3px',
-                          backgroundColor: isFirst ? '#f0f0f0' : 'white',
+                          backgroundColor: isFirst ? 'var(--bg-secondary)' : 'var(--input-bg)',
+                          color: 'var(--text-primary)',
                           cursor: isFirst ? 'not-allowed' : 'pointer',
                           opacity: isFirst ? 0.5 : 1,
                         }}
@@ -1075,9 +1176,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                         style={{
                           padding: '2px 6px',
                           fontSize: '10px',
-                          border: '1px solid #ccc',
+                          border: '1px solid var(--input-border)',
                           borderRadius: '3px',
-                          backgroundColor: isLast ? '#f0f0f0' : 'white',
+                          backgroundColor: isLast ? 'var(--bg-secondary)' : 'var(--input-bg)', color: 'var(--text-primary)',
                           cursor: isLast ? 'not-allowed' : 'pointer',
                           opacity: isLast ? 0.5 : 1,
                         }}
@@ -1090,6 +1191,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   <td style={{ padding: '4px' }}>
                     {renderParticipantName(p, type, ringDisplayName)}
                   </td>
+                  <td style={{ padding: '4px', textAlign: 'center' }}>{getParticipantSchool(p)}</td>
                   <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
                   <td style={{ padding: '4px', textAlign: 'center' }}>
                     {p.gender}
@@ -1139,7 +1241,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             padding: '5px 10px',
             fontSize: '14px',
             borderRadius: '4px',
-            border: '1px solid #ccc',
+            border: '1px solid var(--input-border)',
           }}
         >
           <option value="all">All Divisions ({ringPairs.length} rings)</option>
@@ -1165,12 +1267,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         <div style={{ 
           marginBottom: '15px', 
           padding: '10px 15px',
-          backgroundColor: '#fff3cd',
-          border: '1px solid #ffc107',
+          backgroundColor: 'var(--bg-secondary)',
+          border: '2px solid #dc3545',
           borderRadius: '6px',
           display: 'flex',
           alignItems: 'center',
-          gap: '10px'
+          gap: '10px',
+          color: 'var(--text-primary)'
         }}>
           <span style={{ fontSize: '18px' }}>⚠️</span>
           <span>
@@ -1196,18 +1299,18 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           <div
             key={pair.cohortRingName}
             style={{
-              border: hasChanged ? '3px solid #ffc107' : '2px solid #ddd',
+              border: hasChanged ? '3px solid #dc3545' : '2px solid var(--border-color)',
               borderRadius: '8px',
               padding: '15px',
               marginBottom: '20px',
-              backgroundColor: hasChanged ? '#fffef5' : 'white',
-              boxShadow: hasChanged ? '0 0 8px rgba(255, 193, 7, 0.4)' : undefined,
+              backgroundColor: hasChanged ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+              boxShadow: hasChanged ? '0 0 8px rgba(220, 53, 69, 0.3)' : undefined,
             }}
           >
             <h4
               style={{
                 marginBottom: '15px',
-                color: '#333',
+                color: 'var(--text-primary)',
                 fontSize: '18px',
                 fontWeight: 'bold',
                 display: 'flex',
@@ -1220,7 +1323,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 {pair.division}
               </span>
               <span>
-                {pair.cohortRingName}
+                {formatPoolNameForDisplay(pair.cohortRingName)}
               </span>
               {pair.physicalRingName && (
                 <span style={{ color: '#28a745', fontSize: '16px', fontWeight: '600' }}>
@@ -1229,8 +1332,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               )}
               {hasChanged && (
                 <span style={{
-                  backgroundColor: '#ffc107',
-                  color: '#000',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
                   padding: '2px 8px',
                   borderRadius: '4px',
                   fontSize: '12px',

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing } from '../../types/tournament';
-import { getFullyQualifiedRingName, getPhysicalRingId, formatPdfTimestamp } from '../ringNameFormatter';
+import { getFullyQualifiedRingName, getPhysicalRingId, formatPdfTimestamp, formatPoolNameForDisplay } from '../ringNameFormatter';
+import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
 export function generateFormsScoringSheets(
   participants: Participant[],
@@ -75,6 +76,12 @@ export function generateFormsScoringSheets(
       : null;
     
     const fullyQualifiedRingName = getFullyQualifiedRingName(division, physicalRingId, physicalRings);
+    
+    // Get ring color for title styling
+    let ringColor = '';
+    if (physicalRingId) {
+      ringColor = getRingColorFromName(physicalRingId) || '';
+    }
 
     // Add watermark if provided - centered, as large as possible without cutting off
     if (watermark) {
@@ -127,16 +134,33 @@ export function generateFormsScoringSheets(
       console.log('No watermark provided');
     }
 
-    // Title
+    // Title with colored background using ring color
+    const titleText = `${fullyQualifiedRingName} Forms Scoring Sheet`;
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${fullyQualifiedRingName} Forms Scoring Sheet`, margin, margin + 0.3);
+    
+    if (ringColor) {
+      const bgColor = hexToRgb(ringColor);
+      const fgColor = getForegroundColor(ringColor);
+      const fgRgb = hexToRgb(fgColor);
+      const titleWidth = doc.getTextWidth(titleText);
+      
+      // Draw colored background rectangle
+      doc.setFillColor(bgColor.r, bgColor.g, bgColor.b);
+      doc.rect(margin - 0.05, margin + 0.1, titleWidth + 0.1, 0.3, 'F');
+      
+      // Set text color based on background
+      doc.setTextColor(fgRgb.r, fgRgb.g, fgRgb.b);
+    }
+    
+    doc.text(titleText, margin, margin + 0.3);
+    doc.setTextColor(0); // Reset to black
     
     // Category ring name subtitle
     if (ring.name) {
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
-      doc.text(ring.name, margin, margin + 0.5);
+      doc.text(formatPoolNameForDisplay(ring.name), margin, margin + 0.5);
     }
 
     // Table
@@ -275,16 +299,16 @@ export function generateFormsScoringSheets(
       y += 0.12;
     });
 
-    // Placement table
+    // Final places table
     y += 0.3;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('Placements:', margin, y);
+    doc.text('Final Places:', margin, y);
     
     y += 0.25;
     doc.setFontSize(10);
-    const placements = ['1st Place:', '2nd Place:', '3rd Place:'];
-    placements.forEach((place) => {
+    const finalPlaces = ['1st Place:', '2nd Place:', '3rd Place:'];
+    finalPlaces.forEach((place) => {
       doc.text(place, margin, y);
       doc.setLineWidth(0.01);
       doc.line(margin + 1.0, y, margin + 4.5, y);
