@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing } from '../../../types/tournament';
+import { getEffectiveFormsInfo } from '../../renderer/utils/computeRings';
 
 export interface NameTagConfig {
   width: number; // in inches
@@ -35,8 +36,11 @@ export function generateNameTags(
   const rowSpacing = 0.1875; // 3/16 inch between rows
 
   participants.forEach((participant) => {
-    // Find the ring for this participant
-    const formsRing = rings.find((r) => r.id === participant.formsRingId);
+    // Find the ring for this participant using effective forms info
+    const formsInfo = getEffectiveFormsInfo(participant);
+    const formsRing = rings.find((r) => 
+      r.categoryId === formsInfo.categoryId && r.pool === formsInfo.pool
+    );
     const physicalRing = physicalRings.find((pr) => pr.id === formsRing?.physicalRingId);
     const ringColor = physicalRing?.color || 'N/A';
 

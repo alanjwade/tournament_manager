@@ -56,12 +56,12 @@ export function orderFormsRing(
   // Filter participants for this ring - resolve "same as sparring" automatically
   const ringParticipants = participants.filter((p) => {
     const effective = getEffectiveFormsInfo(p);
-    // New approach: use effective formsCategoryId and formsPool
+    // Use effective formsCategoryId and formsPool
     if (pool) {
       return effective.categoryId === categoryId && effective.pool === pool;
     }
-    // Legacy approach: use formsRingId (for backward compatibility)
-    return p.formsRingId === categoryId;
+    // Without pool, just match category
+    return effective.categoryId === categoryId;
   });
 
   if (ringParticipants.length === 0) {
@@ -168,12 +168,12 @@ export function orderSparringRing(
   // Filter participants for this ring - resolve "same as forms" automatically
   const ringParticipants = participants.filter((p) => {
     const effective = getEffectiveSparringInfo(p);
-    // New approach: use effective sparringCategoryId and sparringPool
+    // Use effective sparringCategoryId and sparringPool
     if (pool) {
       return effective.categoryId === categoryId && effective.pool === pool;
     }
-    // Legacy approach: use sparringRingId (for backward compatibility)
-    return p.sparringRingId === categoryId;
+    // Without pool, just match category
+    return effective.categoryId === categoryId;
   });
 
   if (ringParticipants.length === 0) {

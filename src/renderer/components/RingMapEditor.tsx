@@ -191,14 +191,14 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
 
     // Save to state - merge with existing mappings from other divisions
     const newMappings = newAssignments.map(a => ({
-      cohortRingName: a.cohortRingName,
+      categoryPoolName: a.cohortRingName,
       physicalRingName: a.physicalRingName,
     }));
     
     // Keep mappings from other divisions, replace only current division's mappings
     const currentDivisionRingNames = new Set(sortedCohortRings.map(r => r.ringName));
     const otherDivisionMappings = physicalRingMappings.filter(
-      m => !currentDivisionRingNames.has(m.cohortRingName)
+      m => !currentDivisionRingNames.has(m.categoryPoolName)
     );
     
     const allMappings = [...otherDivisionMappings, ...newMappings];
@@ -214,7 +214,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
     console.log('[RingMapEditor] physicalRingMappings:', physicalRingMappings);
     
     const newAssignments: RingAssignmentRow[] = sortedCohortRings.map(ring => {
-      const mapping = physicalRingMappings.find(m => m.cohortRingName === ring.ringName);
+      const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.ringName);
       console.log(`[RingMapEditor] Looking up ${ring.ringName}, found mapping:`, mapping);
       return {
         cohortRingName: ring.ringName,

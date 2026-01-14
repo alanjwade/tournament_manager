@@ -148,7 +148,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     const ringToDivisions = new Map<string, Set<string>>();
     
     physicalRingMappings.forEach(mapping => {
-      const categoryPoolName = mapping.categoryPoolName || mapping.cohortRingName;
+      const categoryPoolName = mapping.categoryPoolName;
       if (!categoryPoolName) return;
       
       // Extract category name from categoryPoolName (e.g., "Mixed 8-10_P1" -> "Mixed 8-10")
@@ -237,13 +237,28 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         // Update competing flags
         if (field === 'formsDivision') {
           updates.competingForms = value !== 'not participating' && value !== 'same as sparring';
-        } else if (field === 'sparringDivision') {
-          updates.competingSparring = value !== 'not participating' && value !== 'same as forms';
           
-          // When setting sparring to "same as forms", copy forms category and ring
+          // Clear category and pool when setting to "not participating"
+          if (value === 'not participating') {
+            updates.formsCategoryId = undefined;
+            updates.formsPool = undefined;
+            updates.formsRankOrder = undefined;
+          }
+        } else if (field === 'sparringDivision') {
+          updates.competingSparring = value !== 'not participating';
+          
+          // When setting sparring to "same as forms", copy forms category and pool
           if (value === 'same as forms') {
             updates.sparringCategoryId = p.formsCategoryId;
             updates.sparringPool = p.formsPool;
+          }
+          
+          // Clear category and pool when setting to "not participating"
+          if (value === 'not participating') {
+            updates.sparringCategoryId = undefined;
+            updates.sparringPool = undefined;
+            updates.sparringRankOrder = undefined;
+            updates.sparringAltRing = '';
           }
         }
         
@@ -258,7 +273,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
   const updateParticipantCohort = (participantId: string, field: 'formsCategoryId' | 'sparringCategoryId', value: string) => {
     const updatedParticipants = participants.map(p => {
       if (p.id === participantId) {
-        return { ...p, [field]: value || undefined };
+        const updates: Partial<Participant> = {
+          [field]: value || undefined
+        };
+        
+        return { ...p, ...updates };
       }
       return p;
     });
@@ -281,7 +300,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
   const updateParticipantCohortRing = (participantId: string, field: 'formsPool' | 'sparringPool', value: string) => {
     const updatedParticipants = participants.map(p => {
       if (p.id === participantId) {
-        return { ...p, [field]: value || undefined };
+        const updates: Partial<Participant> = {
+          [field]: value || undefined
+        };
+        
+        return { ...p, ...updates };
       }
       return p;
     });
@@ -289,6 +312,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
   };
 
   // Update participant physical ring - this will update division, category, and pool based on ring map
+  // NOTE: This function reassigns the participant to a DIFFERENT category/pool based on the
+  // physical ring mapping. It does NOT just change which physical ring they're assigned to.
+  // The participant will be moved to whatever category/pool is mapped to the selected physical ring.
   const updateParticipantPhysicalRing = (participantId: string, type: 'forms' | 'sparring', physicalRingName: string) => {
     const participant = participants.find(p => p.id === participantId);
     if (!participant) return;
@@ -311,7 +337,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
 
     // Find the pool mapping for this physical ring
     const mapping = physicalRingMappings.find(m => m.physicalRingName === physicalRingName);
-    const categoryPoolName = mapping?.categoryPoolName || mapping?.cohortRingName;
+    const categoryPoolName = mapping?.categoryPoolName;
     if (!mapping || !categoryPoolName) {
       console.warn('No mapping found for physical ring:', physicalRingName);
       return;
@@ -379,10 +405,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       
       // Get physical ring names from mappings
       const formsPhysicalMapping = physicalRingMappings.find(m => 
-        formsCategory && p.formsPool && (m.categoryPoolName || m.cohortRingName) === `${formsCategory.name}_${p.formsPool}`
+        formsCategory && p.formsPool && m.categoryPoolName === `${formsCategory.name}_${p.formsPool}`
       );
       const sparringPhysicalMapping = physicalRingMappings.find(m => 
-        sparringCategory && p.sparringPool && (m.categoryPoolName || m.cohortRingName) === `${sparringCategory.name}_${p.sparringPool}`
+        sparringCategory && p.sparringPool && m.categoryPoolName === `${sparringCategory.name}_${p.sparringPool}`
       );
       const formsPhysicalRingName = formsPhysicalMapping?.physicalRingName || '';
       const sparringPhysicalRingName = sparringPhysicalMapping?.physicalRingName || '';
@@ -681,10 +707,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
               
               // Get physical ring names from mappings
               const formsPhysicalMapping = physicalRingMappings.find(m => 
-                formsCategory && p.formsPool && m.cohortRingName === `${formsCategory.name}_${p.formsPool}`
+                formsCategory && p.formsPool && m.categoryPoolName === `${formsCategory.name}_${p.formsPool}`
               );
               const sparringPhysicalMapping = physicalRingMappings.find(m => 
-                sparringCategory && p.sparringPool && m.cohortRingName === `${sparringCategory.name}_${p.sparringPool}`
+                sparringCategory && p.sparringPool && m.categoryPoolName === `${sparringCategory.name}_${p.sparringPool}`
               );
 
               const isHighlighted = p.id === highlightedId;

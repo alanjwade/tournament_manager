@@ -139,9 +139,9 @@ export function updateParticipantsWithCategories(
     const category = categories.find((c) => c.participantIds.includes(p.id));
     if (category) {
       if (type === 'forms') {
-        return { ...p, formsCategoryId: category.id, formsCohortId: category.id };
+        return { ...p, formsCategoryId: category.id };
       } else {
-        return { ...p, sparringCategoryId: category.id, sparringCohortId: category.id };
+        return { ...p, sparringCategoryId: category.id };
       }
     }
     return p;

@@ -8,10 +8,8 @@ export interface Participant {
   heightInches: number;
   school: string;
   branch?: string;
-  division?: string; // Simple division field for backward compat
   formsDivision: string; // Can be division name, 'same as sparring', or 'not participating'
   sparringDivision: string; // Can be division name, 'same as forms', or 'not participating'
-  categoryId?: string; // Legacy - kept for backward compatibility
   formsCategoryId?: string; // Category ID for forms competition
   sparringCategoryId?: string; // Category ID for sparring competition
   
@@ -19,15 +17,6 @@ export interface Participant {
   formsPool?: string; // Which pool within their forms category
   sparringPool?: string; // Which pool within their sparring category
   sparringAltRing?: '' | 'a' | 'b'; // Subdivide sparring pools into 'a' and 'b' groups
-  
-  // DEPRECATED: Legacy field names - kept for backward compatibility
-  cohortId?: string; // Use categoryId instead
-  formsCohortId?: string; // Use formsCategoryId instead
-  sparringCohortId?: string; // Use sparringCategoryId instead
-  formsCohortRing?: string; // Use formsPool instead
-  sparringCohortRing?: string; // Use sparringPool instead
-  formsRingId?: string; // Use formsCategoryId + formsPool instead
-  sparringRingId?: string; // Use sparringCategoryId + sparringPool instead
   
   formsRankOrder?: number;
   sparringRankOrder?: number;
@@ -55,9 +44,6 @@ export interface Category {
   numPools: number;
 }
 
-// Legacy type alias for backward compatibility
-export type Cohort = Category;
-
 export interface PhysicalRing {
   id: string;
   name: string;
@@ -78,9 +64,6 @@ export interface CompetitionRing {
   type: 'forms' | 'sparring';
   participantIds: string[]; // DEPRECATED: Computed from participants with matching categoryId + pool
   name?: string; // Category pool name like "Male 8-10_P1"
-  
-  // Legacy field for backward compatibility
-  cohortId?: string; // Use categoryId instead
 }
 
 export interface CategoryCriteria {
@@ -91,9 +74,6 @@ export interface CategoryCriteria {
   maxAge: number;
   numPools: number;
 }
-
-// Legacy type alias
-export type CohortCriteria = CategoryCriteria;
 
 export interface TournamentConfig {
   divisions: Division[];
@@ -106,9 +86,6 @@ export interface TournamentConfig {
 export interface PhysicalRingMapping {
   categoryPoolName: string;
   physicalRingName: string;
-  
-  // Legacy field for backward compatibility
-  cohortRingName?: string; // Use categoryPoolName instead
 }
 
 export interface CategoryPoolMapping {
@@ -116,14 +93,7 @@ export interface CategoryPoolMapping {
   categoryId: string;
   pool: string; // e.g., "P1", "P2", "P3"
   physicalRingId: string; // e.g., "PR1a", "PR2", etc.
-  
-  // Legacy fields for backward compatibility
-  cohortId?: string; // Use categoryId instead
-  cohortRing?: string; // Use pool instead
 }
-
-// Legacy type alias
-export type CohortRingMapping = CategoryPoolMapping;
 
 export interface TournamentState {
   participants: Participant[];
@@ -131,12 +101,8 @@ export interface TournamentState {
   competitionRings?: CompetitionRing[]; // DEPRECATED: Now computed from participants, optional for backward compatibility
   config: TournamentConfig;
   physicalRingMappings: PhysicalRingMapping[];
-  categoryPoolMappings?: CategoryPoolMapping[]; // Optional for backward compatibility
+  categoryPoolMappings: CategoryPoolMapping[];
   lastSaved?: string;
-  
-  // Legacy fields for backward compatibility
-  cohorts?: Category[]; // Use categories instead
-  cohortRingMappings?: CategoryPoolMapping[]; // Use categoryPoolMappings instead
 }
 
 export interface Checkpoint {

@@ -70,9 +70,9 @@ export function formatPdfTimestamp(date: Date = new Date()): string {
  */
 export function getPhysicalRingId(
   cohortRingName: string,
-  physicalRingMappings: { cohortRingName: string; physicalRingName: string }[]
+  physicalRingMappings: { categoryPoolName: string; physicalRingName: string }[]
 ): string | null {
-  const mapping = physicalRingMappings.find(m => m.cohortRingName === cohortRingName);
+  const mapping = physicalRingMappings.find(m => m.categoryPoolName === cohortRingName);
   return mapping?.physicalRingName || null;
 }
 

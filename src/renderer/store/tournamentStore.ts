@@ -138,16 +138,16 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
   updatePhysicalRingMapping: (categoryPoolName, physicalRingName) => {
     set((state) => {
-      const existing = state.physicalRingMappings.find(m => (m.categoryPoolName || m.cohortRingName) === categoryPoolName);
+      const existing = state.physicalRingMappings.find(m => m.categoryPoolName === categoryPoolName);
       if (existing) {
         return {
           physicalRingMappings: state.physicalRingMappings.map(m =>
-            (m.categoryPoolName || m.cohortRingName) === categoryPoolName ? { ...m, physicalRingName, categoryPoolName, cohortRingName: categoryPoolName } : m
+            m.categoryPoolName === categoryPoolName ? { ...m, physicalRingName, categoryPoolName } : m
           ),
         };
       } else {
         return {
-          physicalRingMappings: [...state.physicalRingMappings, { categoryPoolName, cohortRingName: categoryPoolName, physicalRingName }],
+          physicalRingMappings: [...state.physicalRingMappings, { categoryPoolName, physicalRingName }],
         };
       }
     });
@@ -201,12 +201,9 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const tournamentState: SavedState = {
       participants: state.participants,
       categories: state.categories,
-      cohorts: state.categories, // Legacy
-      // competitionRings: REMOVED - now computed from participants
       config: state.config,
       physicalRingMappings: state.physicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings,
-      cohortRingMappings: state.categoryPoolMappings, // Legacy
       lastSaved: new Date().toISOString(),
     };
     const result = await window.electronAPI.saveTournamentState(tournamentState);
@@ -232,20 +229,16 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         };
       });
       
-      // Migrate legacy cohorts to categories
-      const categories = state.categories || state.cohorts || [];
-      const categoryPoolMappings = state.categoryPoolMappings || state.cohortRingMappings || [];
-      
       set({
         participants: state.participants || [],
-        categories,
+        categories: state.categories || [],
         competitionRings: state.competitionRings || [],
         config: {
           ...(state.config || initialConfig),
           divisions: mergedDivisions
         },
         physicalRingMappings: state.physicalRingMappings || [],
-        categoryPoolMappings,
+        categoryPoolMappings: state.categoryPoolMappings || [],
       });
       alert('Tournament state loaded successfully!');
     } else if (result && !result.success) {
@@ -258,11 +251,9 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const tournamentState: SavedState = {
       participants: state.participants,
       categories: state.categories,
-      cohorts: state.categories, // Legacy
       config: state.config,
       physicalRingMappings: state.physicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings,
-      cohortRingMappings: state.categoryPoolMappings, // Legacy
       lastSaved: new Date().toISOString(),
     };
     console.log('Saving autosave - participants count:', state.participants.length);
@@ -297,11 +288,9 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       state: {
         participants: JSON.parse(JSON.stringify(state.participants)),
         categories: JSON.parse(JSON.stringify(state.categories)),
-        cohorts: JSON.parse(JSON.stringify(state.categories)), // Legacy
         config: JSON.parse(JSON.stringify(state.config)),
         physicalRingMappings: JSON.parse(JSON.stringify(state.physicalRingMappings)),
         categoryPoolMappings: JSON.parse(JSON.stringify(state.categoryPoolMappings)),
-        cohortRingMappings: JSON.parse(JSON.stringify(state.categoryPoolMappings)), // Legacy
         lastSaved: timestamp,
       },
     };
@@ -384,9 +373,8 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
       // Check relevant fields for changes
       const fieldsToCheck = [
-        'formsCategoryId', 'formsCohortId', 'sparringCategoryId', 'sparringCohortId',
-        'formsPool', 'formsCohortRing', 'sparringPool', 'sparringCohortRing', 'sparringAltRing',
-        'formsRingId', 'sparringRingId',
+        'formsCategoryId', 'sparringCategoryId',
+        'formsPool', 'sparringPool', 'sparringAltRing',
         'competingForms', 'competingSparring',
         'formsRankOrder', 'sparringRankOrder'
       ];
@@ -405,39 +393,39 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
           });
 
           // Track affected rings
-          if (field === 'formsCategoryId' || field === 'formsCohortId' || field === 'formsPool' || field === 'formsCohortRing') {
+          if (field === 'formsCategoryId' || field === 'formsPool') {
             if (checkpointValue) {
-              const categoryId = (field === 'formsCategoryId' || field === 'formsCohortId') ? checkpointValue : (checkpointP.formsCategoryId || checkpointP.formsCohortId);
-              const category = (checkpoint.state.categories || checkpoint.state.cohorts || []).find(c => c.id === categoryId);
+              const categoryId = field === 'formsCategoryId' ? checkpointValue : checkpointP.formsCategoryId;
+              const category = checkpoint.state.categories.find(c => c.id === categoryId);
               if (category) {
-                const pool = checkpointP.formsPool || checkpointP.formsCohortRing || 'R1';
+                const pool = checkpointP.formsPool || 'P1';
                 ringsAffected.add(`${category.name}_${pool}`);
               }
             }
             if (currentValue) {
-              const categoryId = (field === 'formsCategoryId' || field === 'formsCohortId') ? currentValue : (currentP.formsCategoryId || currentP.formsCohortId);
+              const categoryId = field === 'formsCategoryId' ? currentValue : currentP.formsCategoryId;
               const category = state.categories.find(c => c.id === categoryId);
               if (category) {
-                const pool = currentP.formsPool || currentP.formsCohortRing || 'R1';
+                const pool = currentP.formsPool || 'P1';
                 ringsAffected.add(`${category.name}_${pool}`);
               }
             }
           }
-          if (field === 'sparringCategoryId' || field === 'sparringCohortId' || field === 'sparringPool' || field === 'sparringCohortRing' || field === 'sparringAltRing') {
+          if (field === 'sparringCategoryId' || field === 'sparringPool' || field === 'sparringAltRing') {
             if (checkpointValue) {
-              const categoryId = (field === 'sparringCategoryId' || field === 'sparringCohortId') ? checkpointValue : (checkpointP.sparringCategoryId || checkpointP.sparringCohortId);
-              const category = (checkpoint.state.categories || checkpoint.state.cohorts || []).find(c => c.id === categoryId);
+              const categoryId = field === 'sparringCategoryId' ? checkpointValue : checkpointP.sparringCategoryId;
+              const category = checkpoint.state.categories.find(c => c.id === categoryId);
               if (category) {
-                const pool = checkpointP.sparringPool || checkpointP.sparringCohortRing || 'R1';
+                const pool = checkpointP.sparringPool || 'P1';
                 const altRingSuffix = checkpointP.sparringAltRing ? `_${checkpointP.sparringAltRing}` : '';
                 ringsAffected.add(`${category.name}_${pool}${altRingSuffix}`);
               }
             }
             if (currentValue) {
-              const categoryId = (field === 'sparringCategoryId' || field === 'sparringCohortId') ? currentValue : (currentP.sparringCategoryId || currentP.sparringCohortId);
+              const categoryId = field === 'sparringCategoryId' ? currentValue : currentP.sparringCategoryId;
               const category = state.categories.find(c => c.id === categoryId);
               if (category) {
-                const pool = currentP.sparringPool || currentP.sparringCohortRing || 'R1';
+                const pool = currentP.sparringPool || 'P1';
                 const altRingSuffix = currentP.sparringAltRing ? `_${currentP.sparringAltRing}` : '';
                 ringsAffected.add(`${category.name}_${pool}${altRingSuffix}`);
               }
@@ -465,16 +453,12 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     }
 
     if (confirm(`Load checkpoint "${checkpoint.name}"? This will replace your current state.`)) {
-      // Migrate legacy cohorts and cohortRingMappings to new names if needed
-      const categories = checkpoint.state.categories || checkpoint.state.cohorts || [];
-      const categoryPoolMappings = checkpoint.state.categoryPoolMappings || checkpoint.state.cohortRingMappings || [];
-      
       set({
         participants: JSON.parse(JSON.stringify(checkpoint.state.participants)),
-        categories: JSON.parse(JSON.stringify(categories)),
+        categories: JSON.parse(JSON.stringify(checkpoint.state.categories)),
         config: JSON.parse(JSON.stringify(checkpoint.state.config)),
         physicalRingMappings: JSON.parse(JSON.stringify(checkpoint.state.physicalRingMappings)),
-        categoryPoolMappings: JSON.parse(JSON.stringify(categoryPoolMappings)),
+        categoryPoolMappings: JSON.parse(JSON.stringify(checkpoint.state.categoryPoolMappings)),
       });
       alert(`Checkpoint "${checkpoint.name}" loaded successfully`);
     }

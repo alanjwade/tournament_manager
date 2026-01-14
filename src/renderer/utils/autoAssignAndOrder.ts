@@ -47,13 +47,11 @@ export function autoAssignAndOrderCategory(
           updatedParticipants[index] = {
             ...updatedParticipants[index],
             formsPool: poolName,
-            formsCohortRing: poolName, // Legacy field for backward compatibility
           };
         } else if (category.type === 'sparring') {
           updatedParticipants[index] = {
             ...updatedParticipants[index],
             sparringPool: poolName,
-            sparringCohortRing: poolName, // Legacy field for backward compatibility
           };
         }
       }

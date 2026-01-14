@@ -9,7 +9,7 @@ export function generateFormsScoringSheets(
   physicalRings: PhysicalRing[],
   division: string,
   watermark?: string,
-  physicalRingMappings?: { cohortRingName: string; physicalRingName: string }[],
+  physicalRingMappings?: { categoryPoolName: string; physicalRingName: string }[],
   masterPdf?: jsPDF
 ): jsPDF {
   const doc = masterPdf || new jsPDF({
@@ -18,10 +18,8 @@ export function generateFormsScoringSheets(
     format: 'letter',
   });
   
-  // If using master PDF, start fresh page
-  if (masterPdf) {
-    doc.addPage();
-  }
+  // Track if this is the very first page in the master PDF
+  const isFirstPageInMaster = masterPdf && doc.getNumberOfPages() === 1;
 
   const pageWidth = 8.5; // Letter width in inches
   const pageHeight = 11; // Letter height in inches
@@ -62,7 +60,7 @@ export function generateFormsScoringSheets(
       return letterA.localeCompare(letterB);
     });
 
-  let firstPage = true;
+  let firstPage = isFirstPageInMaster; // Start as first page only if master PDF is on page 1
 
   divisionRings.forEach((ring) => {
     if (!firstPage) {
@@ -156,15 +154,15 @@ export function generateFormsScoringSheets(
     doc.text(titleText, margin, margin + 0.3);
     doc.setTextColor(0); // Reset to black
     
-    // Category ring name subtitle
+    // Category ring name subtitle - add space below
     if (ring.name) {
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
       doc.text(formatPoolNameForDisplay(ring.name), margin, margin + 0.5);
     }
 
-    // Table
-    let y = margin + 0.8; // Start below title
+    // Table - increased spacing below subtitle
+    let y = margin + 0.9; // Start below title with extra spacing
     const colWidths = {
       name: 2.5,
       school: 2.0,

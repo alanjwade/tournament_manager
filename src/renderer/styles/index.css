@@ -118,7 +118,7 @@ code {
   color: white;
 }
 
-/* ParticipantEditor column backgrounds */
+/* DataViewer column backgrounds */
 .forms-column {
   background-color: var(--forms-column-bg);
 }

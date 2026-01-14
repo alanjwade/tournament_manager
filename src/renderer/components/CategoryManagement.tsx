@@ -252,8 +252,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
         if (index !== -1) {
           updatedParticipants[index] = { 
             ...updatedParticipants[index], 
-            formsCategoryId,
-            cohortId: formsCategoryId // For backward compatibility
+            formsCategoryId
           };
         }
       });
@@ -281,7 +280,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
         if (index !== -1) {
           updatedParticipants[index] = { 
             ...updatedParticipants[index], 
-            sparringCategoryId 
+            sparringCategoryId
           };
         }
       });
@@ -329,9 +328,6 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
       }
       if (p.sparringCategoryId && removeIds.has(p.sparringCategoryId)) {
         updated.sparringCategoryId = undefined;
-      }
-      if (p.cohortId && removeIds.has(p.cohortId)) {
-        updated.cohortId = undefined;
       }
       return updated;
     });

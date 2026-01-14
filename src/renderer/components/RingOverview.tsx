@@ -44,6 +44,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const updateParticipant = useTournamentStore((state) => state.updateParticipant);
+  const setParticipants = useTournamentStore((state) => state.setParticipants);
   const checkpoints = useTournamentStore((state) => state.checkpoints);
   const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
 
@@ -142,7 +143,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       const key = `${ring.division}|||${ringName}|||${ring.physicalRingId}`;
       
       if (!pairMap.has(key)) {
-        const mapping = physicalRingMappings.find(m => m.cohortRingName === ringName);
+        const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
         pairMap.set(key, { 
           cohortRingName: ringName,
           physicalRingName: mapping?.physicalRingName,
@@ -238,7 +239,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     divisionCohorts.forEach(category => {
       // Find mappings for this category
       const categoryMappings = physicalRingMappings.filter(m => 
-        m.cohortRingName.startsWith(`${category.name}_`)
+        m.categoryPoolName?.startsWith(`${category.name}_`)
       );
       categoryMappings.forEach(mapping => {
         if (mapping.physicalRingName) {
@@ -304,8 +305,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       ? `${formsCategory.name}_${formsPool}` 
       : null;
     const formsPhysicalMapping = formsCohortRingName 
-      ? physicalRingMappings.find(m => m.cohortRingName === formsCohortRingName)
-      : null;
+      ? physicalRingMappings.find(m => m.categoryPoolName === formsCohortRingName)
+      : undefined;
     
     // Get sparring division info
     const sparringDivision = participant.sparringDivision || participant.division;
@@ -316,13 +317,52 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       ? `${sparringCategory.name}_${sparringPool}` 
       : null;
     const sparringPhysicalMapping = sparringCohortRingName 
-      ? physicalRingMappings.find(m => m.cohortRingName === sparringCohortRingName)
-      : null;
+      ? physicalRingMappings.find(m => m.categoryPoolName === sparringCohortRingName)
+      : undefined;
 
     const handleSave = (updates: Partial<Participant>) => {
+      console.log('[QuickEdit] handleSave called with updates:', updates);
+      console.log('[QuickEdit] current participant:', participant.id, participant.firstName, participant.lastName);
+      console.log('[QuickEdit] current formsCategoryId:', participant.formsCategoryId, 'formsPool:', participant.formsPool);
+      
+      // Handle forms division changes
+      if (updates.formsDivision !== undefined) {
+        const value = updates.formsDivision;
+        updates.competingForms = value !== 'not participating';
+        
+        // Clear category and pool when setting to "not participating"
+        if (value === 'not participating') {
+          updates.formsCategoryId = undefined;
+          updates.formsPool = undefined;
+          updates.formsRankOrder = undefined;
+        }
+      }
+      
+      // Handle sparring division changes
+      if (updates.sparringDivision !== undefined) {
+        const value = updates.sparringDivision;
+        updates.competingSparring = value !== 'not participating';
+        
+        // When setting sparring to "same as forms", copy forms category and pool
+        if (value === 'same as forms') {
+          updates.sparringCategoryId = participant.formsCategoryId;
+          updates.sparringPool = participant.formsPool;
+        }
+        
+        // Clear category and pool when setting to "not participating"
+        if (value === 'not participating') {
+          updates.sparringCategoryId = undefined;
+          updates.sparringPool = undefined;
+          updates.sparringRankOrder = undefined;
+          updates.sparringAltRing = '';
+        }
+      }
+      
       // Check if pool is changing for forms or sparring
       const formsPoolChanging = updates.formsPool !== undefined && updates.formsPool !== participant.formsPool;
       const sparringPoolChanging = updates.sparringPool !== undefined && updates.sparringPool !== participant.sparringPool;
+      
+      console.log('[QuickEdit] formsPoolChanging:', formsPoolChanging, 'sparringPoolChanging:', sparringPoolChanging);
       
       // Get old pool info before update
       const oldFormsCategoryId = participant.formsCategoryId;
@@ -340,8 +380,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         updates.sparringRankOrder = 0;
       }
       
-      // Update the participant
-      updateParticipant(participant.id, updates);
+      // Build a map of all participant updates to batch them
+      const participantUpdates = new Map<string, Partial<Participant>>();
+      participantUpdates.set(participant.id, updates);
       
       // Close the gap in old pool(s) by renumbering
       if (formsPoolChanging && oldFormsCategoryId && oldFormsPool) {
@@ -351,7 +392,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
         
         oldPoolParticipants.forEach((p, index) => {
-          updateParticipant(p.id, { formsRankOrder: index + 1 });
+          const existing = participantUpdates.get(p.id) || {};
+          participantUpdates.set(p.id, { ...existing, formsRankOrder: index + 1 });
         });
       }
       
@@ -362,7 +404,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
         
         oldPoolParticipants.forEach((p, index) => {
-          updateParticipant(p.id, { sparringRankOrder: index + 1 });
+          const existing = participantUpdates.get(p.id) || {};
+          participantUpdates.set(p.id, { ...existing, sparringRankOrder: index + 1 });
         });
       }
       
@@ -379,11 +422,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
         
         newPoolParticipants.forEach((p, index) => {
-          updateParticipant(p.id, { formsRankOrder: index + 2 }); // Start at 2 since new person is at 1
+          const existing = participantUpdates.get(p.id) || {};
+          participantUpdates.set(p.id, { ...existing, formsRankOrder: index + 2 }); // Start at 2 since new person is at 1
         });
         
         // Set the moved participant to position 1
-        updateParticipant(participant.id, { formsRankOrder: 1 });
+        const existing = participantUpdates.get(participant.id) || {};
+        participantUpdates.set(participant.id, { ...existing, formsRankOrder: 1 });
       }
       
       if (sparringPoolChanging && newSparringCategoryId && newSparringPool) {
@@ -393,16 +438,31 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
         
         newPoolParticipants.forEach((p, index) => {
-          updateParticipant(p.id, { sparringRankOrder: index + 2 }); // Start at 2 since new person is at 1
+          const existing = participantUpdates.get(p.id) || {};
+          participantUpdates.set(p.id, { ...existing, sparringRankOrder: index + 2 }); // Start at 2 since new person is at 1
         });
         
         // Set the moved participant to position 1
-        updateParticipant(participant.id, { sparringRankOrder: 1 });
+        const existing = participantUpdates.get(participant.id) || {};
+        participantUpdates.set(participant.id, { ...existing, sparringRankOrder: 1 });
       }
       
+      // Apply all updates in a single batch to avoid race conditions and reduce re-renders
+      console.log('[QuickEdit] participantUpdates for this participant:', participantUpdates.get(participant.id));
+      setParticipants(participants.map(p => {
+        const update = participantUpdates.get(p.id);
+        return update ? { ...p, ...update } : p;
+      }));
+      
       // Refresh the participant data in the modal
-      const updatedParticipant = { ...participant, ...updates };
-      setQuickEdit({ ...quickEdit, participant: updatedParticipant });
+      const finalUpdates = participantUpdates.get(participant.id) || updates;
+      const updatedParticipant = { ...participant, ...finalUpdates };
+      console.log('[QuickEdit] updatedParticipant:', updatedParticipant.formsCategoryId, updatedParticipant.formsPool);
+      setQuickEdit({ 
+        participant: updatedParticipant,
+        ringType: quickEdit.ringType,
+        ringName: quickEdit.ringName
+      });
     };
 
     const handleClose = () => {
@@ -427,7 +487,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       
       // Get all mappings for these categories
       const mappingsForDivision = physicalRingMappings.filter(m => {
-        const categoryName = m.cohortRingName?.split('_')[0];
+        const categoryName = m.categoryPoolName?.split('_')[0];
         return categoriesForDivision.some(c => c.name === categoryName);
       });
 
@@ -435,8 +495,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         .filter(m => m.physicalRingName)
         .map(m => ({
           physicalRingName: m.physicalRingName,
-          cohortRingName: m.cohortRingName,
-          label: `${m.physicalRingName} (${formatPoolNameForDisplay(m.cohortRingName)})`
+          cohortRingName: m.categoryPoolName || '',
+          label: `${m.physicalRingName} (${formatPoolNameForDisplay(m.categoryPoolName || '')})`
         }))
         .sort((a, b) => {
           // Sort by ring number (PR1, PR1a, PR2, etc.)
@@ -454,10 +514,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
     const handlePhysicalRingChange = (type: 'forms' | 'sparring', newPhysicalRing: string) => {
       if (type === 'forms' && formsCohortRingName && newPhysicalRing) {
-        const existingMapping = physicalRingMappings.find(m => m.cohortRingName === formsCohortRingName);
+        const existingMapping = physicalRingMappings.find(m => m.categoryPoolName === formsCohortRingName);
         if (existingMapping) {
           const updatedMappings = physicalRingMappings.map(m => 
-            m.cohortRingName === formsCohortRingName 
+            m.categoryPoolName === formsCohortRingName 
               ? { ...m, physicalRingName: newPhysicalRing }
               : m
           );
@@ -465,15 +525,15 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         } else {
           useTournamentStore.getState().setPhysicalRingMappings([
             ...physicalRingMappings,
-            { cohortRingName: formsCohortRingName, physicalRingName: newPhysicalRing }
+            { categoryPoolName: formsCohortRingName, physicalRingName: newPhysicalRing }
           ]);
         }
         setQuickEdit({ ...quickEdit });
       } else if (type === 'sparring' && sparringCohortRingName && newPhysicalRing) {
-        const existingMapping = physicalRingMappings.find(m => m.cohortRingName === sparringCohortRingName);
+        const existingMapping = physicalRingMappings.find(m => m.categoryPoolName === sparringCohortRingName);
         if (existingMapping) {
           const updatedMappings = physicalRingMappings.map(m => 
-            m.cohortRingName === sparringCohortRingName 
+            m.categoryPoolName === sparringCohortRingName 
               ? { ...m, physicalRingName: newPhysicalRing }
               : m
           );
@@ -481,7 +541,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         } else {
           useTournamentStore.getState().setPhysicalRingMappings([
             ...physicalRingMappings,
-            { cohortRingName: sparringCohortRingName, physicalRingName: newPhysicalRing }
+            { categoryPoolName: sparringCohortRingName, physicalRingName: newPhysicalRing }
           ]);
         }
         setQuickEdit({ ...quickEdit });
@@ -555,6 +615,33 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               </div>
             )}
 
+            {/* Division Selector */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
+                Division:
+              </label>
+              <select
+                value={formsDivision || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleSave({ formsDivision: value });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  fontSize: '14px',
+                  border: '1px solid var(--input-border)',
+                  borderRadius: '4px',
+                }}
+              >
+                <option value="">Select division...</option>
+                <option value="not participating">Not participating</option>
+                {config.divisions.map(d => (
+                  <option key={d.name} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Category/Pool Selector */}
             {formsDivision && formsDivision !== 'not participating' && formsDivision !== 'same as sparring' && (
               <div style={{ marginBottom: '15px' }}>
@@ -565,8 +652,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   value={formsCategoryId && formsPool ? `${formsCategoryId}|||${formsPool}` : ''}
                   onChange={(e) => {
                     const value = e.target.value;
+                    console.log('[QuickEdit] Category/Pool dropdown changed to:', value);
                     if (value) {
                       const [categoryId, pool] = value.split('|||');
+                      console.log('[QuickEdit] Parsed categoryId:', categoryId, 'pool:', pool);
                       handleSave({ formsCategoryId: categoryId, formsPool: pool });
                     } else {
                       handleSave({ formsCategoryId: undefined, formsPool: undefined });

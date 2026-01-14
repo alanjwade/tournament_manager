@@ -69,7 +69,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
       const key = `${ring.division}|||${ringName}|||${ring.physicalRingId}`;
       
       if (!pairMap.has(key)) {
-        const mapping = physicalRingMappings.find(m => m.cohortRingName === ringName);
+        const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
         pairMap.set(key, { 
           cohortRingName: ringName,
           physicalRingName: mapping?.physicalRingName,

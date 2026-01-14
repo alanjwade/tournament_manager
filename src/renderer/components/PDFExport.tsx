@@ -387,7 +387,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       const key = `${ring.division}|||${ringName}|||${ring.physicalRingId}`;
       
       if (!pairMap.has(key)) {
-        const mapping = physicalRingMappings.find(m => m.cohortRingName === ringName);
+        const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
         pairMap.set(key, { 
           cohortRingName: ringName,
           physicalRingName: mapping?.physicalRingName,
@@ -637,7 +637,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
                     padding: '10px'
                   }}>
                     {availableFormsRings.map((ring) => {
-                      const mapping = physicalRingMappings.find(m => m.cohortRingName === ring.name);
+                      const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
                       const physicalRing = mapping?.physicalRingName || 'No Physical Ring';
                       
                       return (
@@ -784,7 +784,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
                     padding: '10px'
                   }}>
                     {availableSparringRings.map((ring) => {
-                      const mapping = physicalRingMappings.find(m => m.cohortRingName === ring.name);
+                      const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
                       const physicalRing = mapping?.physicalRingName || 'No Physical Ring';
                       
                       return (

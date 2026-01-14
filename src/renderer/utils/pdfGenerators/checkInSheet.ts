@@ -110,7 +110,7 @@ export function generateCheckInSheet(
       if (formsCategory) {
         const categoryRingName = `${formsCategory.name}_${effectiveForms.pool}`;
         const mapping = physicalRingMappings.find(m => 
-          (m.categoryPoolName || m.cohortRingName) === categoryRingName
+          m.categoryPoolName === categoryRingName
         );
         
         if (mapping) {

@@ -11,14 +11,14 @@ export function getEffectiveSparringInfo(participant: Participant): {
   // If sparringDivision is "same as forms", use forms category/pool
   if (participant.sparringDivision === 'same as forms') {
     return {
-      categoryId: participant.formsCategoryId || participant.formsCohortId,
-      pool: participant.formsPool || participant.formsCohortRing
+      categoryId: participant.formsCategoryId,
+      pool: participant.formsPool
     };
   }
   // Otherwise use sparring values
   return {
-    categoryId: participant.sparringCategoryId || participant.sparringCohortId,
-    pool: participant.sparringPool || participant.sparringCohortRing
+    categoryId: participant.sparringCategoryId,
+    pool: participant.sparringPool
   };
 }
 
@@ -33,14 +33,14 @@ export function getEffectiveFormsInfo(participant: Participant): {
   // If formsDivision is "same as sparring", use sparring category/pool
   if (participant.formsDivision === 'same as sparring') {
     return {
-      categoryId: participant.sparringCategoryId || participant.sparringCohortId,
-      pool: participant.sparringPool || participant.sparringCohortRing
+      categoryId: participant.sparringCategoryId,
+      pool: participant.sparringPool
     };
   }
   // Otherwise use forms values
   return {
-    categoryId: participant.formsCategoryId || participant.formsCohortId,
-    pool: participant.formsPool || participant.formsCohortRing
+    categoryId: participant.formsCategoryId,
+    pool: participant.formsPool
   };
 }
 
@@ -107,7 +107,7 @@ export function computeCompetitionRings(
     
     // Look up physical ring mapping
     const mapping = categoryPoolMappings.find(m => 
-      (m.categoryId === group.categoryId || m.cohortId === group.categoryId) && 
+      m.categoryId === group.categoryId && 
       m.pool === group.pool
     );
     
@@ -121,7 +121,6 @@ export function computeCompetitionRings(
       id: key,
       division: category.division,
       categoryId: group.categoryId,
-      cohortId: group.categoryId, // Legacy
       physicalRingId,
       type: group.type,
       participantIds: group.participantIds,
@@ -165,8 +164,8 @@ export function updateParticipantRing(
   type: 'forms' | 'sparring'
 ): Participant {
   if (type === 'forms') {
-    return { ...participant, formsPool: pool, formsCohortRing: pool };
+    return { ...participant, formsPool: pool };
   } else {
-    return { ...participant, sparringPool: pool, sparringCohortRing: pool };
+    return { ...participant, sparringPool: pool };
   }
 }

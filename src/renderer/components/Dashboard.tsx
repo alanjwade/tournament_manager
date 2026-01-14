@@ -116,7 +116,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
     const unmappedRings: string[] = [];
     
     competitionRings.forEach(ring => {
-      const hasMapping = physicalRingMappings.some(m => m.cohortRingName === ring.name);
+      const hasMapping = physicalRingMappings.some(m => m.categoryPoolName === ring.name);
       if (!hasMapping && ring.name) {
         unmappedRings.push(formatPoolNameForDisplay(ring.name));
       }

@@ -56,7 +56,6 @@ export function assignRingsWithinCategory(
       id: ringId,
       division: category.division,
       categoryId: category.id,
-      cohortId: category.id, // Legacy
       physicalRingId: ring.id,
       type,
       participantIds: poolParticipants.map((p) => p.id),
@@ -72,16 +71,12 @@ export function assignRingsWithinCategory(
         if (type === 'forms') {
           updatedParticipants[index] = {
             ...updatedParticipants[index],
-            formsRingId: ringId, // Legacy
             formsPool: pool,
-            formsCohortRing: pool, // Legacy compatibility
           };
         } else {
           updatedParticipants[index] = {
             ...updatedParticipants[index],
-            sparringRingId: ringId, // Legacy
             sparringPool: pool,
-            sparringCohortRing: pool, // Legacy compatibility
           };
         }
       }
@@ -153,17 +148,17 @@ export function mapSparringToForms(
   console.log('[mapSparringToForms] formsCategoryIds:', formsCategoryIds.size);
   
   // Filter to only process Forms category rings
-  const actualFormsRings = formsCompetitionRings.filter(ring => formsCategoryIds.has(ring.categoryId || ring.cohortId));
+  const actualFormsRings = formsCompetitionRings.filter(ring => formsCategoryIds.has(ring.categoryId));
   console.log('[mapSparringToForms] actualFormsRings:', actualFormsRings.length, 'of', formsCompetitionRings.length);
 
   // Debugging: log participant/sparring counts to help trace mapping issues
   try {
     console.log('[mapSparringToForms] total participants:', participants.length);
     const totalSparring = participants.filter(p => p.competingSparring).length;
-    const totalWithSparringCategory = participants.filter(p => !!(p.sparringCategoryId || p.sparringCohortId)).length;
-    const totalWithFormsPool = participants.filter(p => !!(p.formsPool || p.formsCohortRing)).length;
-    const sparringWithFormsPool = participants.filter(p => p.competingSparring && !!(p.formsPool || p.formsCohortRing)).length;
-    const sparringWithCategoryAndPool = participants.filter(p => p.competingSparring && !!(p.sparringCategoryId || p.sparringCohortId) && !!(p.formsPool || p.formsCohortRing)).length;
+    const totalWithSparringCategory = participants.filter(p => !!p.sparringCategoryId).length;
+    const totalWithFormsPool = participants.filter(p => !!p.formsPool).length;
+    const sparringWithFormsPool = participants.filter(p => p.competingSparring && !!p.formsPool).length;
+    const sparringWithCategoryAndPool = participants.filter(p => p.competingSparring && !!p.sparringCategoryId && !!p.formsPool).length;
     console.log('[mapSparringToForms] competingSparring=', totalSparring, 'with sparringCategoryId=', totalWithSparringCategory);
     console.log('[mapSparringToForms] totalWithFormsPool=', totalWithFormsPool);
     console.log('[mapSparringToForms] sparringWithFormsPool=', sparringWithFormsPool);
@@ -188,8 +183,8 @@ export function mapSparringToForms(
       formsRing.participantIds.forEach((pid) => {
         const participant = participants.find((p) => p.id === pid);
         if (participant) {
-          if (participant.formsPool || participant.formsCohortRing) hasFormsPool++;
-          if (participant.competingSparring && (participant.sparringCategoryId || participant.sparringCohortId)) qualified++;
+          if (participant.formsPool) hasFormsPool++;
+          if (participant.competingSparring && participant.sparringCategoryId) qualified++;
         }
       });
       console.log(`[mapSparringToForms] formsRing ${formsRing.id} (${formsRing.name}) participants=${ringSize} hasFormsPool=${hasFormsPool} qualifiedForSparring=${qualified}`);
@@ -202,14 +197,14 @@ export function mapSparringToForms(
       if (!participant) return;
 
       // Only map participants who are actually sparring and have a sparring category
-      const sparringCategoryId = participant.sparringCategoryId || participant.sparringCohortId;
+      const sparringCategoryId = participant.sparringCategoryId;
       if (participant.competingSparring && sparringCategoryId) {
         const scId = sparringCategoryId;
         
         // Use the participant's forms pool to determine their sparring pool
-        const formsPool = participant.formsPool || participant.formsCohortRing;
+        const formsPool = participant.formsPool;
         if (!formsPool) {
-          console.log('[mapSparringToForms] SKIPPING participant - no formsPool', pid, 'competingForms=', participant.competingForms, 'formsCategoryId=', participant.formsCategoryId || participant.formsCohortId, 'formsPool=', formsPool);
+          console.log('[mapSparringToForms] SKIPPING participant - no formsPool', pid, 'competingForms=', participant.competingForms, 'formsCategoryId=', participant.formsCategoryId, 'formsPool=', formsPool);
           return; // Skip if they don't have a forms pool assigned
         }
 
@@ -257,7 +252,6 @@ export function mapSparringToForms(
         id: ringId,
         division: category.division,
         categoryId: sparringCategoryId,
-        cohortId: sparringCategoryId, // Legacy
         physicalRingId: physicalId,
         type: 'sparring',
         participantIds: participantIds,
@@ -270,9 +264,7 @@ export function mapSparringToForms(
         if (i !== -1) {
           updatedParticipants[i] = {
             ...updatedParticipants[i],
-            sparringRingId: ringId, // Legacy
             sparringPool: pool,
-            sparringCohortRing: pool, // Legacy compatibility
           };
         }
       });
