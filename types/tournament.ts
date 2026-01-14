@@ -8,21 +8,32 @@ export interface Participant {
   heightInches: number;
   school: string;
   branch?: string;
-  formsDivision: string; // Can be division name, 'same as sparring', or 'not participating'
-  sparringDivision: string; // Can be division name, 'same as forms', or 'not participating'
+  
+  // Division assignments - null means not participating in that competition type
+  formsDivision: string | null; // Division name or null for not participating
+  sparringDivision: string | null; // Division name or null for not participating
+  
+  // Category and pool assignments
   formsCategoryId?: string; // Category ID for forms competition
   sparringCategoryId?: string; // Category ID for sparring competition
-  
-  // Pool identifiers within category (e.g., "P1", "P2", "P3")
-  formsPool?: string; // Which pool within their forms category
+  formsPool?: string; // Which pool within their forms category (e.g., "P1", "P2")
   sparringPool?: string; // Which pool within their sparring category
   sparringAltRing?: '' | 'a' | 'b'; // Subdivide sparring pools into 'a' and 'b' groups
   
+  // Rank order within pool
   formsRankOrder?: number;
   sparringRankOrder?: number;
+  
+  // Computed flags for quick filtering
   competingForms: boolean;
   competingSparring: boolean;
   totalHeightInches?: number;
+  
+  // Last assignment storage for easy reinstatement after withdrawal
+  lastFormsCategoryId?: string;
+  lastFormsPool?: string;
+  lastSparringCategoryId?: string;
+  lastSparringPool?: string;
 }
 
 export interface Division {

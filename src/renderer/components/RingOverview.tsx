@@ -38,6 +38,8 @@ const getRingBalanceStyle = (participantCount: number): { color: string; bg: str
 function RingOverview({ globalDivision }: RingOverviewProps) {
   const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision || 'all');
   const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
+  const [copySparringFromForms, setCopySparringFromForms] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<Partial<Participant>>({});
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
   const categories = useTournamentStore((state) => state.categories);
@@ -48,12 +50,25 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const checkpoints = useTournamentStore((state) => state.checkpoints);
   const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
 
+  // Reset copySparringFromForms and pendingChanges when quickEdit changes
+  useEffect(() => {
+    if (quickEdit) {
+      // Default to checked (true) - copy forms to sparring by default
+      setCopySparringFromForms(true);
+      // Reset pending changes
+      setPendingChanges({});
+    } else {
+      setCopySparringFromForms(false);
+      setPendingChanges({});
+    }
+  }, [quickEdit]);
+
   // Move participant up or down in rank order
   const moveParticipant = (participantId: string, direction: 'up' | 'down', ringType: 'forms' | 'sparring') => {
     const participant = participants.find(p => p.id === participantId);
     if (!participant) return;
 
-    // Get effective category/pool (resolves "same as forms" / "same as sparring")
+    // Get effective category/pool
     const effective = ringType === 'forms' 
       ? getEffectiveFormsInfo(participant)
       : getEffectiveSparringInfo(participant);
@@ -226,7 +241,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       ? (participant.formsDivision || participant.division) 
       : (participant.sparringDivision || participant.division);
     
-    if (!currentDivision || currentDivision === 'not participating') return [];
+    if (!currentDivision) return [];
     
     // Get all pools for this division and type
     const divisionCohorts = categories.filter(c => 
@@ -292,71 +307,119 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     if (!quickEdit) return null;
 
     const { participant } = quickEdit;
-    const formsRankOrder = participant.formsRankOrder;
-    const sparringRankOrder = participant.sparringRankOrder;
-    const formsAltRing = participant.sparringAltRing || '';
     
-    // Get forms division info
-    const formsDivision = participant.formsDivision || participant.division;
-    const formsCategoryId = participant.formsCategoryId;
-    const formsCategory = formsCategoryId ? categories.find(c => c.id === formsCategoryId) : null;
-    const formsPool = participant.formsPool;
-    const formsCohortRingName = formsCategory && formsPool 
-      ? `${formsCategory.name}_${formsPool}` 
+    // Get current values (either from pending changes or participant)
+    const currentFormsDivision = pendingChanges.formsDivision !== undefined ? pendingChanges.formsDivision : (participant.formsDivision || participant.division);
+    const currentFormsCategoryId = pendingChanges.formsCategoryId !== undefined ? pendingChanges.formsCategoryId : participant.formsCategoryId;
+    const currentFormsPool = pendingChanges.formsPool !== undefined ? pendingChanges.formsPool : participant.formsPool;
+    const currentFormsRankOrder = pendingChanges.formsRankOrder !== undefined ? pendingChanges.formsRankOrder : participant.formsRankOrder;
+    
+    const currentSparringDivision = pendingChanges.sparringDivision !== undefined ? pendingChanges.sparringDivision : (participant.sparringDivision || participant.division);
+    const currentSparringCategoryId = pendingChanges.sparringCategoryId !== undefined ? pendingChanges.sparringCategoryId : participant.sparringCategoryId;
+    const currentSparringPool = pendingChanges.sparringPool !== undefined ? pendingChanges.sparringPool : participant.sparringPool;
+    const currentSparringRankOrder = pendingChanges.sparringRankOrder !== undefined ? pendingChanges.sparringRankOrder : participant.sparringRankOrder;
+    const currentSparringAltRing = pendingChanges.sparringAltRing !== undefined ? pendingChanges.sparringAltRing : participant.sparringAltRing;
+    
+    // Get category info based on current values
+    const formsCategory = currentFormsCategoryId ? categories.find(c => c.id === currentFormsCategoryId) : null;
+    const formsCohortRingName = formsCategory && currentFormsPool 
+      ? `${formsCategory.name}_${currentFormsPool}` 
       : null;
     const formsPhysicalMapping = formsCohortRingName 
       ? physicalRingMappings.find(m => m.categoryPoolName === formsCohortRingName)
       : undefined;
     
-    // Get sparring division info
-    const sparringDivision = participant.sparringDivision || participant.division;
-    const sparringCategoryId = participant.sparringCategoryId;
-    const sparringCategory = sparringCategoryId ? categories.find(c => c.id === sparringCategoryId) : null;
-    const sparringPool = participant.sparringPool;
-    const sparringCohortRingName = sparringCategory && sparringPool 
-      ? `${sparringCategory.name}_${sparringPool}` 
+    const sparringCategory = currentSparringCategoryId ? categories.find(c => c.id === currentSparringCategoryId) : null;
+    const sparringCohortRingName = sparringCategory && currentSparringPool 
+      ? `${sparringCategory.name}_${currentSparringPool}` 
       : null;
     const sparringPhysicalMapping = sparringCohortRingName 
       ? physicalRingMappings.find(m => m.categoryPoolName === sparringCohortRingName)
       : undefined;
+    
+    // Update pending changes
+    const updatePending = (updates: Partial<Participant>) => {
+      setPendingChanges(prev => ({ ...prev, ...updates }));
+    };
 
-    const handleSave = (updates: Partial<Participant>) => {
-      console.log('[QuickEdit] handleSave called with updates:', updates);
-      console.log('[QuickEdit] current participant:', participant.id, participant.firstName, participant.lastName);
-      console.log('[QuickEdit] current formsCategoryId:', participant.formsCategoryId, 'formsPool:', participant.formsPool);
+    const handleSubmit = () => {
+      if (Object.keys(pendingChanges).length === 0) {
+        // No changes, just close
+        setQuickEdit(null);
+        return;
+      }
+
+      console.log('[QuickEdit] handleSubmit called with pendingChanges:', pendingChanges);
+      
+      const updates = { ...pendingChanges };
+      
+      // Remove internal marker flags that don't affect participant data
+      delete (updates as any)._sparringDecoupled;
+      
+      // If all that's left is empty after removing markers, just close
+      if (Object.keys(updates).length === 0) {
+        setQuickEdit(null);
+        return;
+      }
       
       // Handle forms division changes
       if (updates.formsDivision !== undefined) {
         const value = updates.formsDivision;
-        updates.competingForms = value !== 'not participating';
+        const isWithdrawing = value === null || value === '';
+        updates.competingForms = !isWithdrawing;
         
-        // Clear category and pool when setting to "not participating"
-        if (value === 'not participating') {
+        // Clear category and pool when withdrawing
+        if (isWithdrawing) {
+          // Save current assignment for reinstatement
+          updates.lastFormsCategoryId = participant.formsCategoryId;
+          updates.lastFormsPool = participant.formsPool;
           updates.formsCategoryId = undefined;
           updates.formsPool = undefined;
           updates.formsRankOrder = undefined;
+          updates.formsDivision = null;
         }
       }
       
       // Handle sparring division changes
       if (updates.sparringDivision !== undefined) {
         const value = updates.sparringDivision;
-        updates.competingSparring = value !== 'not participating';
+        const isWithdrawing = value === null || value === '';
+        updates.competingSparring = !isWithdrawing;
         
-        // When setting sparring to "same as forms", copy forms category and pool
-        if (value === 'same as forms') {
-          updates.sparringCategoryId = participant.formsCategoryId;
-          updates.sparringPool = participant.formsPool;
-        }
-        
-        // Clear category and pool when setting to "not participating"
-        if (value === 'not participating') {
+        // Clear category and pool when withdrawing
+        if (isWithdrawing) {
+          // Save current assignment for reinstatement
+          updates.lastSparringCategoryId = participant.sparringCategoryId;
+          updates.lastSparringPool = participant.sparringPool;
           updates.sparringCategoryId = undefined;
           updates.sparringPool = undefined;
           updates.sparringRankOrder = undefined;
           updates.sparringAltRing = '';
+          updates.sparringDivision = null;
         }
       }
+      
+      // Ensure competing flags are set when assigning pools/categories
+      // If we're setting a forms pool or category, make sure competingForms is true
+      if ((updates.formsPool || updates.formsCategoryId) && updates.competingForms === undefined) {
+        const hasFormsAssignment = updates.formsPool || updates.formsCategoryId || participant.formsPool || participant.formsCategoryId;
+        if (hasFormsAssignment) {
+          console.log('[QuickEdit] Auto-setting competingForms = true because forms assignment exists');
+          updates.competingForms = true;
+        }
+      }
+      
+      // If we're setting a sparring pool or category, make sure competingSparring is true
+      if ((updates.sparringPool || updates.sparringCategoryId) && updates.competingSparring === undefined) {
+        const hasSparringAssignment = updates.sparringPool || updates.sparringCategoryId || participant.sparringPool || participant.sparringCategoryId;
+        if (hasSparringAssignment) {
+          console.log('[QuickEdit] Auto-setting competingSparring = true because sparring assignment exists');
+          updates.competingSparring = true;
+        }
+      }
+      
+      console.log('[QuickEdit] Final updates object:', updates);
+      console.log('[QuickEdit] competingForms:', updates.competingForms, 'competingSparring:', updates.competingSparring);
       
       // Check if pool is changing for forms or sparring
       const formsPoolChanging = updates.formsPool !== undefined && updates.formsPool !== participant.formsPool;
@@ -370,14 +433,14 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       const oldSparringCategoryId = participant.sparringCategoryId;
       const oldSparringPool = participant.sparringPool;
       
-      // If forms pool is changing, set rank order to 0 to put at top
+      // If forms pool is changing, set rank order to 1 to put at top
       if (formsPoolChanging && updates.formsPool) {
-        updates.formsRankOrder = 0;
+        updates.formsRankOrder = 1;
       }
       
-      // If sparring pool is changing, set rank order to 0 to put at top
+      // If sparring pool is changing, set rank order to 1 to put at top
       if (sparringPoolChanging && updates.sparringPool) {
-        updates.sparringRankOrder = 0;
+        updates.sparringRankOrder = 1;
       }
       
       // Build a map of all participant updates to batch them
@@ -386,7 +449,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       
       // Close the gap in old pool(s) by renumbering
       if (formsPoolChanging && oldFormsCategoryId && oldFormsPool) {
-        // Get all participants in the old pool and renumber
         const oldPoolParticipants = participants
           .filter(p => p.id !== participant.id && p.formsCategoryId === oldFormsCategoryId && p.formsPool === oldFormsPool)
           .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
@@ -398,7 +460,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       }
       
       if (sparringPoolChanging && oldSparringCategoryId && oldSparringPool) {
-        // Get all participants in the old pool and renumber
         const oldPoolParticipants = participants
           .filter(p => p.id !== participant.id && p.sparringCategoryId === oldSparringCategoryId && p.sparringPool === oldSparringPool)
           .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
@@ -416,72 +477,87 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       const newSparringPool = updates.sparringPool ?? participant.sparringPool;
       
       if (formsPoolChanging && newFormsCategoryId && newFormsPool) {
-        // Get all OTHER participants in the new pool and shift them down
         const newPoolParticipants = participants
           .filter(p => p.id !== participant.id && p.formsCategoryId === newFormsCategoryId && p.formsPool === newFormsPool)
           .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
         
         newPoolParticipants.forEach((p, index) => {
           const existing = participantUpdates.get(p.id) || {};
-          participantUpdates.set(p.id, { ...existing, formsRankOrder: index + 2 }); // Start at 2 since new person is at 1
+          participantUpdates.set(p.id, { ...existing, formsRankOrder: index + 2 });
         });
         
-        // Set the moved participant to position 1
         const existing = participantUpdates.get(participant.id) || {};
         participantUpdates.set(participant.id, { ...existing, formsRankOrder: 1 });
       }
       
       if (sparringPoolChanging && newSparringCategoryId && newSparringPool) {
-        // Get all OTHER participants in the new pool and shift them down
         const newPoolParticipants = participants
           .filter(p => p.id !== participant.id && p.sparringCategoryId === newSparringCategoryId && p.sparringPool === newSparringPool)
           .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
         
         newPoolParticipants.forEach((p, index) => {
           const existing = participantUpdates.get(p.id) || {};
-          participantUpdates.set(p.id, { ...existing, sparringRankOrder: index + 2 }); // Start at 2 since new person is at 1
+          participantUpdates.set(p.id, { ...existing, sparringRankOrder: index + 2 });
         });
         
-        // Set the moved participant to position 1
         const existing = participantUpdates.get(participant.id) || {};
         participantUpdates.set(participant.id, { ...existing, sparringRankOrder: 1 });
       }
       
-      // Apply all updates in a single batch to avoid race conditions and reduce re-renders
-      console.log('[QuickEdit] participantUpdates for this participant:', participantUpdates.get(participant.id));
-      setParticipants(participants.map(p => {
+      // Apply all updates in a single batch
+      console.log('[QuickEdit] participantUpdates for moved participant:', participantUpdates.get(participant.id));
+      console.log('[QuickEdit] Total updates being applied:', participantUpdates.size);
+      console.log('[QuickEdit] All participant IDs being updated:', Array.from(participantUpdates.keys()));
+      
+      // Log updates for debugging
+      const debugInfo: string[] = [];
+      participantUpdates.forEach((update, id) => {
+        const p = participants.find(x => x.id === id);
+        console.log(`[QuickEdit] Updating ${p?.firstName} ${p?.lastName} (${id}):`, update);
+        debugInfo.push(`${p?.firstName} ${p?.lastName}: ${JSON.stringify(update)}`);
+      });
+      
+      // Show alert for critical operations (only when moving pools)
+      if (formsPoolChanging || sparringPoolChanging) {
+        console.log('[QuickEdit] POOL CHANGE - Debug info:', debugInfo.join('\n'));
+      }
+      
+      const updatedParticipantsList = participants.map(p => {
         const update = participantUpdates.get(p.id);
         return update ? { ...p, ...update } : p;
-      }));
-      
-      // Refresh the participant data in the modal
-      const finalUpdates = participantUpdates.get(participant.id) || updates;
-      const updatedParticipant = { ...participant, ...finalUpdates };
-      console.log('[QuickEdit] updatedParticipant:', updatedParticipant.formsCategoryId, updatedParticipant.formsPool);
-      setQuickEdit({ 
-        participant: updatedParticipant,
-        ringType: quickEdit.ringType,
-        ringName: quickEdit.ringName
       });
+      
+      // Log the updated participant to verify the data
+      const updatedMovedParticipant = updatedParticipantsList.find(p => p.id === participant.id);
+      console.log('[QuickEdit] Updated participant data:', {
+        id: updatedMovedParticipant?.id,
+        name: `${updatedMovedParticipant?.firstName} ${updatedMovedParticipant?.lastName}`,
+        competingSparring: updatedMovedParticipant?.competingSparring,
+        sparringCategoryId: updatedMovedParticipant?.sparringCategoryId,
+        sparringPool: updatedMovedParticipant?.sparringPool,
+        sparringRankOrder: updatedMovedParticipant?.sparringRankOrder
+      });
+      
+      // Close modal first to release any stale state
+      setQuickEdit(null);
+      
+      // Then update participants - this ensures the modal isn't open when the update happens
+      // Use setTimeout to ensure the modal close happens first
+      setTimeout(() => {
+        setParticipants(updatedParticipantsList);
+      }, 0);
     };
 
-    const handleClose = () => {
+    const handleCancel = () => {
       setQuickEdit(null);
     };
 
     // Build physical ring options filtered by division
     const buildPhysicalRingOptions = (division: string | null | undefined) => {
-      if (!division || division === 'not participating') return [];
-      
-      // If sparring division is "same as forms", use the forms division instead
-      const effectiveDivision = division === 'same as forms' 
-        ? formsDivision 
-        : division;
-      
-      if (!effectiveDivision || effectiveDivision === 'not participating') return [];
+      if (!division) return [];
       
       // Find all categories for this division
-      const categoriesForDivision = categories.filter(c => c.division === effectiveDivision);
+      const categoriesForDivision = categories.filter(c => c.division === division);
       
       if (categoriesForDivision.length === 0) return [];
       
@@ -562,7 +638,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           justifyContent: 'center',
           zIndex: 1000,
         }}
-        onClick={handleClose}
+        onClick={handleCancel}
       >
         <div
           style={{
@@ -599,7 +675,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             </h4>
             
             {/* Current Ring Assignment Info */}
-            {formsCategory && formsPool && (
+            {formsCategory && currentFormsPool && (
               <div style={{ 
                 marginBottom: '15px', 
                 padding: '10px', 
@@ -608,7 +684,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 fontSize: '12px',
               }}>
                 <div><strong>Category:</strong> {formsCategory.name}</div>
-                <div><strong>Category Ring:</strong> {formatPoolOnly(formsPool)}</div>
+                <div><strong>Category Ring:</strong> {formatPoolOnly(currentFormsPool)}</div>
                 {formsPhysicalMapping && (
                   <div><strong>Physical Ring:</strong> {formsPhysicalMapping.physicalRingName}</div>
                 )}
@@ -621,10 +697,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 Division:
               </label>
               <select
-                value={formsDivision || ''}
+                value={currentFormsDivision ?? ''}
                 onChange={(e) => {
-                  const value = e.target.value;
-                  handleSave({ formsDivision: value });
+                  const value = e.target.value || null;
+                  updatePending({ formsDivision: value });
                 }}
                 style={{
                   width: '100%',
@@ -634,8 +710,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   borderRadius: '4px',
                 }}
               >
-                <option value="">Select division...</option>
-                <option value="not participating">Not participating</option>
+                <option value="">Not Participating</option>
                 {config.divisions.map(d => (
                   <option key={d.name} value={d.name}>{d.name}</option>
                 ))}
@@ -643,22 +718,36 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             </div>
 
             {/* Category/Pool Selector */}
-            {formsDivision && formsDivision !== 'not participating' && formsDivision !== 'same as sparring' && (
+            {currentFormsDivision && (
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
                   Category & Pool:
                 </label>
                 <select
-                  value={formsCategoryId && formsPool ? `${formsCategoryId}|||${formsPool}` : ''}
+                  value={currentFormsCategoryId && currentFormsPool ? `${currentFormsCategoryId}|||${currentFormsPool}` : ''}
                   onChange={(e) => {
                     const value = e.target.value;
-                    console.log('[QuickEdit] Category/Pool dropdown changed to:', value);
+                    console.log('[QuickEdit] Forms Category/Pool dropdown changed to:', value);
+                    console.log('[QuickEdit] copySparringFromForms state:', copySparringFromForms);
                     if (value) {
                       const [categoryId, pool] = value.split('|||');
                       console.log('[QuickEdit] Parsed categoryId:', categoryId, 'pool:', pool);
-                      handleSave({ formsCategoryId: categoryId, formsPool: pool });
+                      const updates: Partial<Participant> = { formsCategoryId: categoryId, formsPool: pool };
+                      
+                      // If copySparringFromForms is checked, also update sparring
+                      if (copySparringFromForms) {
+                        console.log('[QuickEdit] copySparringFromForms is true, also updating sparring');
+                        // Convert forms category ID to sparring category ID
+                        // Format: "forms-{division}-{gender}-{minAge}-{maxAge}" -> "sparring-{division}-{gender}-{minAge}-{maxAge}"
+                        const sparringCategoryId = categoryId.replace(/^forms-/, 'sparring-');
+                        console.log('[QuickEdit] Converted categoryId from', categoryId, 'to', sparringCategoryId);
+                        updates.sparringCategoryId = sparringCategoryId;
+                        updates.sparringPool = pool;
+                      }
+                      
+                      updatePending(updates);
                     } else {
-                      handleSave({ formsCategoryId: undefined, formsPool: undefined });
+                      updatePending({ formsCategoryId: undefined, formsPool: undefined });
                     }
                   }}
                   style={{
@@ -671,7 +760,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 >
                   <option value="">Select category & pool...</option>
                   {categories
-                    .filter(c => c.type === 'forms' && c.division === formsDivision)
+                    .filter(c => c.type === 'forms' && c.division === currentFormsDivision)
                     .flatMap(c => 
                       Array.from({ length: c.numPools }, (_, i) => ({
                         categoryId: c.id,
@@ -713,10 +802,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               </label>
               <input
                 type="number"
-                value={formsRankOrder || ''}
+                value={currentFormsRankOrder || ''}
                 onChange={(e) => {
                   const value = e.target.value ? parseInt(e.target.value) : undefined;
-                  handleSave({ formsRankOrder: value });
+                  updatePending({ formsRankOrder: value });
                 }}
                 style={{
                   width: '100%',
@@ -740,7 +829,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             </h4>
             
             {/* Current Ring Assignment Info */}
-            {sparringCategory && sparringPool && (
+            {sparringCategory && currentSparringPool && (
               <div style={{ 
                 marginBottom: '15px', 
                 padding: '10px', 
@@ -749,7 +838,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 fontSize: '12px',
               }}>
                 <div><strong>Category:</strong> {sparringCategory.name}</div>
-                <div><strong>Category Ring:</strong> {formatPoolOnly(sparringPool)}</div>
+                <div><strong>Category Ring:</strong> {formatPoolOnly(currentSparringPool)}</div>
                 {sparringPhysicalMapping && (
                   <div><strong>Physical Ring:</strong> {sparringPhysicalMapping.physicalRingName}</div>
                 )}
@@ -762,10 +851,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 Division:
               </label>
               <select
-                value={sparringDivision || ''}
+                value={currentSparringDivision ?? ''}
                 onChange={(e) => {
-                  const value = e.target.value;
-                  handleSave({ sparringDivision: value });
+                  const value = e.target.value || null;
+                  updatePending({ sparringDivision: value });
                 }}
                 style={{
                   width: '100%',
@@ -775,30 +864,79 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   borderRadius: '4px',
                 }}
               >
-                <option value="">Select division...</option>
-                <option value="not participating">Not participating</option>
-                <option value="same as forms">Same as forms</option>
+                <option value="">Not Participating</option>
                 {config.divisions.map(d => (
                   <option key={d.name} value={d.name}>{d.name}</option>
                 ))}
               </select>
             </div>
 
-            {/* Category/Pool Selector */}
-            {sparringDivision && sparringDivision !== 'not participating' && sparringDivision !== 'same as forms' && (
+            {/* Copy from Forms checkbox */}
+            {currentFormsDivision && currentFormsCategoryId && currentFormsPool && (
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={copySparringFromForms}
+                    onChange={(e) => {
+                      const isChecked = e.target.checked;
+                      console.log('[QuickEdit] ========== COPY FROM FORMS CHECKBOX ==========');
+                      console.log('[QuickEdit] Checkbox changed to:', isChecked);
+                      console.log('[QuickEdit] Participant:', participant.firstName, participant.lastName);
+                      console.log('[QuickEdit] Current Forms:', { 
+                        division: currentFormsDivision,
+                        categoryId: currentFormsCategoryId, 
+                        pool: currentFormsPool 
+                      });
+                      console.log('[QuickEdit] Current Sparring:', { 
+                        division: currentSparringDivision,
+                        categoryId: currentSparringCategoryId, 
+                        pool: currentSparringPool 
+                      });
+                      console.log('[QuickEdit] ================================================');
+                      
+                      setCopySparringFromForms(isChecked);
+                      if (isChecked) {
+                        // Copy forms assignment to sparring
+                        console.log('[QuickEdit] Updating pending changes to copy forms to sparring');
+                        updatePending({
+                          sparringDivision: currentFormsDivision,
+                          sparringCategoryId: currentFormsCategoryId,
+                          sparringPool: currentFormsPool,
+                        });
+                      } else {
+                        // Unchecking - mark that we're uncoupling sparring from forms
+                        // Add a dummy update to trigger pendingChanges to be non-empty
+                        // Use a marker flag that won't affect the data
+                        console.log('[QuickEdit] Checkbox unchecked - marking sparring as decoupled from forms');
+                        updatePending({ _sparringDecoupled: true });
+                      }
+                    }}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Copy from Forms (same category & pool)
+                </label>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', marginLeft: '22px' }}>
+                  When checked, sparring will use the same assignment as forms
+                </div>
+              </div>
+            )}
+
+            {/* Category/Pool Selector - only show if not copying from forms */}
+            {currentSparringDivision && !copySparringFromForms && (
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
                   Category & Pool:
                 </label>
                 <select
-                  value={sparringCategoryId && sparringPool ? `${sparringCategoryId}|||${sparringPool}` : ''}
+                  value={currentSparringCategoryId && currentSparringPool ? `${currentSparringCategoryId}|||${currentSparringPool}` : ''}
                   onChange={(e) => {
                     const value = e.target.value;
                     if (value) {
                       const [categoryId, pool] = value.split('|||');
-                      handleSave({ sparringCategoryId: categoryId, sparringPool: pool });
+                      updatePending({ sparringCategoryId: categoryId, sparringPool: pool });
                     } else {
-                      handleSave({ sparringCategoryId: undefined, sparringPool: undefined });
+                      updatePending({ sparringCategoryId: undefined, sparringPool: undefined });
                     }
                   }}
                   style={{
@@ -811,7 +949,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 >
                   <option value="">Select category & pool...</option>
                   {categories
-                    .filter(c => c.type === 'sparring' && c.division === sparringDivision)
+                    .filter(c => c.type === 'sparring' && c.division === currentSparringDivision)
                     .flatMap(c => 
                       Array.from({ length: c.numPools }, (_, i) => ({
                         categoryId: c.id,
@@ -853,10 +991,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               </label>
               <input
                 type="number"
-                value={sparringRankOrder || ''}
+                value={currentSparringRankOrder || ''}
                 onChange={(e) => {
                   const value = e.target.value ? parseInt(e.target.value) : undefined;
-                  handleSave({ sparringRankOrder: value });
+                  updatePending({ sparringRankOrder: value });
                 }}
                 style={{
                   width: '100%',
@@ -878,10 +1016,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 Alt Ring (splits ring into a/b):
               </label>
               <select
-                value={formsAltRing}
+                value={currentSparringAltRing || ''}
                 onChange={(e) => {
                   const value = e.target.value as '' | 'a' | 'b';
-                  handleSave({ sparringAltRing: value });
+                  updatePending({ sparringAltRing: value });
                 }}
                 style={{
                   width: '100%',
@@ -901,7 +1039,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           {/* Actions */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
             <button
-              onClick={handleClose}
+              onClick={handleCancel}
               style={{
                 padding: '8px 16px',
                 backgroundColor: '#6c757d',
@@ -911,7 +1049,20 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 cursor: 'pointer',
               }}
             >
-              Close
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              Submit
             </button>
           </div>
         </div>
@@ -930,6 +1081,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
     const category = categories.find((c) => c.id === ring.categoryId);
 
+    if (type === 'sparring') {
+      console.log(`[RingOverview] RENDERING ${type} ring "${ring.name}" - ring.participantIds.length = ${ring.participantIds.length}`);
+    }
+
     const ringParticipants = participants
       .filter((p) => ring.participantIds.includes(p.id))
       .sort((a, b) => {
@@ -939,12 +1094,21 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           return (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0);
         }
       });
+    
+    if (type === 'sparring') {
+      console.log(`[RingOverview] AFTER FILTER ${type} ring "${ring.name}" - filtered to ${ringParticipants.length} participants`);
+      if (ring.participantIds.length !== ringParticipants.length) {
+        console.error(`[RingOverview] MISMATCH! Ring has ${ring.participantIds.length} IDs but only ${ringParticipants.length} matched`);
+        console.log(`[RingOverview] Ring participant IDs:`, ring.participantIds);
+        console.log(`[RingOverview] Matched participants:`, ringParticipants.map(p => p.id));
+      }
+    }
 
     // Check for alt ring status in sparring rings
     let altStatus = null;
     if (type === 'sparring' && category) {
-      // Extract pool from ring name (e.g., "R1" from "Mixed 8-10_R1")
-      const pool = ring.name?.match(/_R(\d+)$/)?.[0]?.substring(1); // Get "_R1" then remove "_" to get "R1"
+      // Extract pool from ring name (e.g., "P1" from "Mixed 8-10_P1")
+      const pool = ring.name?.match(/_P(\d+)$/)?.[0]?.substring(1); // Get "_P1" then remove "_" to get "P1"
       console.log('[RingOverview] Checking alt ring status for', ring.name, 'pool:', pool);
       if (pool) {
         altStatus = checkSparringAltRingStatus(participants, category.id, pool);

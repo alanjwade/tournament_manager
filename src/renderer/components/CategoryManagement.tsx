@@ -1,9 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { useTournamentStore } from '../store/tournamentStore';
 import { Category } from '../types/tournament';
 import { getEffectiveDivision } from '../utils/excelParser';
 import { autoAssignAndOrderCategory } from '../utils/autoAssignAndOrder';
+
+// Generate deterministic category ID based on properties
+function generateCategoryId(type: 'forms' | 'sparring', division: string, gender: string, minAge: number, maxAge: number): string {
+  return `${type}-${division}-${gender}-${minAge}-${maxAge}`;
+}
 
 interface CategoryManagementProps {
   globalDivision?: string;
@@ -232,7 +236,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
 
     // Create Forms category if there are forms participants
     if (formsParticipants.length > 0) {
-      const formsCategoryId = uuidv4();
+      const formsCategoryId = generateCategoryId('forms', selectedDivision, selectedGender, minAgeValue, maxAgeValue);
       const formsCategory: Category = {
         id: formsCategoryId,
         name: categoryName,
@@ -260,7 +264,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
 
     // Create Sparring category if there are sparring participants
     if (sparringParticipants.length > 0) {
-      const sparringCategoryId = uuidv4();
+      const sparringCategoryId = generateCategoryId('sparring', selectedDivision, selectedGender, minAgeValue, maxAgeValue);
       const sparringCategory: Category = {
         id: sparringCategoryId,
         name: categoryName,
@@ -369,6 +373,88 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
     }
     
     setParticipants(finalParticipants);
+  };
+
+  const handleReassignParticipants = () => {
+    if (categories.length === 0) {
+      alert('No categories to reassign to. Please create categories first.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'This will reset all participant pool assignments and re-run auto-assignment for all categories. Are you sure?'
+    );
+    if (!confirmed) return;
+
+    // Start with cleared pool assignments
+    let reassignedParticipants = participants.map((p) => ({
+      ...p,
+      formsPool: undefined,
+      formsRankOrder: undefined,
+      sparringPool: undefined,
+      sparringRankOrder: undefined,
+      sparringAltRing: '',
+      physicalRingId: undefined,
+    }));
+
+    // Re-populate each category's participant list and reassign
+    const updatedCategories = categories.map((category) => {
+      // Find participants that match this category's criteria
+      const categoryParticipants = reassignedParticipants.filter((p) => {
+        const genderMatch = p.gender.toLowerCase() === category.gender || category.gender === 'mixed';
+        const divisionMatch = category.type === 'forms' 
+          ? getEffectiveDivision(p, 'forms') === category.division
+          : getEffectiveDivision(p, 'sparring') === category.division;
+        const ageMatch = p.age >= category.minAge && p.age <= category.maxAge;
+        const competingMatch = category.type === 'forms' ? p.competingForms : p.competingSparring;
+        
+        return genderMatch && divisionMatch && ageMatch && competingMatch;
+      });
+
+      return {
+        ...category,
+        participantIds: categoryParticipants.map((p) => p.id),
+      };
+    });
+
+    // Update participant category IDs to match new categories
+    reassignedParticipants = reassignedParticipants.map((p) => {
+      let updated = { ...p };
+      
+      // Find forms category for this participant
+      const formsCategory = updatedCategories.find(
+        (c) => c.type === 'forms' && c.participantIds.includes(p.id)
+      );
+      if (formsCategory) {
+        updated.formsCategoryId = formsCategory.id;
+      } else {
+        updated.formsCategoryId = undefined;
+      }
+
+      // Find sparring category for this participant
+      const sparringCategory = updatedCategories.find(
+        (c) => c.type === 'sparring' && c.participantIds.includes(p.id)
+      );
+      if (sparringCategory) {
+        updated.sparringCategoryId = sparringCategory.id;
+      } else {
+        updated.sparringCategoryId = undefined;
+      }
+      
+      return updated;
+    });
+
+    // Update categories with new participant lists
+    setCategories(updatedCategories);
+
+    // Auto-assign and order participants for each category
+    let finalParticipants = reassignedParticipants;
+    for (const category of updatedCategories) {
+      finalParticipants = autoAssignAndOrderCategory(category, finalParticipants);
+    }
+
+    setParticipants(finalParticipants);
+    alert('Participants have been reassigned to all categories.');
   };
 
   // Calculate ring totals per division (only count Forms rings since Sparring uses same physical rings)
@@ -504,9 +590,21 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
 
         {/* Categories List */}
         <div>
-          <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
-            Categories ({categories.length})
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h3 style={{ fontSize: '16px', margin: 0 }}>
+              Categories ({categories.length})
+            </h3>
+            {categories.length > 0 && (
+              <button
+                className="btn btn-warning"
+                onClick={handleReassignParticipants}
+                title="Reset all participant pool assignments but keep category definitions"
+                style={{ fontSize: '12px', padding: '6px 12px' }}
+              >
+                Reassign Participants
+              </button>
+            )}
+          </div>
 
           {categories.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>

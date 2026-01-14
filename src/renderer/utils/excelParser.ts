@@ -4,32 +4,10 @@ import { Participant } from '../types/tournament';
 // Helper function to get the effective division for a participant
 export function getEffectiveDivision(participant: Participant, type: 'forms' | 'sparring'): string | null {
   if (type === 'forms') {
-    // Check if forms division is "not participating"
-    if (participant.formsDivision === 'not participating') return null;
-    
-    // Check if forms division refers to sparring division
-    if (participant.formsDivision.toLowerCase().includes('same') || 
-        participant.formsDivision.toLowerCase().includes('sparring')) {
-      // Use sparring division if it's not "not participating"
-      if (participant.sparringDivision === 'not participating') return null;
-      // Recursively get effective sparring division in case it also has a reference
-      return getEffectiveDivision(participant, 'sparring');
-    }
-    
+    // null means not participating
     return participant.formsDivision;
   } else {
-    // Check if sparring division is "not participating"
-    if (participant.sparringDivision === 'not participating') return null;
-    
-    // Check if sparring division refers to forms division
-    if (participant.sparringDivision.toLowerCase().includes('same') || 
-        participant.sparringDivision.toLowerCase().includes('forms')) {
-      // Use forms division if it's not "not participating"
-      if (participant.formsDivision === 'not participating') return null;
-      // Recursively get effective forms division in case it also has a reference
-      return getEffectiveDivision(participant, 'forms');
-    }
-    
+    // null means not participating
     return participant.sparringDivision;
   }
 }
@@ -78,12 +56,12 @@ export function parseExcelFile(data: number[]): Participant[] {
       console.log('  - baseDivision:', baseDivision);
     }
     
-    // Determine forms division
-    let formsDivision = 'not participating';
+    // Determine forms division - null means not participating
+    let formsDivision: string | null = null;
     let competingForms = false;
     if (formsValue.toLowerCase() === 'no' || formsValue.toLowerCase() === 'not participating') {
       // Explicitly marked as not participating
-      formsDivision = 'not participating';
+      formsDivision = null;
       competingForms = false;
     } else if (formsValue.toLowerCase() === 'yes' || formsValue.toLowerCase() === 'y' || formsValue === '') {
       // "Yes", "y", or empty Forms column - use base division if available
@@ -92,7 +70,7 @@ export function parseExcelFile(data: number[]): Participant[] {
         competingForms = true;
       } else {
         // No base division - not participating
-        formsDivision = 'not participating';
+        formsDivision = null;
         competingForms = false;
       }
     } else if (formsValue && formsValue !== '') {
@@ -101,12 +79,12 @@ export function parseExcelFile(data: number[]): Participant[] {
       competingForms = true;
     }
     
-    // Determine sparring division
-    let sparringDivision = 'not participating';
+    // Determine sparring division - null means not participating
+    let sparringDivision: string | null = null;
     let competingSparring = false;
     if (sparringValue.toLowerCase() === 'no' || sparringValue.toLowerCase() === 'not participating') {
       // Explicitly marked as not participating
-      sparringDivision = 'not participating';
+      sparringDivision = null;
       competingSparring = false;
     } else if (sparringValue.toLowerCase() === 'yes' || sparringValue.toLowerCase() === 'y' || sparringValue === '') {
       // "Yes", "y", or empty Sparring column - treat as "yes", use base division
@@ -118,23 +96,21 @@ export function parseExcelFile(data: number[]): Participant[] {
         }
       } else {
         // No base division either - not participating
-        sparringDivision = 'not participating';
+        sparringDivision = null;
         competingSparring = false;
         if (index === 0) {
           console.log('  ❌ Sparring is Yes/empty BUT baseDivision is empty - setting to not participating');
         }
       }
     } else if (sparringValue && sparringValue !== '') {
-      // Has a specific value (division name or "same as forms", etc.)
-      sparringDivision = sparringValue;
-      competingSparring = true;
-    }
-    
-    // If both are competing in the same division, set sparring to "same as forms"
-    if (competingForms && competingSparring && formsDivision === sparringDivision) {
-      sparringDivision = 'same as forms';
-      if (index < 3) {
-        console.log(`  🔄 Participant ${index}: Both divisions same (${formsDivision}), setting sparring to "same as forms"`);
+      // Has a specific value (division name)
+      // Handle legacy "same as forms" value
+      if (sparringValue.toLowerCase().includes('same') && sparringValue.toLowerCase().includes('form')) {
+        sparringDivision = formsDivision;
+        competingSparring = competingForms;
+      } else {
+        sparringDivision = sparringValue;
+        competingSparring = true;
       }
     }
     

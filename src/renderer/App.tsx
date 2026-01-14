@@ -71,11 +71,11 @@ function App() {
     const sparringDivision = getEffectiveDivision(p, 'sparring');
     const parts: string[] = [];
     
-    if (formsDivision && formsDivision !== 'not participating') {
+    if (formsDivision) {
       const formsPoolDisplay = p.formsPool ? p.formsPool.replace(/^P(\d+)$/, 'Pool $1') : 'unassigned';
       parts.push(`F: ${formsPoolDisplay}`);
     }
-    if (sparringDivision && sparringDivision !== 'not participating') {
+    if (sparringDivision) {
       const sparringPoolDisplay = p.sparringPool ? p.sparringPool.replace(/^P(\d+)$/, 'Pool $1') : 'unassigned';
       parts.push(`S: ${sparringPoolDisplay}`);
     }
@@ -104,8 +104,8 @@ function App() {
     const unassignedCategories = participants.filter(p => {
       const formsDivision = getEffectiveDivision(p, 'forms');
       const sparringDivision = getEffectiveDivision(p, 'sparring');
-      const needsForms = formsDivision && formsDivision !== 'not participating';
-      const needsSparring = sparringDivision && sparringDivision !== 'not participating';
+      const needsForms = !!formsDivision;
+      const needsSparring = !!sparringDivision;
       return (needsForms && !p.formsCategoryId) || (needsSparring && !p.sparringCategoryId);
     }).length;
 
@@ -205,8 +205,34 @@ function App() {
             };
           });
           
+          // Clean up orphaned category references (category IDs that no longer exist)
+          // Note: With deterministic category IDs, this should rarely be needed
+          const validCategoryIds = new Set((state.categories || []).map((c: any) => c.id));
+          let cleanupCount = 0;
+          const cleanedParticipants = (state.participants || []).map((p: any) => {
+            const cleaned = { ...p, sparringAltRing: p.sparringAltRing || '' };
+            
+            if (cleaned.formsCategoryId && !validCategoryIds.has(cleaned.formsCategoryId)) {
+              console.warn(`Cleaning orphaned formsCategoryId "${cleaned.formsCategoryId}" from ${p.firstName} ${p.lastName}`);
+              cleaned.formsCategoryId = undefined;
+              cleanupCount++;
+            }
+            
+            if (cleaned.sparringCategoryId && !validCategoryIds.has(cleaned.sparringCategoryId)) {
+              console.warn(`Cleaning orphaned sparringCategoryId "${cleaned.sparringCategoryId}" from ${p.firstName} ${p.lastName}`);
+              cleaned.sparringCategoryId = undefined;
+              cleanupCount++;
+            }
+            
+            return cleaned;
+          });
+          
+          if (cleanupCount > 0) {
+            console.log(`✓ Cleaned up ${cleanupCount} orphaned category references`);
+          }
+          
           useTournamentStore.setState({
-            participants: (state.participants || []).map((p: any) => ({ ...p, sparringAltRing: p.sparringAltRing || '' })),
+            participants: cleanedParticipants,
             categories: state.categories || [],
             competitionRings: state.competitionRings || [],
             config: { 

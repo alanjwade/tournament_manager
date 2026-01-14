@@ -37,8 +37,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     heightInches: '',
     school: '',
     branch: '',
+    competingForms: '',
     formsDivision: '',
     sparringDivision: '',
+    competingSparring: '',
     formsCategory: '',
     sparringCategory: '',
     formsRing: '',
@@ -78,8 +80,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         heightInches: '',
         school: '',
         branch: '',
+        competingForms: '',
         formsDivision: '',
         sparringDivision: '',
+        competingSparring: '',
         formsCategory: '',
         sparringCategory: '',
         formsRing: '',
@@ -115,9 +119,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     return config.divisions.map(d => d.name);
   }, [config]);
 
-  // Legal values for forms and sparring divisions
-  const formsOptions = ['not participating', 'same as sparring', ...divisionOptions];
-  const sparringOptions = ['not participating', 'same as forms', ...divisionOptions];
+  // Legal values for forms and sparring divisions - now just division names or not participating (shown as null)
+  const formsOptions = ['Not Participating', ...divisionOptions];
+  const sparringOptions = ['Not Participating', ...divisionOptions];
 
   // Get all unique physical ring names from mappings (simple list)
   const physicalRingOptions = useMemo(() => {
@@ -228,33 +232,33 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     return pools;
   };
 
-  // Update participant division
+  // Update participant division - simplified, no more "same as" logic
   const updateParticipantDivision = (participantId: string, field: 'formsDivision' | 'sparringDivision', value: string) => {
     const updatedParticipants = participants.map(p => {
       if (p.id === participantId) {
-        const updates: Partial<Participant> = { [field]: value };
+        // Convert "Not Participating" to null
+        const divisionValue = value === 'Not Participating' ? null : value;
+        const updates: Partial<Participant> = { [field]: divisionValue };
         
         // Update competing flags
         if (field === 'formsDivision') {
-          updates.competingForms = value !== 'not participating' && value !== 'same as sparring';
+          updates.competingForms = divisionValue !== null;
           
-          // Clear category and pool when setting to "not participating"
-          if (value === 'not participating') {
+          // Save current assignment before clearing (for reinstatement)
+          if (divisionValue === null) {
+            updates.lastFormsCategoryId = p.formsCategoryId;
+            updates.lastFormsPool = p.formsPool;
             updates.formsCategoryId = undefined;
             updates.formsPool = undefined;
             updates.formsRankOrder = undefined;
           }
         } else if (field === 'sparringDivision') {
-          updates.competingSparring = value !== 'not participating';
+          updates.competingSparring = divisionValue !== null;
           
-          // When setting sparring to "same as forms", copy forms category and pool
-          if (value === 'same as forms') {
-            updates.sparringCategoryId = p.formsCategoryId;
-            updates.sparringPool = p.formsPool;
-          }
-          
-          // Clear category and pool when setting to "not participating"
-          if (value === 'not participating') {
+          // Save current assignment before clearing (for reinstatement)
+          if (divisionValue === null) {
+            updates.lastSparringCategoryId = p.sparringCategoryId;
+            updates.lastSparringPool = p.sparringPool;
             updates.sparringCategoryId = undefined;
             updates.sparringPool = undefined;
             updates.sparringRankOrder = undefined;
@@ -397,11 +401,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       const formsOrder = p.formsRankOrder ? p.formsRankOrder.toString() : '';
       const sparringOrder = p.sparringRankOrder ? p.sparringRankOrder.toString() : '';
       
-      // Get ring names and physical ring names
-      const formsRing = competitionRings.find(r => r.id === p.formsRingId);
-      const sparringRing = competitionRings.find(r => r.id === p.sparringRingId);
-      const formsRingName = formsRing?.name || '';
-      const sparringRingName = sparringRing?.name || '';
+      // Get pool values for filtering
+      const formsPoolValue = p.formsPool || '';
+      const sparringPoolValue = p.sparringPool || '';
       
       // Get physical ring names from mappings
       const formsPhysicalMapping = physicalRingMappings.find(m => 
@@ -414,12 +416,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       const sparringPhysicalRingName = sparringPhysicalMapping?.physicalRingName || '';
       
       // For division filters, check if EITHER forms OR sparring division matches
-      // This allows filtering by division even if one is "same as forms" or "none"
       const formsDivisionMatch = filters.formsDivision 
-        ? p.formsDivision.toLowerCase().includes(filters.formsDivision.toLowerCase())
+        ? (p.formsDivision || '').toLowerCase().includes(filters.formsDivision.toLowerCase())
         : true;
       const sparringDivisionMatch = filters.sparringDivision
-        ? p.sparringDivision.toLowerCase().includes(filters.sparringDivision.toLowerCase())
+        ? (p.sparringDivision || '').toLowerCase().includes(filters.sparringDivision.toLowerCase())
         : true;
       
       // If both division filters are set to the same value (from global filter),
@@ -440,8 +441,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         divisionMatch &&
         formsCohortName.toLowerCase().includes(filters.formsCategory.toLowerCase()) &&
         sparringCohortName.toLowerCase().includes(filters.sparringCategory.toLowerCase()) &&
-        formsRingName.toLowerCase().includes(filters.formsRing.toLowerCase()) &&
-        sparringRingName.toLowerCase().includes(filters.sparringRing.toLowerCase()) &&
+        formsPoolValue.toLowerCase().includes(filters.formsRing.toLowerCase()) &&
+        sparringPoolValue.toLowerCase().includes(filters.sparringRing.toLowerCase()) &&
         formsPhysicalRingName.toLowerCase().includes(filters.formsPhysicalRing.toLowerCase()) &&
         sparringPhysicalRingName.toLowerCase().includes(filters.sparringPhysicalRing.toLowerCase()) &&
         (p.sparringAltRing || '').toLowerCase().includes(filters.sparringAltRing.toLowerCase()) &&
@@ -580,6 +581,18 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
+              <th className="forms-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
+                Competing Forms
+                <select
+                  value={filters.competingForms}
+                  onChange={(e) => updateFilter('competingForms', e.target.value)}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                >
+                  <option value="">All</option>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+              </th>
               <th className="forms-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px' }}>
                 Forms Division
                 <select
@@ -632,6 +645,18 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   onChange={(e) => updateFilter('formsOrder', e.target.value)}
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
+              </th>
+              <th className="sparring-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
+                Competing Sparring
+                <select
+                  value={filters.competingSparring}
+                  onChange={(e) => updateFilter('competingSparring', e.target.value)}
+                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
+                >
+                  <option value="">All</option>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
               </th>
               <th className="sparring-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '150px' }}>
                 Sparring Division
@@ -737,9 +762,18 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>{p.heightInches}</td>
                 <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.school}</td>
                 <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.branch || ''}</td>
+                <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <span style={{ 
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    color: p.competingForms ? '#28a745' : '#dc3545'
+                  }}>
+                    {p.competingForms ? '✓' : '✗'}
+                  </span>
+                </td>
                 <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   <select
-                    value={p.formsDivision}
+                    value={p.formsDivision ?? 'Not Participating'}
                     onChange={(e) => updateParticipantDivision(p.id, 'formsDivision', e.target.value)}
                     style={{ 
                       width: '100%', 
@@ -758,68 +792,26 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 </td>
                 <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
-                    <select
-                      value={p.formsCategoryId || ''}
-                      onChange={(e) => updateParticipantCohort(p.id, 'formsCategoryId', e.target.value)}
-                      style={{ 
-                        width: '100%', 
-                        padding: '4px',
-                        border: '1px solid var(--input-border)',
-                        borderRadius: '3px',
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                        backgroundColor: 'var(--input-bg)'
-                      }}
-                    >
-                      <option value="">Not assigned</option>
-                      {formsCohortOptions.map(option => (
-                        <option key={option.id} value={option.id}>{option.name}</option>
-                      ))}
-                    </select>
+                    <span style={{ fontSize: '12px' }}>
+                      {formsCategory?.name || 'Not assigned'}
+                    </span>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
-                    <select
-                      value={p.formsPool || ''}
-                      onChange={(e) => updateParticipantCohortRing(p.id, 'formsPool', e.target.value)}
-                      style={{ 
-                        width: '100%', 
-                        padding: '4px',
-                        border: '1px solid var(--input-border)',
-                        borderRadius: '3px',
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                        backgroundColor: 'var(--input-bg)'
-                      }}
-                    >
-                      <option value="">Not assigned</option>
-                      {getPoolOptionsForCategory(p.formsCategoryId).map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
+                    <span style={{ fontSize: '12px' }}>
+                      {p.formsPool || 'Not assigned'}
+                    </span>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="forms-physical-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
-                    <select
-                      value={formsPhysicalMapping?.physicalRingName || ''}
-                      onChange={(e) => updateParticipantPhysicalRing(p.id, 'forms', e.target.value)}
-                      style={{ 
-                        width: '100%', 
-                        padding: '4px',
-                        border: '1px solid var(--input-border)',
-                        borderRadius: '3px',
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                        background: formsPhysicalMapping?.physicalRingName ? 'var(--input-bg)' : 'var(--warning-bg)'
-                      }}
-                    >
-                      <option value="">Not assigned</option>
-                      {physicalRingOptionsWithDivision.map(option => (
-                        <option key={`${option.division}-${option.value}`} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
+                    <span style={{ 
+                      fontSize: '12px',
+                      color: formsPhysicalMapping?.physicalRingName ? 'var(--text-primary)' : 'var(--text-muted)'
+                    }}>
+                      {formsPhysicalMapping?.physicalRingName || 'Not mapped'}
+                    </span>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
@@ -841,9 +833,18 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                     />
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>}
                 </td>
+                <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <span style={{ 
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    color: p.competingSparring ? '#28a745' : '#dc3545'
+                  }}>
+                    {p.competingSparring ? '✓' : '✗'}
+                  </span>
+                </td>
                 <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   <select
-                    value={p.sparringDivision}
+                    value={p.sparringDivision ?? 'Not Participating'}
                     onChange={(e) => updateParticipantDivision(p.id, 'sparringDivision', e.target.value)}
                     style={{ 
                       width: '100%', 
@@ -862,68 +863,26 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 </td>
                 <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
-                    <select
-                      value={p.sparringCategoryId || ''}
-                      onChange={(e) => updateParticipantCohort(p.id, 'sparringCategoryId', e.target.value)}
-                      style={{ 
-                        width: '100%', 
-                        padding: '4px',
-                        border: '1px solid var(--input-border)',
-                        borderRadius: '3px',
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                        backgroundColor: 'var(--input-bg)'
-                      }}
-                    >
-                      <option value="">Not assigned</option>
-                      {sparringCohortOptions.map(option => (
-                        <option key={option.id} value={option.id}>{option.name}</option>
-                      ))}
-                    </select>
+                    <span style={{ fontSize: '12px' }}>
+                      {sparringCategory?.name || 'Not assigned'}
+                    </span>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
-                    <select
-                      value={p.sparringPool || ''}
-                      onChange={(e) => updateParticipantCohortRing(p.id, 'sparringPool', e.target.value)}
-                      style={{ 
-                        width: '100%', 
-                        padding: '4px',
-                        border: '1px solid var(--input-border)',
-                        borderRadius: '3px',
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                        backgroundColor: 'var(--input-bg)'
-                      }}
-                    >
-                      <option value="">Not assigned</option>
-                      {getPoolOptionsForCategory(p.sparringCategoryId).map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
+                    <span style={{ fontSize: '12px' }}>
+                      {p.sparringPool || 'Not assigned'}
+                    </span>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="sparring-physical-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
-                    <select
-                      value={sparringPhysicalMapping?.physicalRingName || ''}
-                      onChange={(e) => updateParticipantPhysicalRing(p.id, 'sparring', e.target.value)}
-                      style={{ 
-                        width: '100%', 
-                        padding: '4px',
-                        border: '1px solid var(--input-border)',
-                        borderRadius: '3px',
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                        background: sparringPhysicalMapping?.physicalRingName ? 'var(--input-bg)' : 'var(--warning-bg)'
-                      }}
-                    >
-                      <option value="">Not assigned</option>
-                      {physicalRingOptionsWithDivision.map(option => (
-                        <option key={`${option.division}-${option.value}`} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
+                    <span style={{ 
+                      fontSize: '12px',
+                      color: sparringPhysicalMapping?.physicalRingName ? 'var(--text-primary)' : 'var(--text-muted)'
+                    }}>
+                      {sparringPhysicalMapping?.physicalRingName || 'Not mapped'}
+                    </span>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="sparring-alt-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>

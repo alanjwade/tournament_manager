@@ -4,7 +4,6 @@ import { getEffectiveSparringInfo, getEffectiveFormsInfo } from './computeRings'
 /**
  * Check if a sparring ring has mixed alt ring assignments (some set, some not).
  * Returns validation status for alt ring assignments.
- * Resolves "same as forms" sparring division to use forms category/pool.
  */
 export function checkSparringAltRingStatus(
   participants: Participant[],
@@ -43,7 +42,6 @@ function hashName(firstName: string, lastName: string): number {
 
 /**
  * Order Forms participants by distributing schools and assigning rank order.
- * Resolves "same as sparring" forms division to use sparring category/pool.
  * @param participants - All participants
  * @param categoryId - The category ID (or legacy ringId for backward compatibility)
  * @param pool - Optional: The pool identifier (e.g., "R1", "R2")
@@ -53,7 +51,7 @@ export function orderFormsRing(
   categoryId: string,
   pool?: string
 ): Participant[] {
-  // Filter participants for this ring - resolve "same as sparring" automatically
+  // Filter participants for this ring
   const ringParticipants = participants.filter((p) => {
     const effective = getEffectiveFormsInfo(p);
     // Use effective formsCategoryId and formsPool
@@ -155,7 +153,6 @@ export function orderFormsRing(
 /**
  * Order Sparring participants by height and assign rank order.
  * Handles sparringAltRing subdivision ('a' and 'b' groups).
- * Resolves "same as forms" sparring division to use forms category/pool.
  * @param participants - All participants
  * @param categoryId - The category ID (or legacy ringId for backward compatibility)
  * @param pool - Optional: The pool identifier (e.g., "R1", "R2")
@@ -165,7 +162,7 @@ export function orderSparringRing(
   categoryId: string,
   pool?: string
 ): Participant[] {
-  // Filter participants for this ring - resolve "same as forms" automatically
+  // Filter participants for this ring
   const ringParticipants = participants.filter((p) => {
     const effective = getEffectiveSparringInfo(p);
     // Use effective sparringCategoryId and sparringPool

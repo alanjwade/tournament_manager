@@ -110,7 +110,7 @@ export function generateNameTags(
     let physicalRingName = '';
     let ringColor = '';
     
-    // Get physical ring from pool mapping - use effective forms info (resolves "same as sparring")
+    // Get physical ring from pool mapping
     const effectiveForms = getEffectiveFormsInfo(participant);
     if (effectiveForms.pool && effectiveForms.categoryId && physicalRingMappings && categories) {
       // Find the category to get its name

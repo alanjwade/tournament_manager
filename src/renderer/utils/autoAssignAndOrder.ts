@@ -31,8 +31,25 @@ export function autoAssignAndOrderCategory(
   }
 
   sortedParticipants.forEach((participant, index) => {
-    const poolIndex = (index % poolsNeeded) + 1;
-    const poolName = `P${poolIndex}`;
+    let poolName: string;
+    
+    // If this is sparring and the participant already has a forms pool assigned,
+    // try to use the same pool number (if it exists in this category)
+    if (category.type === 'sparring' && participant.formsPool) {
+      const formsPoolNum = parseInt(participant.formsPool.replace('P', ''));
+      if (formsPoolNum <= poolsNeeded) {
+        poolName = participant.formsPool;
+      } else {
+        // Forms pool number is too high, use round-robin
+        const poolIndex = (index % poolsNeeded) + 1;
+        poolName = `P${poolIndex}`;
+      }
+    } else {
+      // For forms, or sparring without forms pool, use round-robin
+      const poolIndex = (index % poolsNeeded) + 1;
+      poolName = `P${poolIndex}`;
+    }
+    
     poolAssignments.get(poolName)!.push(participant);
   });
 

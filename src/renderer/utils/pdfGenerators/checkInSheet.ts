@@ -89,7 +89,7 @@ export function generateCheckInSheet(
       doc.setFontSize(9);
     }
 
-    // Get ring info - use effective forms pool (resolves "same as sparring")
+    // Get ring info - use effective forms pool
     let ringNumber = '';
     let ringColor = '';
     

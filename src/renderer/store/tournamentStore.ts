@@ -92,8 +92,38 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   checkpoints: [],
 
   setParticipants: (participants) => {
-    // Normalize participant objects to include newer fields with defaults
-    const normalized = participants.map(p => ({ ...p, sparringAltRing: (p as any).sparringAltRing || '' }));
+    // Normalize participant objects - migrate from old model to new
+    const normalized = participants.map(p => {
+      const normalized: any = { ...p, sparringAltRing: (p as any).sparringAltRing || '' };
+      
+      // Migrate "not participating" string to null
+      if (normalized.formsDivision === 'not participating') {
+        normalized.formsDivision = null;
+        normalized.competingForms = false;
+      }
+      if (normalized.sparringDivision === 'not participating') {
+        normalized.sparringDivision = null;
+        normalized.competingSparring = false;
+      }
+      
+      // Migrate "same as forms" - convert to explicit values
+      if (normalized.sparringDivision === 'same as forms') {
+        normalized.sparringDivision = normalized.formsDivision;
+        normalized.sparringCategoryId = normalized.sparringCategoryId || normalized.formsCategoryId;
+        normalized.sparringPool = normalized.sparringPool || normalized.formsPool;
+        normalized.competingSparring = normalized.competingForms;
+      }
+      
+      // Migrate "same as sparring" - convert to explicit values
+      if (normalized.formsDivision === 'same as sparring') {
+        normalized.formsDivision = normalized.sparringDivision;
+        normalized.formsCategoryId = normalized.formsCategoryId || normalized.sparringCategoryId;
+        normalized.formsPool = normalized.formsPool || normalized.sparringPool;
+        normalized.competingForms = normalized.competingSparring;
+      }
+      
+      return normalized as Participant;
+    });
     set({ participants: normalized });
     setTimeout(() => useTournamentStore.getState().autoSave(), 100);
   },

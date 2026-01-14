@@ -1,21 +1,13 @@
 import { Participant, Category, CompetitionRing, CategoryPoolMapping } from '../types/tournament';
 
 /**
- * Gets the effective sparring category ID and pool for a participant,
- * resolving "same as forms" to use forms values.
+ * Gets the effective sparring category ID and pool for a participant.
+ * With the simplified model, this now just returns the sparring values directly.
  */
 export function getEffectiveSparringInfo(participant: Participant): {
   categoryId: string | undefined;
   pool: string | undefined;
 } {
-  // If sparringDivision is "same as forms", use forms category/pool
-  if (participant.sparringDivision === 'same as forms') {
-    return {
-      categoryId: participant.formsCategoryId,
-      pool: participant.formsPool
-    };
-  }
-  // Otherwise use sparring values
   return {
     categoryId: participant.sparringCategoryId,
     pool: participant.sparringPool
@@ -23,21 +15,13 @@ export function getEffectiveSparringInfo(participant: Participant): {
 }
 
 /**
- * Gets the effective forms category ID and pool for a participant,
- * resolving "same as sparring" to use sparring values.
+ * Gets the effective forms category ID and pool for a participant.
+ * With the simplified model, this now just returns the forms values directly.
  */
 export function getEffectiveFormsInfo(participant: Participant): {
   categoryId: string | undefined;
   pool: string | undefined;
 } {
-  // If formsDivision is "same as sparring", use sparring category/pool
-  if (participant.formsDivision === 'same as sparring') {
-    return {
-      categoryId: participant.sparringCategoryId,
-      pool: participant.sparringPool
-    };
-  }
-  // Otherwise use forms values
   return {
     categoryId: participant.formsCategoryId,
     pool: participant.formsPool
@@ -69,7 +53,7 @@ export function computeCompetitionRings(
   }>();
   
   participants.forEach(participant => {
-    // Process Forms - resolve "same as sparring" if needed
+    // Process Forms
     const effectiveForms = getEffectiveFormsInfo(participant);
     if (participant.competingForms && effectiveForms.categoryId && effectiveForms.pool) {
       const key = `forms-${effectiveForms.categoryId}-${effectiveForms.pool}`;
@@ -84,8 +68,9 @@ export function computeCompetitionRings(
       ringGroups.get(key)!.participantIds.push(participant.id);
     }
     
-    // Process Sparring - resolve "same as forms" if needed
+    // Process Sparring
     const effectiveSparring = getEffectiveSparringInfo(participant);
+    
     if (participant.competingSparring && effectiveSparring.categoryId && effectiveSparring.pool) {
       const key = `sparring-${effectiveSparring.categoryId}-${effectiveSparring.pool}`;
       if (!ringGroups.has(key)) {
@@ -97,13 +82,25 @@ export function computeCompetitionRings(
         });
       }
       ringGroups.get(key)!.participantIds.push(participant.id);
+    } else if (effectiveSparring.categoryId && effectiveSparring.pool) {
+      // Log why participant was excluded from sparring ring
+      console.log(`[computeRings] ✗ EXCLUDED ${participant.firstName} ${participant.lastName}:`, {
+        competingSparring: participant.competingSparring,
+        categoryId: effectiveSparring.categoryId,
+        pool: effectiveSparring.pool
+      });
     }
   });
   
   // Convert groups to CompetitionRing objects
+  const ringNames = new Map<string, number>();
+  
   ringGroups.forEach((group, key) => {
     const category = categories.find(c => c.id === group.categoryId);
-    if (!category) return;
+    if (!category) {
+      console.warn(`[computeRings] ⚠️ Category not found for ID: ${group.categoryId}`);
+      return;
+    }
     
     // Look up physical ring mapping
     const mapping = categoryPoolMappings.find(m => 
@@ -117,7 +114,7 @@ export function computeCompetitionRings(
     // Display formatting happens in UI components
     const ringName = `${category.name}_${group.pool}`;
     
-    rings.push({
+    const ring = {
       id: key,
       division: category.division,
       categoryId: group.categoryId,
@@ -125,7 +122,23 @@ export function computeCompetitionRings(
       type: group.type,
       participantIds: group.participantIds,
       name: ringName
-    });
+    };
+    
+    if (group.type === 'sparring') {
+      console.log(`[computeRings] CREATED ${group.type} ring "${ringName}" with ${ring.participantIds.length} participants`);
+      console.log(`[computeRings]   Ring ID: ${ring.id}`);
+      console.log(`[computeRings]   Category ID: ${ring.categoryId}`);
+      
+      // Warn if duplicate ring names exist (different category IDs but same display name)
+      const existingCount = ringNames.get(ringName) || 0;
+      ringNames.set(ringName, existingCount + 1);
+      if (existingCount > 0) {
+        console.error(`[computeRings] ⚠️⚠️⚠️ DUPLICATE RING NAME "${ringName}" - This is ring #${existingCount + 1} with this name!`);
+        console.error(`[computeRings] ⚠️⚠️⚠️ Category ID: ${ring.categoryId} - Check for participants with wrong category IDs!`);
+      }
+    }
+    
+    rings.push(ring);
   });
   
   return rings;

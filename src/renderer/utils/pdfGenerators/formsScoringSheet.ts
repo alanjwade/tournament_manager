@@ -18,8 +18,9 @@ export function generateFormsScoringSheets(
     format: 'letter',
   });
   
-  // Track if this is the very first page in the master PDF
-  const isFirstPageInMaster = masterPdf && doc.getNumberOfPages() === 1;
+  // Track the initial page count - if creating new PDF it's 1, if master PDF it's whatever it already is
+  const initialPageCount = doc.getNumberOfPages();
+  let isFirstRing = true; // Track if this is the first ring being added
 
   const pageWidth = 8.5; // Letter width in inches
   const pageHeight = 11; // Letter height in inches
@@ -60,13 +61,14 @@ export function generateFormsScoringSheets(
       return letterA.localeCompare(letterB);
     });
 
-  let firstPage = isFirstPageInMaster; // Start as first page only if master PDF is on page 1
-
   divisionRings.forEach((ring) => {
-    if (!firstPage) {
+    // Only add a new page if this is NOT the very first ring AND we're starting fresh
+    // If masterPdf is provided, we add a page for all rings
+    // If masterPdf is NOT provided and this is the first ring, DON'T add a page
+    if (!isFirstRing || masterPdf) {
       doc.addPage();
     }
-    firstPage = false;
+    isFirstRing = false;
 
     // Get physical ring ID from mapping using the pool name
     const physicalRingId = ring.name && physicalRingMappings 

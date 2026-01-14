@@ -57,7 +57,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
       }
       
       // Count sparring separately
-      if (sparringDivision && sparringDivision !== 'not participating' && sparringDivision !== 'same as forms' && stats.has(sparringDivision) && p.sparringPool) {
+      if (sparringDivision && stats.has(sparringDivision) && p.sparringPool) {
         const s = stats.get(sparringDivision)!;
         // Only increment total if not already counted via forms (to avoid double counting)
         if (!formsDivision || formsDivision !== sparringDivision || !p.formsPool) {
