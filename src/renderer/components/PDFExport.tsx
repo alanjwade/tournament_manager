@@ -54,8 +54,6 @@ function PDFExport({ globalDivision }: PDFExportProps) {
   // State for forms/sparring advanced options
   const [formsExpanded, setFormsExpanded] = useState(false);
   const [sparringExpanded, setSparringExpanded] = useState(false);
-  const [selectedFormsDivision, setSelectedFormsDivision] = useState<string>('');
-  const [selectedSparringDivision, setSelectedSparringDivision] = useState<string>('');
   const [selectedFormsRings, setSelectedFormsRings] = useState<Set<string>>(new Set());
   const [selectedSparringRings, setSelectedSparringRings] = useState<Set<string>>(new Set());
   const [selectedFormsCheckpoint, setSelectedFormsCheckpoint] = useState<string>('');
@@ -88,14 +86,14 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     }
   }, [sortedCheckpoints]);
   
-  // Get available rings for selected divisions
+  // Get available rings for selected division
   const availableFormsRings = useMemo(() => {
-    if (!selectedFormsDivision) return [];
+    if (!selectedDivision) return [];
     return competitionRings
-      .filter(r => r.division === selectedFormsDivision && r.type === 'forms')
+      .filter(r => r.division === selectedDivision && r.type === 'forms')
       .sort((a, b) => {
         const getPhysicalRingNum = (ring: CompetitionRing) => {
-          const mapping = physicalRingMappings.find(m => m.cohortRingName === ring.name);
+          const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
           if (!mapping) return 999;
           const match = mapping.physicalRingName.match(/(\d+)([a-z]?)/i);
           if (!match) return 999;
@@ -103,15 +101,15 @@ function PDFExport({ globalDivision }: PDFExportProps) {
         };
         return getPhysicalRingNum(a) - getPhysicalRingNum(b);
       });
-  }, [selectedFormsDivision, competitionRings, physicalRingMappings]);
+  }, [selectedDivision, competitionRings, physicalRingMappings]);
   
   const availableSparringRings = useMemo(() => {
-    if (!selectedSparringDivision) return [];
+    if (!selectedDivision) return [];
     return competitionRings
-      .filter(r => r.division === selectedSparringDivision && r.type === 'sparring')
+      .filter(r => r.division === selectedDivision && r.type === 'sparring')
       .sort((a, b) => {
         const getPhysicalRingNum = (ring: CompetitionRing) => {
-          const mapping = physicalRingMappings.find(m => m.cohortRingName === ring.name);
+          const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
           if (!mapping) return 999;
           const match = mapping.physicalRingName.match(/(\d+)([a-z]?)/i);
           if (!match) return 999;
@@ -119,20 +117,20 @@ function PDFExport({ globalDivision }: PDFExportProps) {
         };
         return getPhysicalRingNum(a) - getPhysicalRingNum(b);
       });
-  }, [selectedSparringDivision, competitionRings, physicalRingMappings]);
+  }, [selectedDivision, competitionRings, physicalRingMappings]);
   
   // Update selected rings when division changes
   useEffect(() => {
-    if (selectedFormsDivision) {
+    if (selectedDivision && formsExpanded) {
       setSelectedFormsRings(new Set(availableFormsRings.map(r => r.id)));
     }
-  }, [selectedFormsDivision, availableFormsRings]);
+  }, [selectedDivision, availableFormsRings, formsExpanded]);
   
   useEffect(() => {
-    if (selectedSparringDivision) {
+    if (selectedDivision && sparringExpanded) {
       setSelectedSparringRings(new Set(availableSparringRings.map(r => r.id)));
     }
-  }, [selectedSparringDivision, availableSparringRings]);
+  }, [selectedDivision, availableSparringRings, sparringExpanded]);
 
   // Select rings that changed since checkpoint
   const handleSelectFormsDiff = () => {
@@ -158,7 +156,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     });
     
     if (affectedRings.size === 0) {
-      alert(`No forms rings changed in ${selectedFormsDivision} division since checkpoint`);
+      alert(`No forms rings changed in ${selectedDivision} division since checkpoint`);
     } else {
       setSelectedFormsRings(affectedRings);
     }
@@ -187,7 +185,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     });
     
     if (affectedRings.size === 0) {
-      alert(`No sparring rings changed in ${selectedSparringDivision} division since checkpoint`);
+      alert(`No sparring rings changed in ${selectedDivision} division since checkpoint`);
     } else {
       setSelectedSparringRings(affectedRings);
     }
@@ -270,7 +268,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
   };
   
   const handleExportFormsAdvanced = async (printDirectly: boolean = false) => {
-    if (!selectedFormsDivision) {
+    if (!selectedDivision) {
       alert('Please select a division');
       return;
     }
@@ -290,7 +288,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       participants,
       filteredRings,
       config.physicalRings,
-      selectedFormsDivision,
+      selectedDivision,
       config.watermarkImage,
       physicalRingMappings
     );
@@ -311,7 +309,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
         URL.revokeObjectURL(pdfUrl);
       }
     } else {
-      await savePDF(pdf, `forms-scoring-${selectedFormsDivision}.pdf`);
+      await savePDF(pdf, `forms-scoring-${selectedDivision}.pdf`);
     }
   };
 
@@ -333,7 +331,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
   };
   
   const handleExportSparringAdvanced = async (printDirectly: boolean = false) => {
-    if (!selectedSparringDivision) {
+    if (!selectedDivision) {
       alert('Please select a division');
       return;
     }
@@ -353,7 +351,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       participants,
       filteredRings,
       config.physicalRings,
-      selectedSparringDivision,
+      selectedDivision,
       config.watermarkImage,
       physicalRingMappings
     );
@@ -374,7 +372,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
         URL.revokeObjectURL(pdfUrl);
       }
     } else {
-      await savePDF(pdf, `sparring-brackets-${selectedSparringDivision}.pdf`);
+      await savePDF(pdf, `sparring-brackets-${selectedDivision}.pdf`);
     }
   };
 
@@ -460,384 +458,381 @@ function PDFExport({ globalDivision }: PDFExportProps) {
         </select>
       </div>
 
-      <div className="grid grid-2 mt-2">
+      {/* Single column layout */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        
         {/* Name Tags */}
-        <div className="card" style={{ padding: '15px' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Name Tags</h3>
-          <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-            Print name tags for all participants in the selected division (2x4
-            grid per page).
-          </p>
-          <button
-            className="btn btn-primary"
-            onClick={handleExportNameTags}
-            disabled={!selectedDivision || exporting}
-          >
-            {exporting ? 'Exporting...' : 'Export Name Tags'}
-          </button>
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', marginTop: 0 }}>Name Tags</h3>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: 0 }}>
+                Print name tags for all participants (2x4 grid per page).
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleExportNameTags}
+              disabled={!selectedDivision || exporting}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {exporting ? 'Exporting...' : `Export ${selectedDivision} Name Tags`}
+            </button>
+          </div>
         </div>
 
         {/* Check-In Sheet */}
-        <div className="card" style={{ padding: '15px' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>
-            Check-In Sheet
-          </h3>
-          <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-            Print check-in sheet with participants sorted by last name.
-          </p>
-          <button
-            className="btn btn-primary"
-            onClick={handleExportCheckIn}
-            disabled={!selectedDivision || exporting}
-          >
-            {exporting ? 'Exporting...' : 'Export Check-In Sheet'}
-          </button>
-        </div>
-
-        {/* Forms Scoring Sheets - Simple */}
-        <div className="card" style={{ padding: '15px' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>
-            Forms Scoring Sheets
-          </h3>
-          <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-            Print scoring sheets for all forms rings in the selected division.
-          </p>
-          <button
-            className="btn btn-primary"
-            onClick={handleExportFormsScoring}
-            disabled={!selectedDivision || exporting}
-          >
-            {exporting ? 'Exporting...' : 'Export Forms Scoring'}
-          </button>
-        </div>
-
-        {/* Sparring Brackets - Simple */}
-        <div className="card" style={{ padding: '15px' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>
-            Sparring Brackets
-          </h3>
-          <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-            Print 16-person tournament brackets for all sparring rings.
-          </p>
-          <button
-            className="btn btn-primary"
-            onClick={handleExportSparringBrackets}
-            disabled={!selectedDivision || exporting}
-          >
-            {exporting ? 'Exporting...' : 'Export Sparring Brackets'}
-          </button>
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', marginTop: 0 }}>Check-In Sheet</h3>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: 0 }}>
+                Print check-in sheet with participants sorted by last name.
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleExportCheckIn}
+              disabled={!selectedDivision || exporting}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {exporting ? 'Exporting...' : `Export ${selectedDivision} Check-In`}
+            </button>
+          </div>
         </div>
 
         {/* Ring Overview */}
-        <div className="card" style={{ padding: '15px' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>
-            Ring Overview
-          </h3>
-          <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-            Print complete ring overview with all participants by ring. Select "All Divisions" or a specific division.
-          </p>
-          <button
-            className="btn btn-primary"
-            onClick={handleExportRingOverview}
-            disabled={exporting}
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', marginTop: 0 }}>Ring Overview</h3>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: 0 }}>
+                Print complete ring overview with all participants by ring.
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleExportRingOverview}
+              disabled={exporting}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {exporting ? 'Exporting...' : `Export ${selectedDivision} Overview`}
+            </button>
+          </div>
+        </div>
+
+        {/* Forms Scoring Sheets - All */}
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', marginTop: 0 }}>Forms Scoring Sheets (All)</h3>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: 0 }}>
+                Print scoring sheets for all forms rings in the selected division.
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleExportFormsScoring}
+              disabled={!selectedDivision || exporting}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {exporting ? 'Exporting...' : `Export ${selectedDivision} Forms`}
+            </button>
+          </div>
+        </div>
+
+        {/* Forms Scoring Sheets - Advanced */}
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--info-bg)' }}>
+          <div 
+            style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              cursor: 'pointer',
+            }}
+            onClick={() => setFormsExpanded(!formsExpanded)}
           >
-            {exporting ? 'Exporting...' : 'Export Ring Overview'}
-          </button>
-        </div>
-      </div>
-
-      {/* Advanced Forms Scoring Options */}
-      <div className="card mt-2">
-        <div 
-          style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            cursor: 'pointer',
-            padding: '10px 0'
-          }}
-          onClick={() => setFormsExpanded(!formsExpanded)}
-        >
-          <h3 style={{ fontSize: '16px', margin: 0 }}>
-            Advanced Forms Scoring Options
-          </h3>
-          <span style={{ fontSize: '20px' }}>{formsExpanded ? '▼' : '▶'}</span>
-        </div>
-        
-        {formsExpanded && (
-          <div style={{ marginTop: '15px' }}>
-            <div className="form-group">
-              <label className="form-label">Select Division</label>
-              <select
-                className="form-control"
-                value={selectedFormsDivision}
-                onChange={(e) => setSelectedFormsDivision(e.target.value)}
-              >
-                <option value="">Choose a division...</option>
-                {config.divisions.map((div) => (
-                  <option key={div.name} value={div.name}>
-                    {div.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {selectedFormsDivision && availableFormsRings.length > 0 && (
-              <>
-                <div className="form-group mt-2">
-                  <label className="form-label">Select Rings to Print</label>
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '10px',
-                    marginBottom: '10px',
-                    flexWrap: 'wrap'
-                  }}>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => setSelectedFormsRings(new Set(availableFormsRings.map(r => r.id)))}
-                      style={{ fontSize: '12px', padding: '5px 10px' }}
-                    >
-                      Select All
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => setSelectedFormsRings(new Set())}
-                      style={{ fontSize: '12px', padding: '5px 10px' }}
-                    >
-                      Deselect All
-                    </button>
-                    {checkpoints.length > 0 && (
-                      <>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={handleSelectFormsDiff}
-                          style={{ fontSize: '12px', padding: '5px 10px' }}
-                        >
-                          Select Diff from Checkpoint
-                        </button>
-                        <select
-                          value={selectedFormsCheckpoint}
-                          onChange={(e) => setSelectedFormsCheckpoint(e.target.value)}
-                          style={{ fontSize: '12px', padding: '5px 10px' }}
-                        >
-                          {sortedCheckpoints.map(cp => (
-                            <option key={cp.id} value={cp.id}>
-                              {cp.name} ({new Date(cp.timestamp).toLocaleString()})
-                            </option>
-                          ))}
-                        </select>
-                      </>
-                    )}
-                  </div>
-                  <div style={{ 
-                    maxHeight: '200px', 
-                    overflowY: 'auto',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    padding: '10px'
-                  }}>
-                    {availableFormsRings.map((ring) => {
-                      const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
-                      const physicalRing = mapping?.physicalRingName || 'No Physical Ring';
-                      
-                      return (
-                        <div key={ring.id} style={{ marginBottom: '8px' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={selectedFormsRings.has(ring.id)}
-                              onChange={(e) => {
-                                const newSet = new Set(selectedFormsRings);
-                                if (e.target.checked) {
-                                  newSet.add(ring.id);
-                                } else {
-                                  newSet.delete(ring.id);
-                                }
-                                setSelectedFormsRings(newSet);
-                              }}
-                              style={{ marginRight: '8px' }}
-                            />
-                            <span>{ring.name || 'Unnamed Ring'} - {physicalRing} ({ring.participantIds.length} participants)</span>
-                          </label>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => handleExportFormsAdvanced(false)}
-                    disabled={selectedFormsRings.size === 0 || exporting}
-                  >
-                    {exporting ? 'Exporting...' : 'Export to File'}
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => handleExportFormsAdvanced(true)}
-                    disabled={selectedFormsRings.size === 0 || exporting}
-                  >
-                    Print Directly
-                  </button>
-                </div>
-              </>
-            )}
-            
-            {selectedFormsDivision && availableFormsRings.length === 0 && (
-              <div className="warning mt-2">
-                No forms rings found for this division.
-              </div>
-            )}
+            <h3 style={{ fontSize: '16px', margin: 0 }}>
+              Select Specific Forms Rings
+            </h3>
+            <span style={{ fontSize: '20px' }}>{formsExpanded ? '▼' : '▶'}</span>
           </div>
-        )}
-      </div>
-
-      {/* Advanced Sparring Brackets Options */}
-      <div className="card mt-2">
-        <div 
-          style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            cursor: 'pointer',
-            padding: '10px 0'
-          }}
-          onClick={() => setSparringExpanded(!sparringExpanded)}
-        >
-          <h3 style={{ fontSize: '16px', margin: 0 }}>
-            Advanced Sparring Brackets Options
-          </h3>
-          <span style={{ fontSize: '20px' }}>{sparringExpanded ? '▼' : '▶'}</span>
-        </div>
-        
-        {sparringExpanded && (
-          <div style={{ marginTop: '15px' }}>
-            <div className="form-group">
-              <label className="form-label">Select Division</label>
-              <select
-                className="form-control"
-                value={selectedSparringDivision}
-                onChange={(e) => setSelectedSparringDivision(e.target.value)}
-              >
-                <option value="">Choose a division...</option>
-                {config.divisions.map((div) => (
-                  <option key={div.name} value={div.name}>
-                    {div.name}
-                  </option>
-                ))}
-              </select>
+          
+          {formsExpanded && (
+            <div style={{ marginTop: '15px' }}>
+              {selectedDivision && availableFormsRings.length > 0 && (
+                <>
+                  <div className="form-group mt-2">
+                    <label className="form-label">Select Rings to Print</label>
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '10px',
+                      marginBottom: '10px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setSelectedFormsRings(new Set(availableFormsRings.map(r => r.id)))}
+                        style={{ fontSize: '12px', padding: '5px 10px' }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setSelectedFormsRings(new Set())}
+                        style={{ fontSize: '12px', padding: '5px 10px' }}
+                      >
+                        Deselect All
+                      </button>
+                      {checkpoints.length > 0 && (
+                        <>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={handleSelectFormsDiff}
+                            style={{ fontSize: '12px', padding: '5px 10px' }}
+                          >
+                            Select Diff from Checkpoint
+                          </button>
+                          <select
+                            value={selectedFormsCheckpoint}
+                            onChange={(e) => setSelectedFormsCheckpoint(e.target.value)}
+                            style={{ fontSize: '12px', padding: '5px 10px' }}
+                          >
+                            {sortedCheckpoints.map(cp => (
+                              <option key={cp.id} value={cp.id}>
+                                {cp.name} ({new Date(cp.timestamp).toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ 
+                      maxHeight: '200px', 
+                      overflowY: 'auto',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '4px',
+                      padding: '10px'
+                    }}>
+                      {availableFormsRings.map((ring) => {
+                        const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
+                        const physicalRing = mapping?.physicalRingName || 'No Physical Ring';
+                        
+                        return (
+                          <div key={ring.id} style={{ marginBottom: '8px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedFormsRings.has(ring.id)}
+                                onChange={(e) => {
+                                  const newSet = new Set(selectedFormsRings);
+                                  if (e.target.checked) {
+                                    newSet.add(ring.id);
+                                  } else {
+                                    newSet.delete(ring.id);
+                                  }
+                                  setSelectedFormsRings(newSet);
+                                }}
+                                style={{ marginRight: '8px' }}
+                              />
+                              <span>{ring.name || 'Unnamed Ring'} - {physicalRing} ({ring.participantIds.length} participants)</span>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleExportFormsAdvanced(false)}
+                      disabled={selectedFormsRings.size === 0 || exporting}
+                    >
+                      {exporting ? 'Exporting...' : 'Export to File'}
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleExportFormsAdvanced(true)}
+                      disabled={selectedFormsRings.size === 0 || exporting}
+                    >
+                      Print Directly
+                    </button>
+                  </div>
+                </>
+              )}
+              
+              {!selectedDivision && (
+                <div className="warning mt-2">
+                  Please select a division at the top to view forms rings.
+                </div>
+              )}
+              
+              {selectedDivision && availableFormsRings.length === 0 && (
+                <div className="warning mt-2">
+                  No forms rings found for {selectedDivision}.
+                </div>
+              )}
             </div>
-            
-            {selectedSparringDivision && availableSparringRings.length > 0 && (
-              <>
-                <div className="form-group mt-2">
-                  <label className="form-label">Select Rings to Print</label>
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '10px',
-                    marginBottom: '10px',
-                    flexWrap: 'wrap'
-                  }}>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => setSelectedSparringRings(new Set(availableSparringRings.map(r => r.id)))}
-                      style={{ fontSize: '12px', padding: '5px 10px' }}
-                    >
-                      Select All
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => setSelectedSparringRings(new Set())}
-                      style={{ fontSize: '12px', padding: '5px 10px' }}
-                    >
-                      Deselect All
-                    </button>
-                    {checkpoints.length > 0 && (
-                      <>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={handleSelectSparringDiff}
-                          style={{ fontSize: '12px', padding: '5px 10px' }}
-                        >
-                          Select Diff from Checkpoint
-                        </button>
-                        <select
-                          value={selectedSparringCheckpoint}
-                          onChange={(e) => setSelectedSparringCheckpoint(e.target.value)}
-                          style={{ fontSize: '12px', padding: '5px 10px' }}
-                        >
-                          {sortedCheckpoints.map(cp => (
-                            <option key={cp.id} value={cp.id}>
-                              {cp.name} ({new Date(cp.timestamp).toLocaleString()})
-                            </option>
-                          ))}
-                        </select>
-                      </>
-                    )}
-                  </div>
-                  <div style={{ 
-                    maxHeight: '200px', 
-                    overflowY: 'auto',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    padding: '10px'
-                  }}>
-                    {availableSparringRings.map((ring) => {
-                      const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
-                      const physicalRing = mapping?.physicalRingName || 'No Physical Ring';
-                      
-                      return (
-                        <div key={ring.id} style={{ marginBottom: '8px' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={selectedSparringRings.has(ring.id)}
-                              onChange={(e) => {
-                                const newSet = new Set(selectedSparringRings);
-                                if (e.target.checked) {
-                                  newSet.add(ring.id);
-                                } else {
-                                  newSet.delete(ring.id);
-                                }
-                                setSelectedSparringRings(newSet);
-                              }}
-                              style={{ marginRight: '8px' }}
-                            />
-                            <span>{ring.name || 'Unnamed Ring'} - {physicalRing} ({ring.participantIds.length} participants)</span>
-                          </label>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => handleExportSparringAdvanced(false)}
-                    disabled={selectedSparringRings.size === 0 || exporting}
-                  >
-                    {exporting ? 'Exporting...' : 'Export to File'}
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => handleExportSparringAdvanced(true)}
-                    disabled={selectedSparringRings.size === 0 || exporting}
-                  >
-                    Print Directly
-                  </button>
-                </div>
-              </>
-            )}
-            
-            {selectedSparringDivision && availableSparringRings.length === 0 && (
-              <div className="warning mt-2">
-                No sparring rings found for this division.
-              </div>
-            )}
+          )}
+        </div>
+
+        {/* Sparring Brackets - All */}
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', marginTop: 0 }}>Sparring Brackets (All)</h3>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: 0 }}>
+                Print 16-person tournament brackets for all sparring rings.
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleExportSparringBrackets}
+              disabled={!selectedDivision || exporting}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {exporting ? 'Exporting...' : `Export ${selectedDivision} Sparring`}
+            </button>
           </div>
-        )}
+        </div>
+
+        {/* Sparring Brackets - Advanced */}
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--info-bg)' }}>
+          <div 
+            style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              cursor: 'pointer',
+            }}
+            onClick={() => setSparringExpanded(!sparringExpanded)}
+          >
+            <h3 style={{ fontSize: '16px', margin: 0 }}>
+              Select Specific Sparring Rings
+            </h3>
+            <span style={{ fontSize: '20px' }}>{sparringExpanded ? '▼' : '▶'}</span>
+          </div>
+          
+          {sparringExpanded && (
+            <div style={{ marginTop: '15px' }}>
+              {selectedDivision && availableSparringRings.length > 0 && (
+                <>
+                  <div className="form-group mt-2">
+                    <label className="form-label">Select Rings to Print</label>
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '10px',
+                      marginBottom: '10px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setSelectedSparringRings(new Set(availableSparringRings.map(r => r.id)))}
+                        style={{ fontSize: '12px', padding: '5px 10px' }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setSelectedSparringRings(new Set())}
+                        style={{ fontSize: '12px', padding: '5px 10px' }}
+                      >
+                        Deselect All
+                      </button>
+                      {checkpoints.length > 0 && (
+                        <>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={handleSelectSparringDiff}
+                            style={{ fontSize: '12px', padding: '5px 10px' }}
+                          >
+                            Select Diff from Checkpoint
+                          </button>
+                          <select
+                            value={selectedSparringCheckpoint}
+                            onChange={(e) => setSelectedSparringCheckpoint(e.target.value)}
+                            style={{ fontSize: '12px', padding: '5px 10px' }}
+                          >
+                            {sortedCheckpoints.map(cp => (
+                              <option key={cp.id} value={cp.id}>
+                                {cp.name} ({new Date(cp.timestamp).toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ 
+                      maxHeight: '200px', 
+                      overflowY: 'auto',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '4px',
+                      padding: '10px'
+                    }}>
+                      {availableSparringRings.map((ring) => {
+                        const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
+                        const physicalRing = mapping?.physicalRingName || 'No Physical Ring';
+                        
+                        return (
+                          <div key={ring.id} style={{ marginBottom: '8px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedSparringRings.has(ring.id)}
+                                onChange={(e) => {
+                                  const newSet = new Set(selectedSparringRings);
+                                  if (e.target.checked) {
+                                    newSet.add(ring.id);
+                                  } else {
+                                    newSet.delete(ring.id);
+                                  }
+                                  setSelectedSparringRings(newSet);
+                                }}
+                                style={{ marginRight: '8px' }}
+                              />
+                              <span>{ring.name || 'Unnamed Ring'} - {physicalRing} ({ring.participantIds.length} participants)</span>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleExportSparringAdvanced(false)}
+                      disabled={selectedSparringRings.size === 0 || exporting}
+                    >
+                      {exporting ? 'Exporting...' : 'Export to File'}
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleExportSparringAdvanced(true)}
+                      disabled={selectedSparringRings.size === 0 || exporting}
+                    >
+                      Print Directly
+                    </button>
+                  </div>
+                </>
+              )}
+              
+              {!selectedDivision && (
+                <div className="warning mt-2">
+                  Please select a division at the top to view sparring rings.
+                </div>
+              )}
+              
+              {selectedDivision && availableSparringRings.length === 0 && (
+                <div className="warning mt-2">
+                  No sparring rings found for {selectedDivision}.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
       </div>
 
       {!config.watermarkImage && (

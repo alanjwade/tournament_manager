@@ -157,48 +157,33 @@ ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint
     throw new Error('Main window not available');
   }
   
-  // If outputDirectory is provided, save directly without dialog
-  if (pdfData.outputDirectory) {
-    const filePath = path.join(pdfData.outputDirectory, pdfData.fileName);
+  // Determine output directory
+  let outputDir = pdfData.outputDirectory;
+  
+  // If no outputDirectory provided, use default pdf_outputs folder next to exe
+  if (!outputDir) {
+    // Get the directory where the app is running from
+    // In production, this is the directory containing the .exe on Windows
+    // In development, this is the project root
+    const appPath = process.env.NODE_ENV === 'development' 
+      ? app.getAppPath() 
+      : path.dirname(app.getPath('exe'));
     
-    try {
-      // Ensure the directory exists
-      const dir = path.dirname(filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      
-      // Write file directly, overwriting if exists
-      fs.writeFileSync(filePath, Buffer.from(pdfData.data));
-      return { success: true, path: filePath };
-    } catch (error) {
-      console.error('Error saving PDF:', error);
-      return { success: false, error: String(error) };
-    }
+    outputDir = path.join(appPath, 'pdf_outputs');
   }
   
-  // If no outputDirectory, show save dialog (fallback)
-  const result = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: pdfData.fileName,
-    filters: [
-      { name: 'PDF Files', extensions: ['pdf'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
-  });
-
-  if (result.canceled || !result.filePath) {
-    return { success: false };
-  }
-
+  const filePath = path.join(outputDir, pdfData.fileName);
+  
   try {
     // Ensure the directory exists
-    const dir = path.dirname(result.filePath);
+    const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
     
-    fs.writeFileSync(result.filePath, Buffer.from(pdfData.data));
-    return { success: true, path: result.filePath };
+    // Write file directly, overwriting if exists
+    fs.writeFileSync(filePath, Buffer.from(pdfData.data));
+    return { success: true, path: filePath };
   } catch (error) {
     console.error('Error saving PDF:', error);
     return { success: false, error: String(error) };

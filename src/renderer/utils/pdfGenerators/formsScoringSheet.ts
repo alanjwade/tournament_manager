@@ -62,10 +62,10 @@ export function generateFormsScoringSheets(
     });
 
   divisionRings.forEach((ring) => {
-    // Only add a new page if this is NOT the very first ring AND we're starting fresh
-    // If masterPdf is provided, we add a page for all rings
-    // If masterPdf is NOT provided and this is the first ring, DON'T add a page
-    if (!isFirstRing || masterPdf) {
+    // Only add a new page if NOT the first ring we're writing
+    // For individual prints, use the auto-generated first page
+    // For combined prints (masterPdf), add a page for each ring
+    if (!isFirstRing) {
       doc.addPage();
     }
     isFirstRing = false;
@@ -156,15 +156,15 @@ export function generateFormsScoringSheets(
     doc.text(titleText, margin, margin + 0.3);
     doc.setTextColor(0); // Reset to black
     
-    // Category ring name subtitle - add space below
+    // Category ring name subtitle - add space below title background
     if (ring.name) {
       doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
-      doc.text(formatPoolNameForDisplay(ring.name), margin, margin + 0.5);
+      doc.text(formatPoolNameForDisplay(ring.name), margin, margin + 0.8);
     }
 
     // Table - increased spacing below subtitle
-    let y = margin + 0.9; // Start below title with extra spacing
+    let y = margin + 1.2; // Start below title and subtitle with extra spacing
     const colWidths = {
       name: 2.5,
       school: 2.0,

@@ -206,7 +206,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
           <h5
             style={{
               margin: 0,
-              color: type === 'forms' ? '#007bff' : '#dc3545',
+              color: type === 'forms' ? 'var(--accent-primary)' : 'var(--accent-danger)',
               fontSize: '13px',
               fontWeight: '600',
             }}
@@ -225,7 +225,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
           </button>
         </div>
 
-        <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
           <div>
             <strong>Category:</strong> {category?.gender}, Ages {category?.minAge}-{category?.maxAge}
           </div>
@@ -245,7 +245,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
               );
             } else if (altStatus.status === 'all') {
               return (
-                <div style={{ color: '#5cb85c', marginTop: '4px' }}>
+                <div style={{ color: 'var(--accent-success)', marginTop: '4px' }}>
                   Split into alt rings: {altStatus.countA} in 'a', {altStatus.countB} in 'b'
                 </div>
               );
@@ -262,7 +262,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
           }}
         >
           <thead>
-            <tr style={{ backgroundColor: '#f8f9fa' }}>
+            <tr style={{ backgroundColor: 'var(--table-header-bg)' }}>
               <th style={{ padding: '4px' }}>Position</th>
               <th style={{ padding: '4px', textAlign: 'left' }}>Name</th>
               <th style={{ padding: '4px' }}>Age</th>
@@ -287,7 +287,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
               }
               
               return (
-                <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
+                <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>
                     {position || '-'}
                   </td>
@@ -355,29 +355,30 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', paddingRight: '10px' }}>
         {ringPairs.map((pair) => (
           <div
             key={pair.cohortRingName}
             style={{
-              border: '2px solid #ddd',
+              border: '2px solid var(--border-color)',
               borderRadius: '8px',
               padding: '15px',
               marginBottom: '20px',
-              backgroundColor: 'white',
+              backgroundColor: 'var(--bg-secondary)',
+              minWidth: 'fit-content',
             }}
           >
             <h4
               style={{
                 marginBottom: '15px',
-                color: '#333',
+                color: 'var(--text-primary)',
                 fontSize: '16px',
                 fontWeight: '600',
               }}
             >
               {pair.cohortRingName}
               {pair.physicalRingName && (
-                <span style={{ marginLeft: '10px', color: '#007bff', fontSize: '14px' }}>
+                <span style={{ marginLeft: '10px', color: 'var(--accent-primary)', fontSize: '14px' }}>
                   ({pair.physicalRingName})
                 </span>
               )}

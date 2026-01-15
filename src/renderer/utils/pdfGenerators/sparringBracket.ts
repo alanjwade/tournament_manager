@@ -86,7 +86,7 @@ export function generateSparringBrackets(
       .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
 
     // Check for alt ring status
-    const pool = ring.name?.match(/_R(\d+)$/)?.[0]?.substring(1); // Get "_R1" then remove "_" to get "R1"
+    const pool = ring.name?.split('_').pop(); // Get the pool part like "P1", "P2" etc.
     console.log('[sparringBracket] Ring:', ring.name, 'pool:', pool);
     const altStatus = pool 
       ? checkSparringAltRingStatus(participants, ring.categoryId, pool)
@@ -95,10 +95,10 @@ export function generateSparringBrackets(
 
     // Function to generate a bracket for a set of participants with a specific alt ring label
     const generateBracketForAltRing = (ringParticipants: Participant[], altRingLabel: string = '') => {
-      // Only add a new page if this is NOT the very first ring AND we're starting fresh
-      // If masterPdf is provided, we add a page for all rings
-      // If masterPdf is NOT provided and this is the first ring, DON'T add a page
-      if (!isFirstRingForDivision || masterPdf) {
+      // Only add a new page if NOT the first bracket we're writing
+      // For individual prints, use the auto-generated first page
+      // For combined prints (masterPdf), add a page for each bracket
+      if (!isFirstRingForDivision) {
         doc.addPage();
       }
       isFirstRingForDivision = false;
@@ -184,11 +184,11 @@ export function generateSparringBrackets(
       doc.text(titleText, margin, margin + 0.3);
       doc.setTextColor(0); // Reset to black
       
-      // Category ring name subtitle
+      // Category ring name subtitle - moved lower to avoid overlapping title background
       if (ring.name) {
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text(`${formatPoolNameForDisplay(ring.name)}${altRingLabel}`, margin, margin + 0.5);
+        doc.text(`${formatPoolNameForDisplay(ring.name)}${altRingLabel}`, margin, margin + 0.8);
       }
 
       console.log(`Ring ${ring.name}${altRingLabel}: ${ringParticipants.length} participants`);
@@ -207,19 +207,21 @@ export function generateSparringBrackets(
 
       // Final places table - upper right corner
       let x = pageWidth - 2.5; // 2.5" from right edge
-      let y = margin + 0.5; // 0.5" below top margin
+      let y = margin + 0.8; // Moved down 0.3" for more space
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.text('Final Places:', x, y);
       
-      y += 0.3;
+      y += 0.5; // Increased spacing to 0.5" below heading
       doc.setFontSize(10);
       const finalPlaces = ['1st Place:', '2nd Place:', '3rd Place:'];
+      const textStartX = x - 1.5; // Move text 1.5" to the left (additional 0.5")
+      const lineStartX = textStartX + 1.0; // Line starts closer to text
       finalPlaces.forEach((place) => {
-        doc.text(place, x, y);
+        doc.text(place, textStartX, y);
         doc.setLineWidth(0.01);
-        doc.line(x + 1.0, y, x + 2.2, y);
-        y += 0.3;
+        doc.line(lineStartX, y, textStartX + 3.2, y); // Line shortened - extends 3.2" from start
+        y += 0.4; // Increased spacing between items
       });
       
       // Add timestamp at bottom
@@ -262,90 +264,73 @@ interface BracketPlacement {
 function calculateBracketPlacements(participants: Participant[], maxRounds: number = 4): {
   placements: BracketPlacement[];
   startRound: number;
-  start2Round: number;
-  numStartRound: number;
-  numStart2Round: number;
   matchCount: number;
 } {
   const totalPeople = participants.length;
-  let startRound = 0;
-  let start2Round = 0;
-  let numStartRound = 0;
-  let numStart2Round = 0;
-  let slotsInNextRound = 0;
-
+  
   console.log(`Calculating placements for ${totalPeople} people, maxRounds=${maxRounds}`);
 
-  // Find which round we're going to start in
-  // For a 16-person bracket: Round 1 = 16 slots, Round 2 = 8 slots, Round 3 = 4 slots, Round 4 = 2 slots
+  // Determine starting round based on participant count
+  // Round 1 = 16 slots (8 matches), Round 2 = 8 slots (4 matches), 
+  // Round 3 = 4 slots (2 matches), Round 4 = 2 slots (1 match)
+  // Find the round where: slotsInRound/2 < totalPeople <= slotsInRound
+  let startRound = 1;
   for (let round = 1; round <= maxRounds; round++) {
-    const slotsInStartRound = Math.pow(2, maxRounds - round + 1); // +1 because we need PEOPLE not matches
-    slotsInNextRound = Math.pow(2, maxRounds - round); // Next round slots
-    
-    console.log(`  Round ${round}: slots=${slotsInStartRound}, nextSlots=${slotsInNextRound}`);
-    
-    if (totalPeople === slotsInStartRound) {
+    const slotsInRound = Math.pow(2, maxRounds - round + 1);
+    const slotsInPrevRound = slotsInRound * 2;
+    if (totalPeople > slotsInRound / 2 && totalPeople <= slotsInRound) {
       startRound = round;
-      start2Round = round;
-      numStartRound = totalPeople;
-      numStart2Round = 0;
-      console.log(`  -> Exact match! startRound=${startRound}`);
-      break;
-    } else if (totalPeople < slotsInStartRound && totalPeople > slotsInNextRound) {
-      startRound = round;
-      start2Round = round + 1;
-      
-      // need an even number to fight in the start round
-      numStartRound = 2 * (totalPeople - slotsInNextRound);
-      numStart2Round = totalPeople - numStartRound;
-      
-      console.log(`  -> Found range! startRound=${startRound}, start2Round=${start2Round}`);
-      console.log(`     numStartRound=${numStartRound}, numStart2Round=${numStart2Round}`);
-      break;
-      numStart2Round = totalPeople - numStartRound;
       break;
     }
   }
+  
+  const slotsInStartRound = Math.pow(2, maxRounds - startRound + 1);
+  const slotsInNextRound = Math.pow(2, maxRounds - startRound);
+  
+  // Calculate how many compete in start round vs get byes
+  // numCompeting compete in startRound, numWithByes get byes to nextRound
+  // numCompeting winners + numWithByes must equal slotsInNextRound
+  const numCompeting = 2 * (totalPeople - slotsInNextRound);
+  const numWithByes = totalPeople - numCompeting;
+  
+  console.log(`  StartRound=${startRound}, slots=${slotsInStartRound}`);
+  console.log(`  Competing in start round: ${numCompeting}, Getting byes: ${numWithByes}`);
 
   const placements: BracketPlacement[] = [];
   
-  // Place participants
-  // People with byes go FIRST (top positions), people competing in startRound go LAST (bottom positions)
-  for (let personIndex = 0; personIndex < totalPeople; personIndex++) {
-    let thisRound: number;
-    let thisPosition: number;
-    
-    if (personIndex < numStart2Round) {
-      // These people get byes to the second round - they go at the TOP
-      thisRound = start2Round;
-      thisPosition = personIndex;
-    } else {
-      // These people compete in the first round - they go at the BOTTOM
-      thisRound = startRound;
-      const slotsInStartRound = Math.pow(2, maxRounds - startRound + 1);
-      // Position them at the BOTTOM of the bracket
-      thisPosition = (personIndex - numStart2Round) + (slotsInStartRound - numStartRound);
-    }
-
+  // First p(2) participants (top-ranked) get byes to next round, filling from TOP
+  for (let i = 0; i < numWithByes; i++) {
     placements.push({
-      round: thisRound,
-      position: thisPosition,
-      participantId: participants[personIndex].id,
+      round: startRound + 1,
+      position: i,
+      participantId: participants[i].id,
       matchNumber: 0
     });
-    
-    console.log(`Placement ${personIndex}: ${participants[personIndex].firstName} at round=${thisRound}, pos=${thisPosition}`);
+    console.log(`  Placement ${i}: ${participants[i].firstName} at round=${startRound + 1}, pos=${i} (bye)`);
+  }
+  
+  // Last p(1) participants (lower-ranked) compete in start round, filling from BOTTOM up
+  for (let i = numWithByes; i < totalPeople; i++) {
+    const position = slotsInStartRound - numCompeting + (i - numWithByes);
+    placements.push({
+      round: startRound,
+      position: position,
+      participantId: participants[i].id,
+      matchNumber: 0
+    });
+    console.log(`  Placement ${i}: ${participants[i].firstName} at round=${startRound}, pos=${position} (competing)`);
   }
 
-  // Calculate match count
+  // Calculate total match count
   let matchCount = 0;
-  for (let round = startRound; round < maxRounds; round++) {
-    const slotsInThisRound = Math.pow(2, maxRounds - round);
-    const startPosition = round === startRound ? slotsInThisRound - numStartRound : 0;
-    matchCount += (slotsInThisRound - startPosition) / 2;
+  for (let round = startRound; round <= maxRounds; round++) {
+    const matchesInRound = Math.pow(2, maxRounds - round);
+    matchCount += matchesInRound;
   }
+  // Add 3rd place match
+  matchCount += 1;
 
-  return { placements, startRound, start2Round, numStartRound, numStart2Round, matchCount };
+  return { placements, startRound, matchCount };
 }
 
 function generate16PersonBracket(participants: Participant[]): Match[] {
@@ -353,72 +338,82 @@ function generate16PersonBracket(participants: Participant[]): Match[] {
   
   const { placements, startRound } = calculateBracketPlacements(participants, maxRounds);
   
-  // First, create all matches without numbers
+  console.log(`generate16PersonBracket: ${participants.length} participants, startRound=${startRound}`);
+  
+  // Create all matches - always create full bracket structure for visual consistency
   const allMatches: Match[] = [];
   
-  // Round 1 (8 matches) - ALWAYS create all 8
-  for (let i = 0; i < 8; i++) {
-    const pos1 = i * 2;
-    const pos2 = i * 2 + 1;
-    const p1 = placements.find(p => p.round === 1 && p.position === pos1);
-    const p2 = placements.find(p => p.round === 1 && p.position === pos2);
+  // Helper to get participants for a specific position in a specific round
+  const getParticipantsForMatch = (round: number, matchIndex: number): [string | undefined, string | undefined] => {
+    const position1 = matchIndex * 2;
+    const position2 = matchIndex * 2 + 1;
     
+    const p1 = placements.find(p => p.round === round && p.position === position1);
+    const p2 = placements.find(p => p.round === round && p.position === position2);
+    
+    return [p1?.participantId, p2?.participantId];
+  };
+  
+  // Round 1 - 8 matches (positions 0-15)
+  console.log('Creating Round 1 matches');
+  for (let i = 0; i < 8; i++) {
+    const [p1, p2] = getParticipantsForMatch(1, i);
     allMatches.push({
-      number: 0, // Will be set later
+      number: 0, // Will be assigned later
       round: 1,
       position: i * 2,
-      participant1: p1?.participantId,
-      participant2: p2?.participantId,
-      nextMatch: 0, // Will be set later
+      participant1: p1,
+      participant2: p2,
+      nextMatch: 0,
     });
   }
 
-  // Round 2 (4 matches) - ALWAYS create all 4
+  // Round 2 - 4 matches (positions 0-7)
+  console.log('Creating Round 2 matches');
   for (let i = 0; i < 4; i++) {
-    const pos1 = i * 2;
-    const pos2 = i * 2 + 1;
-    const p1 = placements.find(p => p.round === 2 && p.position === pos1);
-    const p2 = placements.find(p => p.round === 2 && p.position === pos2);
-    
+    const [p1, p2] = getParticipantsForMatch(2, i);
     allMatches.push({
       number: 0,
       round: 2,
       position: i * 2,
-      participant1: p1?.participantId,
-      participant2: p2?.participantId,
+      participant1: p1,
+      participant2: p2,
       nextMatch: 0,
     });
   }
 
-  // Round 3 (2 matches) - ALWAYS create both
+  // Round 3 - 2 matches (positions 0-3)
+  console.log('Creating Round 3 matches');
   for (let i = 0; i < 2; i++) {
-    const pos1 = i * 2;
-    const pos2 = i * 2 + 1;
-    const p1 = placements.find(p => p.round === 3 && p.position === pos1);
-    const p2 = placements.find(p => p.round === 3 && p.position === pos2);
-    
+    const [p1, p2] = getParticipantsForMatch(3, i);
     allMatches.push({
       number: 0,
       round: 3,
       position: i * 2,
-      participant1: p1?.participantId,
-      participant2: p2?.participantId,
+      participant1: p1,
+      participant2: p2,
       nextMatch: 0,
     });
   }
 
-  // Finals
+  // Finals - 1 match (positions 0-1)
+  const [f1, f2] = getParticipantsForMatch(4, 0);
   allMatches.push({
     number: 0,
     round: 4,
     position: 0,
+    participant1: f1,
+    participant2: f2,
   });
 
-  // Third place match
+  // Third place match - 1 match (positions 2-3)
+  const [t1, t2] = getParticipantsForMatch(4, 1);
   allMatches.push({
     number: 0,
     round: 4,
     position: 1,
+    participant1: t1,
+    participant2: t2,
   });
 
   // Now assign match numbers: top to bottom in each round, but 3rd place before finals
@@ -453,24 +448,31 @@ function generate16PersonBracket(participants: Participant[]): Match[] {
     finalsMatch.number = matchNumber++;
   }
   
-  // Set nextMatch references
+  // Set nextMatch references - only for matches that actually exist
   // Round 1 -> Round 2
-  for (let i = 0; i < 8; i++) {
-    const match = allMatches[i];
-    const nextMatchIndex = 8 + Math.floor(i / 2);
-    match.nextMatch = allMatches[nextMatchIndex].number || undefined;
-  }
+  const round1Matches = allMatches.filter(m => m.round === 1);
+  const round2Matches = allMatches.filter(m => m.round === 2);
+  round1Matches.forEach((match, index) => {
+    const nextMatchIndex = Math.floor(index / 2);
+    if (round2Matches[nextMatchIndex]) {
+      match.nextMatch = round2Matches[nextMatchIndex].number || undefined;
+    }
+  });
   
   // Round 2 -> Round 3
-  for (let i = 8; i < 12; i++) {
-    const match = allMatches[i];
-    const nextMatchIndex = 12 + Math.floor((i - 8) / 2);
-    match.nextMatch = allMatches[nextMatchIndex].number || undefined;
-  }
+  const round3Matches = allMatches.filter(m => m.round === 3);
+  round2Matches.forEach((match, index) => {
+    const nextMatchIndex = Math.floor(index / 2);
+    if (round3Matches[nextMatchIndex]) {
+      match.nextMatch = round3Matches[nextMatchIndex].number || undefined;
+    }
+  });
   
   // Round 3 -> Finals
-  for (let i = 12; i < 14; i++) {
-    allMatches[i].nextMatch = finalsMatch?.number || undefined;
+  if (finalsMatch) {
+    round3Matches.forEach((match) => {
+      match.nextMatch = finalsMatch.number || undefined;
+    });
   }
 
   return allMatches;
@@ -482,10 +484,11 @@ function drawBracket(
   participants: Participant[],
   watermark?: string
 ) {
+  const pageWidth = 8.5; // Letter width in inches
   const startX = 0.5;
-  const startY = 1.5; // Shifted down with extra spacing below title/category text
-  const roundSpacing = 1.8; // Fixed width for all rounds
-  const matchWidth = 1.6; // Fixed width for all matches
+  const startY = 2.0; // Moved down 0.5" for more spacing at top
+  const roundSpacing = 1.69; // 1.44" box + 0.25" gap (maximize space, 1st place line reaches right margin)
+  const matchWidth = 1.44; // 1.44 inches per box (expanded to fill page width)
   
   // Progressive heights for each round - 1.5x increase each round
   const baseHeight = 0.4;
@@ -599,26 +602,25 @@ function drawBracket(
   doc.line(finalsMidX, semi2Y, finalsMidX, targetY);
   doc.line(finalsMidX, targetY, curveEndX, targetY);
 
-  // Winner line for championship - wider, starting 2/3 across page
-  const pageWidth = 8.5;
-  const labelStartX = pageWidth * 0.67; // Start at 2/3 across page
+  // Winner line for championship - extend rightward from box
   doc.setLineWidth(0.008);
-  doc.line(finalsX + matchWidth, finalsY + matchHeights[3] / 2, labelStartX, finalsY + matchHeights[3] / 2);
-  doc.setFontSize(7);
-  doc.text('1st Place', labelStartX + 0.1, finalsY + matchHeights[3] / 2 - 0.08);
+  const placementLineEndX = finalsX + matchWidth; // End of box
+  doc.line(placementLineEndX, finalsY + matchHeights[3] / 2, placementLineEndX + 1.0, finalsY + matchHeights[3] / 2);
+  doc.setFontSize(10);
+  doc.text('1st Place', placementLineEndX + 0.1, finalsY + matchHeights[3] / 2 + 0.2);
 
   // Third place match - moved to lower right, horizontally aligned with finals
   const thirdPlaceMatch = matches[15];
   const thirdX = finalsX; // Same X position as finals (horizontally aligned)
   const thirdY = startY + baseMatchHeight * 13; // Moved down to lower right where there's more space
   drawMatch(doc, thirdX, thirdY, thirdPlaceMatch, participants, colorShades[2], matchWidth, matchHeights[2]);
-  doc.setFontSize(7);
-  doc.text('3rd Place Match', thirdX - 0.6, thirdY - 0.08);
   
-  // Winner line for 3rd place - wider, starting 2/3 across page
+  // Winner line for 3rd place - extend rightward from box
   doc.setLineWidth(0.008);
-  doc.line(thirdX + matchWidth, thirdY + matchHeights[2] / 2, labelStartX, thirdY + matchHeights[2] / 2);
-  doc.text('3rd Place', labelStartX + 0.1, thirdY + matchHeights[2] / 2 - 0.08);
+  const thirdPlacementLineEndX = thirdX + matchWidth; // End of box
+  doc.line(thirdPlacementLineEndX, thirdY + matchHeights[2] / 2, thirdPlacementLineEndX + 1.0, thirdY + matchHeights[2] / 2);
+  doc.setFontSize(10);
+  doc.text('3rd Place', thirdPlacementLineEndX + 0.1, thirdY + matchHeights[2] / 2 + 0.2);
 }
 
 function drawMatch(
@@ -656,7 +658,7 @@ function drawMatch(
     : null;
 
   // Top participant - positioned above the top line
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   if (p1) {
     const name = `${p1.firstName} ${p1.lastName}`;
@@ -671,7 +673,7 @@ function drawMatch(
   }
 
   // Bottom participant - positioned on top of the bottom line (just above it)
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   if (p2) {
     const name = `${p2.firstName} ${p2.lastName}`;
