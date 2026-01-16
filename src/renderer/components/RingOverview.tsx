@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
-import { checkSparringAltRingStatus } from '../utils/ringOrdering';
+import { checkSparringAltRingStatus, orderFormsRing, orderSparringRing } from '../utils/ringOrdering';
 import { formatPoolNameForDisplay, formatPoolOnly } from '../utils/ringNameFormatter';
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { Participant } from '../types/tournament';
@@ -111,6 +111,19 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         updateParticipant(p.id, { sparringRankOrder: newRank });
       }
     });
+  };
+
+  // Auto-order a specific pool
+  const handleAutoOrderPool = (categoryId: string, pool: string, ringType: 'forms' | 'sparring') => {
+    let updatedParticipants = participants;
+    
+    if (ringType === 'forms') {
+      updatedParticipants = orderFormsRing(updatedParticipants, categoryId, pool);
+    } else {
+      updatedParticipants = orderSparringRing(updatedParticipants, categoryId, pool);
+    }
+    
+    setParticipants(updatedParticipants);
   };
 
   // Sync with global division when it changes
@@ -1368,13 +1381,30 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         >
           {type === 'forms' ? 'Forms' : 'Sparring'}
         </h5>
-        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-          <div>
-            <strong>Category:</strong> {category?.gender}, Ages {category?.minAge}-{category?.maxAge}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+            <div>
+              <strong>Category:</strong> {category?.gender}, Ages {category?.minAge}-{category?.maxAge}
+            </div>
+            <div>
+              <strong>Participants:</strong> {ringParticipants.length}
+            </div>
           </div>
-          <div>
-            <strong>Participants:</strong> {ringParticipants.length}
-          </div>
+          <button
+            onClick={() => handleAutoOrderPool(ring.categoryId, ring.name?.split('_').pop() || '', type)}
+            style={{
+              padding: '4px 12px',
+              fontSize: '12px',
+              backgroundColor: type === 'forms' ? '#007bff' : '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Auto Order
+          </button>
         </div>
 
         <table
