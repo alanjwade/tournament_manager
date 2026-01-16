@@ -181,6 +181,8 @@ code {
   padding: 20px;
   margin-bottom: 20px;
   box-shadow: 0 2px 4px var(--card-shadow);
+  width: fit-content;
+  min-width: 0;
 }
 
 .card-title {
@@ -292,7 +294,6 @@ code {
   overflow-x: auto;
   display: flex;
   flex-direction: column;
-  width: fit-content;
   min-width: 0;
 }
 

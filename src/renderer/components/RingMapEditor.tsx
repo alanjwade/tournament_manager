@@ -259,7 +259,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
   };
 
   return (
-    <div>
+    <div style={{ width: 'fit-content', minWidth: 0 }}>
       <h2>Ring Map Editor</h2>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
         Assign pools to physical rings. Select a division, specify the number of physical rings,

@@ -65,7 +65,7 @@ export default function CheckpointManager() {
   );
 
   return (
-    <div className="checkpoint-manager">
+    <div className="checkpoint-manager" style={{ width: 'fit-content', minWidth: 0 }}>
       <h2>Checkpoint Manager</h2>
       
       {/* Create New Checkpoint */}

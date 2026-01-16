@@ -488,7 +488,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       height: '100%', 
       display: 'flex', 
       flexDirection: 'column',
-      overflow: 'hidden' 
+      overflow: 'hidden',
+      width: '100%'
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexShrink: 0 }}>
         <h2>All Participants Data ({filteredParticipants.length} of {participants.length})</h2>
@@ -498,7 +499,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       </div>
 
       <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+        <table style={{ width: 'auto', borderCollapse: 'collapse', fontSize: '14px' }}>
           <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-tertiary)', zIndex: 1 }}>
             <tr>
               <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '120px', color: 'var(--text-primary)' }}>

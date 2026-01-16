@@ -320,7 +320,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
   };
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '20px', width: 'fit-content', minWidth: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0 }}>Tournament Day Dashboard</h2>
         
