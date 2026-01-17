@@ -1,10 +1,13 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import jsPDF from 'jspdf';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
 import { checkSparringAltRingStatus, orderFormsRing, orderSparringRing } from '../utils/ringOrdering';
 import { formatPoolNameForDisplay, formatPoolOnly } from '../utils/ringNameFormatter';
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
-import { Participant } from '../types/tournament';
+import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
+import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
+import { Participant, CompetitionRing } from '../types/tournament';
 
 interface RingPair {
   cohortRingName: string;
@@ -40,6 +43,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
   const [copySparringFromForms, setCopySparringFromForms] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Partial<Participant>>({});
+  const [printing, setPrinting] = useState<string | null>(null);
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
   const categories = useTournamentStore((state) => state.categories);
@@ -124,6 +128,102 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     }
     
     setParticipants(updatedParticipants);
+  };
+
+  // Print all changed rings combined into one PDF
+  const handlePrintAllChanged = async () => {
+    if (changedRingsCounts.total === 0) {
+      alert('No rings have changed since the last checkpoint.');
+      return;
+    }
+
+    // Get all competition rings that have changed
+    const changedFormsRings = competitionRings
+      .filter(ring => ring.type === 'forms' && changedRings.has(ring.name || ring.division));
+    
+    const changedSparringRings = competitionRings
+      .filter(ring => ring.type === 'sparring' && changedRings.has(ring.name || ring.division));
+
+    if (changedFormsRings.length === 0 && changedSparringRings.length === 0) {
+      alert('No forms or sparring rings found for changed rings.');
+      return;
+    }
+
+    setPrinting('all-changed');
+    try {
+      // Create master PDF and add all content directly
+      const masterPdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'in',
+        format: 'letter',
+      });
+
+      // Group by division for forms
+      const formsByDivision = new Map<string, CompetitionRing[]>();
+      changedFormsRings.forEach(ring => {
+        const existing = formsByDivision.get(ring.division) || [];
+        formsByDivision.set(ring.division, [...existing, ring]);
+      });
+
+      // Generate all forms PDFs, adding directly to master
+      for (const [division, rings] of formsByDivision) {
+        if (rings.length > 0) {
+          generateFormsScoringSheets(
+            participants,
+            rings,
+            config.physicalRings,
+            division,
+            config.watermarkImage,
+            physicalRingMappings,
+            masterPdf  // Pass master PDF to add to
+          );
+        }
+      }
+
+      // Group by division for sparring
+      const sparringByDivision = new Map<string, CompetitionRing[]>();
+      changedSparringRings.forEach(ring => {
+        const existing = sparringByDivision.get(ring.division) || [];
+        sparringByDivision.set(ring.division, [...existing, ring]);
+      });
+
+      // Generate all sparring PDFs, adding directly to master
+      for (const [division, rings] of sparringByDivision) {
+        if (rings.length > 0) {
+          generateSparringBrackets(
+            participants,
+            rings,
+            config.physicalRings,
+            division,
+            config.watermarkImage,
+            physicalRingMappings,
+            masterPdf  // Pass master PDF to add to
+          );
+        }
+      }
+
+      // Open the combined PDF in a single print dialog
+      const pdfBlob = masterPdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(pdfUrl);
+      if (printWindow) {
+        await new Promise<void>(resolve => {
+          printWindow.addEventListener('load', () => {
+            printWindow.print();
+            setTimeout(() => {
+              URL.revokeObjectURL(pdfUrl);
+              resolve();
+            }, 500);
+          });
+        });
+      } else {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setPrinting(null);
+    }
   };
 
   // Sync with global division when it changes
@@ -231,6 +331,29 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     });
     return Array.from(divSet).sort();
   }, [ringPairs]);
+
+  // Get latest checkpoint
+  const latestCheckpoint = useMemo(() => {
+    if (checkpoints.length === 0) return null;
+    return [...checkpoints].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )[0];
+  }, [checkpoints]);
+
+  // Count changed rings for display
+  const changedRingsCounts = useMemo(() => {
+    const changedFormsRings = competitionRings.filter(
+      ring => ring.type === 'forms' && changedRings.has(ring.name || ring.division)
+    );
+    const changedSparringRings = competitionRings.filter(
+      ring => ring.type === 'sparring' && changedRings.has(ring.name || ring.division)
+    );
+    return {
+      forms: changedFormsRings.length,
+      sparring: changedSparringRings.length,
+      total: changedFormsRings.length + changedSparringRings.length
+    };
+  }, [competitionRings, changedRings]);
 
   // Filter ring pairs by selected division
   const filteredRingPairs = useMemo(() => {
@@ -1188,14 +1311,31 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           {/* Alt Ring A */}
           {participantsA.length > 0 && (
             <div style={{ marginBottom: '15px' }}>
-              <h6 style={{ 
-                fontSize: '12px', 
-                fontWeight: 'bold', 
-                marginBottom: '5px',
-                color: '#0056b3'
-              }}>
-                Alt Ring A ({participantsA.length} participants)
-              </h6>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h6 style={{ 
+                  fontSize: '12px', 
+                  fontWeight: 'bold', 
+                  marginBottom: '0px',
+                  color: '#0056b3'
+                }}>
+                  Alt Ring A ({participantsA.length} participants)
+                </h6>
+                <button
+                  onClick={() => handleAutoOrderPool(ring.categoryId, ring.name?.split('_').pop() || '', 'sparring')}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Auto Order
+                </button>
+              </div>
               <table
                 style={{
                   width: '100%',
@@ -1238,7 +1378,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                               ▲
                             </button>
                             <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
-                              {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
+                              {p.sparringRankOrder || '-'}
                             </span>
                             <button
                               onClick={() => moveParticipant(p.id, 'down', 'sparring')}
@@ -1278,14 +1418,31 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           {/* Alt Ring B */}
           {participantsB.length > 0 && (
             <div>
-              <h6 style={{ 
-                fontSize: '12px', 
-                fontWeight: 'bold', 
-                marginBottom: '5px',
-                color: '#0056b3'
-              }}>
-                Alt Ring B ({participantsB.length} participants)
-              </h6>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h6 style={{ 
+                  fontSize: '12px', 
+                  fontWeight: 'bold', 
+                  marginBottom: '0px',
+                  color: '#0056b3'
+                }}>
+                  Alt Ring B ({participantsB.length} participants)
+                </h6>
+                <button
+                  onClick={() => handleAutoOrderPool(ring.categoryId, ring.name?.split('_').pop() || '', 'sparring')}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Auto Order
+                </button>
+              </div>
               <table
                 style={{
                   width: '100%',
@@ -1328,7 +1485,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                               ▲
                             </button>
                             <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
-                              {p.sparringRankOrder ? p.sparringRankOrder * 10 : '-'}
+                              {p.sparringRankOrder || '-'}
                             </span>
                             <button
                               onClick={() => moveParticipant(p.id, 'down', 'sparring')}
@@ -1513,30 +1670,53 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       <h2 className="card-title">Ring Overview</h2>
       
       {/* Division Filter */}
-      <div style={{ marginBottom: '15px' }}>
-        <label style={{ marginRight: '10px', fontWeight: 'bold' }}>
-          Filter by Division:
-        </label>
-        <select
-          value={selectedDivision}
-          onChange={(e) => setSelectedDivision(e.target.value)}
-          style={{
-            padding: '5px 10px',
-            fontSize: '14px',
-            borderRadius: '4px',
-            border: '1px solid var(--input-border)',
-          }}
-        >
-          <option value="all">All Divisions ({ringPairs.length} rings)</option>
-          {divisions.map((division) => {
-            const count = ringPairs.filter(p => p.division === division).length;
-            return (
-              <option key={division} value={division}>
-                {division} ({count} rings)
-              </option>
-            );
-          })}
-        </select>
+      <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <label style={{ marginRight: '0px', fontWeight: 'bold' }}>
+            Filter by Division:
+          </label>
+          <select
+            value={selectedDivision}
+            onChange={(e) => setSelectedDivision(e.target.value)}
+            style={{
+              padding: '5px 10px',
+              fontSize: '14px',
+              borderRadius: '4px',
+              border: '1px solid var(--input-border)',
+            }}
+          >
+            <option value="all">All Divisions ({ringPairs.length} rings)</option>
+            {divisions.map((division) => {
+              const count = ringPairs.filter(p => p.division === division).length;
+              return (
+                <option key={division} value={division}>
+                  {division} ({count} rings)
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        {/* Print all changed button */}
+        {latestCheckpoint && (
+          <button
+            onClick={handlePrintAllChanged}
+            disabled={printing !== null || changedRingsCounts.total === 0}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: changedRingsCounts.total > 0 ? '#dc3545' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: changedRingsCounts.total > 0 ? 'pointer' : 'not-allowed',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            🖨️ Print All Changed ({changedRingsCounts.forms} forms, {changedRingsCounts.sparring} sparring)
+          </button>
+        )}
       </div>
       
       {unassignedCount > 0 && (

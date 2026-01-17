@@ -4,6 +4,34 @@ import { getSchoolAbbreviation } from '../schoolAbbreviations';
 import { getEffectiveFormsInfo } from '../computeRings';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
+// Helper function to fit text in a box by reducing font size if needed
+function fitTextInBox(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  maxHeight: number,
+  startFontSize: number = 24,
+  minFontSize: number = 8
+): number {
+  let fontSize = startFontSize;
+  
+  while (fontSize >= minFontSize) {
+    doc.setFontSize(fontSize);
+    const textWidth = doc.getTextWidth(text);
+    
+    // Check if text fits within maxWidth
+    if (textWidth <= maxWidth) {
+      return fontSize;
+    }
+    
+    fontSize -= 1;
+  }
+  
+  return minFontSize;
+}
+
 export interface NameTagConfig {
   width: number; // in mm
   height: number; // in mm
@@ -75,9 +103,9 @@ export function generateNameTags(
     const x = config.marginX + col * (config.width + columnSpacing);
     const y = config.marginY + row * (config.height + rowSpacing);
 
-    // Draw border (black box around each name tag)
-    doc.setDrawColor(0, 0, 0); // Black border
-    doc.setLineWidth(0.5);
+    // Draw border (light yellow box around each name tag)
+    doc.setDrawColor(255, 255, 0); // Black border for visibility
+    doc.setLineWidth(1); // Thicker border
     doc.rect(x, y, config.width, config.height);
 
     // Add logo to bottom right inside the tag if provided
@@ -135,20 +163,24 @@ export function generateNameTags(
     // Using 24pt font (Helvetica as closest to Calibri - jsPDF doesn't support Calibri by default)
     let textY = y + 15; // Start higher for better spacing with larger font
     
-    // Name (bold, 24pt like GAS)
-    doc.setFontSize(config.fontSize);
+    // Name (bold, 24pt like GAS) - fit to box width
+    const fullName = `${participant.firstName} ${participant.lastName}`;
+    const nameFontSize = fitTextInBox(doc, fullName, x, textY, config.width - 10, 12, config.fontSize, 12);
+    doc.setFontSize(nameFontSize);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${participant.firstName} ${participant.lastName}`, x + 5, textY);
+    doc.text(fullName, x + 5, textY);
 
     textY += 12; // Larger spacing for 24pt font
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(24); // Large size for school
     
     // School - Use abbreviation based on branch field (or school if no branch)
     const schoolKey = participant.branch || participant.school;
     const schoolDisplay = getSchoolAbbreviation(schoolKey, schoolAbbreviations);
     doc.text(schoolDisplay, x + 5, textY);
 
-    textY += 12; // Larger spacing for 24pt font
+    textY += 12; // Larger spacing
+    doc.setFontSize(20); // Large size for division
     
     // Division
     const displayDivision = participant.formsDivision || participant.sparringDivision || participant.division || division;
@@ -156,7 +188,8 @@ export function generateNameTags(
 
     // Physical Ring with colored background
     if (physicalRingName && ringColor) {
-      textY += 12; // Larger spacing for 24pt font
+      textY += 12; // Larger spacing
+      doc.setFontSize(20); // Large size for ring
       
       // Convert physical ring name format (e.g., "PR1" -> "Ring 1", "PR1a" -> "Ring 1 Group A")
       const convertRingName = (prName: string): string => {

@@ -18,9 +18,9 @@ export function generateFormsScoringSheets(
     format: 'letter',
   });
   
-  // Track the initial page count - if creating new PDF it's 1, if master PDF it's whatever it already is
-  const initialPageCount = doc.getNumberOfPages();
-  let isFirstRing = true; // Track if this is the first ring being added
+  // When using masterPdf, we need to track pages carefully
+  // jsPDF starts with 1 blank page
+  const startingPageCount = doc.getNumberOfPages();
 
   const pageWidth = 8.5; // Letter width in inches
   const pageHeight = 11; // Letter height in inches
@@ -61,14 +61,12 @@ export function generateFormsScoringSheets(
       return letterA.localeCompare(letterB);
     });
 
-  divisionRings.forEach((ring) => {
-    // Only add a new page if NOT the first ring we're writing
-    // For individual prints, use the auto-generated first page
-    // For combined prints (masterPdf), add a page for each ring
-    if (!isFirstRing) {
+  divisionRings.forEach((ring, index) => {
+    // Add a new page for each ring, except:
+    // - If this is the very first ring (index 0) AND we're on the initial blank page (startingPageCount === 1)
+    if (index > 0 || startingPageCount > 1) {
       doc.addPage();
     }
-    isFirstRing = false;
 
     // Get physical ring ID from mapping using the pool name
     const physicalRingId = ring.name && physicalRingMappings 

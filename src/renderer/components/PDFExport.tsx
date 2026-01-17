@@ -437,6 +437,21 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     await savePDF(pdf, filename);
   };
 
+  const handleExportAllDivisionPDFs = async () => {
+    if (!selectedDivision) return;
+    setExporting(true);
+    try {
+      // Export all 5 PDFs in sequence
+      await handleExportNameTags();
+      await handleExportCheckIn();
+      await handleExportRingOverview();
+      await handleExportFormsScoring();
+      await handleExportSparringBrackets();
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="card">
       <h2 className="card-title">Export PDFs</h2>
@@ -456,6 +471,17 @@ function PDFExport({ globalDivision }: PDFExportProps) {
             </option>
           ))}
         </select>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <button
+          className="btn btn-success"
+          onClick={handleExportAllDivisionPDFs}
+          disabled={!selectedDivision || exporting}
+          style={{ width: '100%' }}
+        >
+          {exporting ? 'Exporting All PDFs...' : `Export All ${selectedDivision} PDFs`}
+        </button>
       </div>
 
       {/* Single column layout */}

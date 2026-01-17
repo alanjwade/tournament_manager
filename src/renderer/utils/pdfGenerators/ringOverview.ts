@@ -19,11 +19,11 @@ function drawTable(
   columnWidths: number[],
   maxWidth: number
 ): number {
-  const rowHeight = 15;
+  const rowHeight = 16; // Increased from 15 for better spacing
   const cellPadding = 3;
   let y = startY;
 
-  // Draw header
+  // Draw header with more room
   doc.setFillColor(240, 240, 240);
   doc.rect(startX, y, maxWidth, rowHeight, 'F');
   doc.setFont('helvetica', 'bold');
@@ -221,6 +221,7 @@ export function generateRingOverviewPDF(
         const formsRows = formsParticipants.map(p => [
           p.formsRankOrder ? String(p.formsRankOrder) : '-',
           `${p.firstName} ${p.lastName}`,
+          p.schoolId ? p.schoolId.split(',')[0].substring(0, 12) : '',
           String(p.age),
           p.gender
         ]);
@@ -229,9 +230,9 @@ export function generateRingOverviewPDF(
           doc,
           leftX,
           yPos,
-          ['Pos', 'Name', 'Age', 'Gender'],
+          ['Pos', 'Name', 'School', 'Age', 'Gender'],
           formsRows,
-          [30, columnWidth - 90, 30, 30],
+          [30, columnWidth - 170, 80, 30, 30],
           columnWidth
         );
       } else {
@@ -296,7 +297,9 @@ export function generateRingOverviewPDF(
             const rowsA = participantsA.map(p => [
               p.sparringRankOrder ? String(p.sparringRankOrder * 10) : '-',
               `${p.firstName} ${p.lastName}`,
+              p.schoolId ? p.schoolId.split(',')[0].substring(0, 12) : '',
               String(p.age),
+              p.gender,
               `${p.heightFeet}'${p.heightInches}"`
             ]);
 
@@ -304,9 +307,9 @@ export function generateRingOverviewPDF(
               doc,
               rightX,
               yPos,
-              ['Pos', 'Name', 'Age', 'Height'],
+              ['Pos', 'Name', 'School', 'Age', 'Gender', 'Height'],
               rowsA,
-              [30, columnWidth - 100, 30, 40],
+              [30, columnWidth - 210, 70, 30, 40, 40],
               columnWidth
             ) + 10;
           }
@@ -321,7 +324,9 @@ export function generateRingOverviewPDF(
             const rowsB = participantsB.map(p => [
               p.sparringRankOrder ? String(p.sparringRankOrder * 10) : '-',
               `${p.firstName} ${p.lastName}`,
+              p.schoolId ? p.schoolId.split(',')[0].substring(0, 12) : '',
               String(p.age),
+              p.gender,
               `${p.heightFeet}'${p.heightInches}"`
             ]);
 
@@ -329,9 +334,9 @@ export function generateRingOverviewPDF(
               doc,
               rightX,
               yPos,
-              ['Pos', 'Name', 'Age', 'Height'],
+              ['Pos', 'Name', 'School', 'Age', 'Gender', 'Height'],
               rowsB,
-              [30, columnWidth - 100, 30, 40],
+              [30, columnWidth - 210, 70, 30, 40, 40],
               columnWidth
             );
           } else {
@@ -344,6 +349,7 @@ export function generateRingOverviewPDF(
           const sparringRows = sparringParticipants.map(p => [
             p.sparringRankOrder ? String(p.sparringRankOrder * 10) : '-',
             `${p.firstName} ${p.lastName}`,
+            p.schoolId ? p.schoolId.split(',')[0].substring(0, 12) : '',
             String(p.age),
             p.gender,
             `${p.heightFeet}'${p.heightInches}"`
@@ -353,9 +359,9 @@ export function generateRingOverviewPDF(
             doc,
             rightX,
             yPos,
-            ['Pos', 'Name', 'Age', 'Gender', 'Height'],
+            ['Pos', 'Name', 'School', 'Age', 'Gender', 'Height'],
             sparringRows,
-            [30, columnWidth - 120, 30, 30, 30],
+            [30, columnWidth - 200, 70, 30, 30, 40],
             columnWidth
           );
         }

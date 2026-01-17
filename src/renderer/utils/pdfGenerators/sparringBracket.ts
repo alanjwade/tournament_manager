@@ -34,9 +34,9 @@ export function generateSparringBrackets(
     format: 'letter',
   });
   
-  // Track the initial page count - if creating new PDF it's 1, if master PDF it's whatever it already is
-  const initialPageCount = doc.getNumberOfPages();
-  let isFirstRing = true; // Track if this is the first ring being added
+  // When using masterPdf, we need to track pages carefully
+  // jsPDF starts with 1 blank page
+  const startingPageCount = doc.getNumberOfPages();
 
   const pageWidth = 8.5; // Letter width in inches
   const pageHeight = 11; // Letter height in inches
@@ -77,9 +77,16 @@ export function generateSparringBrackets(
       return letterA.localeCompare(letterB);
     });
 
-  let isFirstRingForDivision = true; // Track if this is the first ring being added for this division
+  divisionRings.forEach((ring, index) => {
+    // Add a new page for each ring, except:
+    // - If this is the very first ring (index 0) AND we're on the initial blank page (startingPageCount === 1)
+    if (index > 0 || startingPageCount > 1) {
+      doc.addPage();
+    }
 
-  divisionRings.forEach((ring) => {
+    // Track if this is the first alt ring bracket for this specific ring (for alt A/B splits)
+    let isFirstBracketForRing = true;
+
     // Get all participants for this ring first
     const allRingParticipants = participants
       .filter((p) => ring.participantIds.includes(p.id))
@@ -95,13 +102,11 @@ export function generateSparringBrackets(
 
     // Function to generate a bracket for a set of participants with a specific alt ring label
     const generateBracketForAltRing = (ringParticipants: Participant[], altRingLabel: string = '') => {
-      // Only add a new page if NOT the first bracket we're writing
-      // For individual prints, use the auto-generated first page
-      // For combined prints (masterPdf), add a page for each bracket
-      if (!isFirstRingForDivision) {
+      // For alt ring splits (A/B), the second bracket needs a new page
+      if (!isFirstBracketForRing) {
         doc.addPage();
       }
-      isFirstRingForDivision = false;
+      isFirstBracketForRing = false;
 
       // Get physical ring ID from mapping using the pool name
       const physicalRingId = ring.name && physicalRingMappings 

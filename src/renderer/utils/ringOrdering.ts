@@ -4,20 +4,24 @@ import { getEffectiveSparringInfo, getEffectiveFormsInfo } from './computeRings'
 /**
  * Check if a sparring ring has mixed alt ring assignments (some set, some not).
  * Returns validation status for alt ring assignments.
+ * Only counts participants who are actually participating in sparring.
  */
 export function checkSparringAltRingStatus(
   participants: Participant[],
   categoryId: string,
   pool: string
 ): { status: 'none' | 'all' | 'mixed'; countA: number; countB: number; countEmpty: number } {
-  const ringParticipants = participants.filter(p => {
+  // Filter to only participants who are actually in this sparring ring
+  // (those with sparringCategoryId set and matching pool)
+  const ringSparringParticipants = participants.filter(p => {
     const effective = getEffectiveSparringInfo(p);
     return effective.categoryId === categoryId && effective.pool === pool;
   });
 
-  const countA = ringParticipants.filter(p => p.sparringAltRing === 'a').length;
-  const countB = ringParticipants.filter(p => p.sparringAltRing === 'b').length;
-  const countEmpty = ringParticipants.filter(p => !p.sparringAltRing).length;
+  // Among those actually participating in sparring, count alt ring assignments
+  const countA = ringSparringParticipants.filter(p => p.sparringAltRing === 'a').length;
+  const countB = ringSparringParticipants.filter(p => p.sparringAltRing === 'b').length;
+  const countEmpty = ringSparringParticipants.filter(p => !p.sparringAltRing).length;
 
   if (countA === 0 && countB === 0) {
     return { status: 'none', countA, countB, countEmpty };
