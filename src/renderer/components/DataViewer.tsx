@@ -232,6 +232,24 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     return pools;
   };
 
+  // Get unique schools from participants
+  const uniqueSchools = useMemo(() => {
+    const schools = new Set(participants.map(p => p.school).filter(Boolean));
+    return Array.from(schools).sort();
+  }, [participants]);
+
+  // Get unique branches from participants
+  const uniqueBranches = useMemo(() => {
+    const branches = new Set(participants.map(p => p.branch).filter(Boolean));
+    return Array.from(branches).sort();
+  }, [participants]);
+
+  // Get unique genders from participants
+  const uniqueGenders = useMemo(() => {
+    const genders = new Set(participants.map(p => p.gender).filter(Boolean));
+    return Array.from(genders).sort();
+  }, [participants]);
+
   // Update participant division - simplified, no more "same as" logic
   const updateParticipantDivision = (participantId: string, field: 'formsDivision' | 'sparringDivision', value: string) => {
     const updatedParticipants = participants.map(p => {
@@ -294,6 +312,28 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       if (p.id === participantId) {
         const numValue = value ? parseInt(value) / 10 : undefined;
         return { ...p, [field]: numValue };
+      }
+      return p;
+    });
+    setParticipants(updatedParticipants);
+  };
+
+  // Update participant basic info (name, age, height, etc.)
+  const updateParticipantField = (participantId: string, field: keyof Participant, value: any) => {
+    const updatedParticipants = participants.map(p => {
+      if (p.id === participantId) {
+        return { ...p, [field]: value };
+      }
+      return p;
+    });
+    setParticipants(updatedParticipants);
+  };
+
+  // Update participant pool
+  const updateParticipantPool = (participantId: string, field: 'formsPool' | 'sparringPool', value: string) => {
+    const updatedParticipants = participants.map(p => {
+      if (p.id === participantId) {
+        return { ...p, [field]: value || undefined };
       }
       return p;
     });
@@ -468,8 +508,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       heightInches: '',
       school: '',
       branch: '',
+      competingForms: '',
       formsDivision: '',
       sparringDivision: '',
+      competingSparring: '',
       formsCategory: '',
       sparringCategory: '',
       formsRing: '',
@@ -726,8 +768,6 @@ function DataViewer({ globalDivision }: DataViewerProps) {
           </thead>
           <tbody>
             {filteredParticipants.map((p) => {
-              const formsRing = competitionRings.find(r => r.id === p.formsRingId);
-              const sparringRing = competitionRings.find(r => r.id === p.sparringRingId);
               const formsCategory = categories.find(c => c.id === p.formsCategoryId);
               const sparringCategory = categories.find(c => c.id === p.sparringCategoryId);
               
@@ -751,26 +791,156 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   animation: isHighlighted ? 'highlight-pulse 1s ease-in-out 3' : undefined,
                 }}
               >
-                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.firstName}</td>
-                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.lastName}</td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
+                  <input
+                    type="text"
+                    value={p.firstName}
+                    onChange={(e) => updateParticipantField(p.id, 'firstName', e.target.value)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid var(--input-border)',
+                      borderRadius: '3px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)'
+                    }}
+                  />
+                </td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
+                  <input
+                    type="text"
+                    value={p.lastName}
+                    onChange={(e) => updateParticipantField(p.id, 'lastName', e.target.value)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid var(--input-border)',
+                      borderRadius: '3px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)'
+                    }}
+                  />
+                </td>
                 <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                  {p.age >= 18 ? '18+' : p.age}
+                  <input
+                    type="number"
+                    value={p.age}
+                    onChange={(e) => updateParticipantField(p.id, 'age', parseInt(e.target.value) || 0)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid var(--input-border)',
+                      borderRadius: '3px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)',
+                      textAlign: 'center'
+                    }}
+                  />
                 </td>
-                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textTransform: 'capitalize' }}>
-                  {p.gender}
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
+                  <select
+                    value={p.gender || ''}
+                    onChange={(e) => updateParticipantField(p.id, 'gender', e.target.value)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid var(--input-border)',
+                      borderRadius: '3px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)'
+                    }}
+                  >
+                    <option value="">-</option>
+                    {uniqueGenders.map(gender => (
+                      <option key={gender} value={gender}>{gender}</option>
+                    ))}
+                  </select>
                 </td>
-                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>{p.heightFeet}</td>
-                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>{p.heightInches}</td>
-                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.school}</td>
-                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>{p.branch || ''}</td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <input
+                    type="number"
+                    value={p.heightFeet}
+                    onChange={(e) => updateParticipantField(p.id, 'heightFeet', parseInt(e.target.value) || 0)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid var(--input-border)',
+                      borderRadius: '3px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)',
+                      textAlign: 'center'
+                    }}
+                  />
+                </td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <input
+                    type="number"
+                    value={p.heightInches}
+                    onChange={(e) => updateParticipantField(p.id, 'heightInches', parseInt(e.target.value) || 0)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid var(--input-border)',
+                      borderRadius: '3px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)',
+                      textAlign: 'center'
+                    }}
+                  />
+                </td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
+                  <select
+                    value={p.school || ''}
+                    onChange={(e) => updateParticipantField(p.id, 'school', e.target.value)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid var(--input-border)',
+                      borderRadius: '3px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)'
+                    }}
+                  >
+                    <option value="">-</option>
+                    {uniqueSchools.map(school => (
+                      <option key={school} value={school}>{school}</option>
+                    ))}
+                  </select>
+                </td>
+                <td style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
+                  <select
+                    value={p.branch || ''}
+                    onChange={(e) => updateParticipantField(p.id, 'branch', e.target.value)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '4px',
+                      border: '1px solid var(--input-border)',
+                      borderRadius: '3px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--input-bg)'
+                    }}
+                  >
+                    <option value="">-</option>
+                    {uniqueBranches.map(branch => (
+                      <option key={branch} value={branch}>{branch}</option>
+                    ))}
+                  </select>
+                </td>
                 <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                  <span style={{ 
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    color: p.competingForms ? '#28a745' : '#dc3545'
-                  }}>
-                    {p.competingForms ? '✓' : '✗'}
-                  </span>
+                  <input
+                    type="checkbox"
+                    checked={p.competingForms}
+                    onChange={(e) => updateParticipantField(p.id, 'competingForms', e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
                 </td>
                 <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   <select
@@ -793,16 +963,47 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 </td>
                 <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
-                    <span style={{ fontSize: '12px' }}>
-                      {formsCategory?.name || 'Not assigned'}
-                    </span>
+                    <select
+                      value={p.formsCategoryId || ''}
+                      onChange={(e) => updateParticipantCohort(p.id, 'formsCategoryId', e.target.value)}
+                      style={{ 
+                        width: '100%', 
+                        padding: '4px',
+                        border: '1px solid var(--input-border)',
+                        borderRadius: '3px',
+                        fontSize: '12px',
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--input-bg)'
+                      }}
+                    >
+                      <option value="">Not assigned</option>
+                      {formsCohortOptions.map(opt => (
+                        <option key={opt.id} value={opt.id}>{opt.name}</option>
+                      ))}
+                    </select>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="forms-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingForms ? (
-                    <span style={{ fontSize: '12px' }}>
-                      {p.formsPool || 'Not assigned'}
-                    </span>
+                    <select
+                      value={p.formsPool || ''}
+                      onChange={(e) => updateParticipantPool(p.id, 'formsPool', e.target.value)}
+                      disabled={!p.formsCategoryId}
+                      style={{ 
+                        width: '100%', 
+                        padding: '4px',
+                        border: '1px solid var(--input-border)',
+                        borderRadius: '3px',
+                        fontSize: '12px',
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--input-bg)'
+                      }}
+                    >
+                      <option value="">Not assigned</option>
+                      {getPoolOptionsForCategory(p.formsCategoryId).map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="forms-physical-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
@@ -835,13 +1036,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>}
                 </td>
                 <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                  <span style={{ 
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    color: p.competingSparring ? '#28a745' : '#dc3545'
-                  }}>
-                    {p.competingSparring ? '✓' : '✗'}
-                  </span>
+                  <input
+                    type="checkbox"
+                    checked={p.competingSparring}
+                    onChange={(e) => updateParticipantField(p.id, 'competingSparring', e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
                 </td>
                 <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   <select
@@ -864,16 +1064,47 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 </td>
                 <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
-                    <span style={{ fontSize: '12px' }}>
-                      {sparringCategory?.name || 'Not assigned'}
-                    </span>
+                    <select
+                      value={p.sparringCategoryId || ''}
+                      onChange={(e) => updateParticipantCohort(p.id, 'sparringCategoryId', e.target.value)}
+                      style={{ 
+                        width: '100%', 
+                        padding: '4px',
+                        border: '1px solid var(--input-border)',
+                        borderRadius: '3px',
+                        fontSize: '12px',
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--input-bg)'
+                      }}
+                    >
+                      <option value="">Not assigned</option>
+                      {sparringCohortOptions.map(opt => (
+                        <option key={opt.id} value={opt.id}>{opt.name}</option>
+                      ))}
+                    </select>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="sparring-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
                   {p.competingSparring ? (
-                    <span style={{ fontSize: '12px' }}>
-                      {p.sparringPool || 'Not assigned'}
-                    </span>
+                    <select
+                      value={p.sparringPool || ''}
+                      onChange={(e) => updateParticipantPool(p.id, 'sparringPool', e.target.value)}
+                      disabled={!p.sparringCategoryId}
+                      style={{ 
+                        width: '100%', 
+                        padding: '4px',
+                        border: '1px solid var(--input-border)',
+                        borderRadius: '3px',
+                        fontSize: '12px',
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--input-bg)'
+                      }}
+                    >
+                      <option value="">Not assigned</option>
+                      {getPoolOptionsForCategory(p.sparringCategoryId).map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
                 <td className="sparring-physical-column" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
