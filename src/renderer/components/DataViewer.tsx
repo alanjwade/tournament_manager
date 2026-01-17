@@ -4,6 +4,7 @@ import { getEffectiveDivision } from '../utils/excelParser';
 import { formatPoolOnly } from '../utils/ringNameFormatter';
 import { Participant } from '../types/tournament';
 import { computeCompetitionRings } from '../utils/computeRings';
+import AddParticipantModal from './AddParticipantModal';
 
 interface DataViewerProps {
   globalDivision?: string;
@@ -20,6 +21,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
   // State for highlighted participant from search
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+  
+  // State for Add Participant modal
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -535,10 +539,24 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexShrink: 0 }}>
         <h2>All Participants Data ({filteredParticipants.length} of {participants.length})</h2>
-        <button onClick={clearFilters} style={{ padding: '8px 16px' }}>
-          Clear All Filters
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button 
+            onClick={() => setIsAddModalOpen(true)} 
+            className="btn btn-primary"
+            style={{ padding: '8px 16px' }}
+          >
+            ➕ Add Participant
+          </button>
+          <button onClick={clearFilters} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
+            Clear All Filters
+          </button>
+        </div>
       </div>
+
+      <AddParticipantModal 
+        isOpen={isAddModalOpen} 
+        onClose={() => setIsAddModalOpen(false)} 
+      />
 
       <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}>
         <table style={{ width: 'auto', borderCollapse: 'collapse', fontSize: '14px' }}>

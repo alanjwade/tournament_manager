@@ -104,8 +104,8 @@ export function generateNameTags(
     const y = config.marginY + row * (config.height + rowSpacing);
 
     // Draw border (light yellow box around each name tag)
-    doc.setDrawColor(255, 255, 0); // Black border for visibility
-    doc.setLineWidth(1); // Thicker border
+    doc.setDrawColor(255, 255, 150); // Black border for visibility
+    doc.setLineWidth(.5); // Thicker border
     doc.rect(x, y, config.width, config.height);
 
     // Add logo to bottom right inside the tag if provided

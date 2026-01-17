@@ -12,6 +12,7 @@ import RingMapEditor from './components/RingMapEditor';
 import Configuration from './components/Configuration';
 import CheckpointManager from './components/CheckpointManager';
 import TournamentDay from './components/TournamentDay';
+import AddParticipantModal from './components/AddParticipantModal';
 
 type Tab = 'dashboard' | 'import' | 'categories' | 'editor' | 'overview' | 'ringmap' | 'export' | 'checkpoints' | 'tournament-day';
 type Theme = 'light' | 'dark';
@@ -21,6 +22,7 @@ function App() {
   const [globalDivision, setGlobalDivision] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchFocused, setSearchFocused] = useState<boolean>(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => {
     // Default to dark theme, but check localStorage for user preference
     const savedTheme = localStorage.getItem('tournament-theme') as Theme;
@@ -370,6 +372,26 @@ function App() {
             </select>
           </div>
 
+          {/* Add Participant Button */}
+          {participants.length > 0 && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="btn btn-primary"
+              style={{
+                padding: '8px 16px',
+                fontSize: '14px',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap',
+              }}
+              title="Add new participant"
+            >
+              ➕ Add Participant
+            </button>
+          )}
+
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
@@ -480,6 +502,12 @@ function App() {
         {activeTab === 'tournament-day' && <TournamentDay globalDivision={globalDivision} />}
         {activeTab === 'checkpoints' && <CheckpointManager />}
       </div>
+
+      {/* Global Add Participant Modal */}
+      <AddParticipantModal 
+        isOpen={isAddModalOpen} 
+        onClose={() => setIsAddModalOpen(false)} 
+      />
     </div>
   );
 }
