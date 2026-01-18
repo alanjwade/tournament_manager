@@ -113,6 +113,7 @@ export interface TournamentState {
   config: TournamentConfig;
   physicalRingMappings: PhysicalRingMapping[];
   categoryPoolMappings: CategoryPoolMapping[];
+  customRings?: CustomRing[]; // Optional for backward compatibility
   lastSaved?: string;
 }
 
@@ -136,4 +137,12 @@ export interface CheckpointDiff {
   participantsRemoved: Participant[];
   participantsModified: ParticipantChange[];
   ringsAffected: Set<string>; // List of ring names that have changes
+}
+
+export interface CustomRing {
+  id: string;
+  name: string; // e.g., "Black Belt Grand Champion - Forms"
+  type: 'forms' | 'sparring';
+  participantIds: string[];
+  createdAt: string;
 }

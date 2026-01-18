@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Participant, Category, CompetitionRing, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CategoryPoolMapping, TournamentState as SavedState, Checkpoint, CheckpointDiff, ParticipantChange } from '../types/tournament';
+import { Participant, Category, CompetitionRing, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CategoryPoolMapping, TournamentState as SavedState, Checkpoint, CheckpointDiff, ParticipantChange, CustomRing } from '../types/tournament';
 
 interface TournamentState {
   participants: Participant[];
@@ -9,6 +9,7 @@ interface TournamentState {
   physicalRingMappings: PhysicalRingMapping[]; // Legacy
   categoryPoolMappings: CategoryPoolMapping[]; // New mapping system
   checkpoints: Checkpoint[]; // Checkpoint system
+  customRings: CustomRing[]; // Grand Champion / Side rings
   
   // Actions
   setParticipants: (participants: Participant[]) => void;
@@ -36,6 +37,14 @@ interface TournamentState {
   deleteCheckpoint: (checkpointId: string) => void;
   diffCheckpoint: (checkpointId: string) => CheckpointDiff | null;
   loadCheckpoint: (checkpointId: string) => void;
+  
+  // Custom Ring actions
+  addCustomRing: (name: string, type: 'forms' | 'sparring') => CustomRing;
+  deleteCustomRing: (id: string) => void;
+  updateCustomRing: (id: string, updates: Partial<CustomRing>) => void;
+  addParticipantToCustomRing: (ringId: string, participantId: string) => void;
+  removeParticipantFromCustomRing: (ringId: string, participantId: string) => void;
+  moveParticipantInCustomRing: (ringId: string, participantId: string, direction: 'up' | 'down') => void;
 }
 
 const initialConfig: TournamentConfig = {
@@ -90,6 +99,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   physicalRingMappings: [],
   categoryPoolMappings: [],
   checkpoints: [],
+  customRings: [],
 
   setParticipants: (participants) => {
     // Normalize participant objects - migrate from old model to new
@@ -234,6 +244,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       config: state.config,
       physicalRingMappings: state.physicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings,
+      customRings: state.customRings,
       lastSaved: new Date().toISOString(),
     };
     const result = await window.electronAPI.saveTournamentState(tournamentState);
@@ -269,6 +280,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         },
         physicalRingMappings: state.physicalRingMappings || [],
         categoryPoolMappings: state.categoryPoolMappings || [],
+        customRings: state.customRings || [],
       });
       alert('Tournament state loaded successfully!');
     } else if (result && !result.success) {
@@ -492,6 +504,84 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       });
       alert(`Checkpoint "${checkpoint.name}" loaded successfully`);
     }
+  },
+
+  // Custom Ring actions
+  addCustomRing: (name: string, type: 'forms' | 'sparring') => {
+    const newRing: CustomRing = {
+      id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      type,
+      participantIds: [],
+      createdAt: new Date().toISOString(),
+    };
+    set((state) => ({
+      customRings: [...state.customRings, newRing],
+    }));
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    return newRing;
+  },
+
+  deleteCustomRing: (id: string) => {
+    set((state) => ({
+      customRings: state.customRings.filter(r => r.id !== id),
+    }));
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+  },
+
+  updateCustomRing: (id: string, updates: Partial<CustomRing>) => {
+    set((state) => ({
+      customRings: state.customRings.map(r =>
+        r.id === id ? { ...r, ...updates } : r
+      ),
+    }));
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+  },
+
+  addParticipantToCustomRing: (ringId: string, participantId: string) => {
+    set((state) => ({
+      customRings: state.customRings.map(r =>
+        r.id === ringId && !r.participantIds.includes(participantId)
+          ? { ...r, participantIds: [...r.participantIds, participantId] }
+          : r
+      ),
+    }));
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+  },
+
+  removeParticipantFromCustomRing: (ringId: string, participantId: string) => {
+    set((state) => ({
+      customRings: state.customRings.map(r =>
+        r.id === ringId
+          ? { ...r, participantIds: r.participantIds.filter(id => id !== participantId) }
+          : r
+      ),
+    }));
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+  },
+
+  moveParticipantInCustomRing: (ringId: string, participantId: string, direction: 'up' | 'down') => {
+    set((state) => {
+      const ring = state.customRings.find(r => r.id === ringId);
+      if (!ring) return state;
+
+      const currentIndex = ring.participantIds.indexOf(participantId);
+      if (currentIndex === -1) return state;
+
+      const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (newIndex < 0 || newIndex >= ring.participantIds.length) return state;
+
+      const newParticipantIds = [...ring.participantIds];
+      [newParticipantIds[currentIndex], newParticipantIds[newIndex]] = 
+        [newParticipantIds[newIndex], newParticipantIds[currentIndex]];
+
+      return {
+        customRings: state.customRings.map(r =>
+          r.id === ringId ? { ...r, participantIds: newParticipantIds } : r
+        ),
+      };
+    });
+    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
   },
 }));
 
