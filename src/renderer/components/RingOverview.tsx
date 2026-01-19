@@ -1978,10 +1978,11 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                             onClick={async () => {
                               setPrinting(ring.id);
                               try {
-                                // Create participants with formsRankOrder set based on position in ring
+                                // Create participants with rank order set based on position in ring
                                 const participantsWithOrder = ringParticipants.map((p, index) => ({
                                   ...p,
-                                  formsRankOrder: index + 1
+                                  formsRankOrder: index + 1,
+                                  sparringRankOrder: index + 1
                                 }));
                                 
                                 // Create a mock competition ring for PDF generation
@@ -1995,14 +1996,24 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                                   name: ring.name,
                                 };
                                 
-                                const pdf = generateFormsScoringSheets(
-                                  participantsWithOrder,
-                                  [mockRing],
-                                  config.physicalRings,
-                                  ring.name, // Use ring name as division
-                                  config.watermarkImage,
-                                  []
-                                );
+                                // Use appropriate PDF generator based on type
+                                const pdf = ring.type === 'forms'
+                                  ? generateFormsScoringSheets(
+                                      participantsWithOrder,
+                                      [mockRing],
+                                      config.physicalRings,
+                                      ring.name,
+                                      config.watermarkImage,
+                                      []
+                                    )
+                                  : generateSparringBrackets(
+                                      participantsWithOrder,
+                                      [mockRing],
+                                      config.physicalRings,
+                                      ring.name,
+                                      config.watermarkImage,
+                                      []
+                                    );
                                 
                                 const pdfBlob = pdf.output('blob');
                                 const pdfUrl = URL.createObjectURL(pdfBlob);

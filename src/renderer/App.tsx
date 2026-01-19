@@ -244,6 +244,7 @@ function App() {
             },
             physicalRingMappings: state.physicalRingMappings || [],
             categoryPoolMappings: state.categoryPoolMappings || [],
+            customRings: state.customRings || [],
           });
         } else if (!result?.data) {
           console.log('No autosave data found. Save path will be: ' + (result?.path || 'unknown'));

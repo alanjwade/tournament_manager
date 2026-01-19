@@ -26,7 +26,8 @@ export function generateSparringBrackets(
   division: string,
   watermark?: string,
   physicalRingMappings?: { categoryPoolName: string; physicalRingName: string }[],
-  masterPdf?: jsPDF
+  masterPdf?: jsPDF,
+  titleOverride?: string
 ): jsPDF {
   const doc = masterPdf || new jsPDF({
     orientation: 'portrait',
@@ -98,6 +99,10 @@ export function generateSparringBrackets(
     const altStatus = pool 
       ? checkSparringAltRingStatus(participants, ring.categoryId, pool)
       : { status: 'none' as const, countA: 0, countB: 0, countEmpty: allRingParticipants.length };
+    
+    // If no participants, skip bracket generation (blank sheet not supported for sparring)
+    // Note: We continue even with 0 participants to generate a blank bracket
+    // The bracket will show empty match slots that can be filled in manually
     console.log('[sparringBracket] altStatus:', altStatus);
 
     // Function to generate a bracket for a set of participants with a specific alt ring label
@@ -168,7 +173,7 @@ export function generateSparringBrackets(
       }
 
       // Title with colored background using ring color
-      const titleText = `${titleWithAlt} Sparring Bracket`;
+      const titleText = titleOverride ? titleOverride : `${titleWithAlt} Sparring Bracket`;
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       
@@ -274,6 +279,20 @@ function calculateBracketPlacements(participants: Participant[], maxRounds: numb
   const totalPeople = participants.length;
   
   console.log(`Calculating placements for ${totalPeople} people, maxRounds=${maxRounds}`);
+
+  // If there are no participants, return an empty placement set
+  // but still compute the matchCount for a full blank bracket visual.
+  if (totalPeople === 0) {
+    const startRound = 1;
+    let matchCount = 0;
+    for (let round = startRound; round <= maxRounds; round++) {
+      const matchesInRound = Math.pow(2, maxRounds - round);
+      matchCount += matchesInRound;
+    }
+    // Add 3rd place match
+    matchCount += 1;
+    return { placements: [], startRound, matchCount };
+  }
 
   // Determine starting round based on participant count
   // Round 1 = 16 slots (8 matches), Round 2 = 8 slots (4 matches), 
@@ -674,7 +693,10 @@ function drawMatch(
   if (match.number > 0) {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Match #${match.number}`, x + width / 2, y + height / 2 + 0.03, { align: 'center' });
+    // Only show match numbers when we have participants (i.e., not printing a blank bracket)
+    if (participants && participants.length > 0) {
+      doc.text(`Match #${match.number}`, x + width / 2, y + height / 2 + 0.03, { align: 'center' });
+    }
   }
 
   // Bottom participant - positioned on top of the bottom line (just above it)

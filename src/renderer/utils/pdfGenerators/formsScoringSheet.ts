@@ -10,7 +10,8 @@ export function generateFormsScoringSheets(
   division: string,
   watermark?: string,
   physicalRingMappings?: { categoryPoolName: string; physicalRingName: string }[],
-  masterPdf?: jsPDF
+  masterPdf?: jsPDF,
+  titleOverride?: string
 ): jsPDF {
   const doc = masterPdf || new jsPDF({
     orientation: 'portrait',
@@ -133,7 +134,7 @@ export function generateFormsScoringSheets(
     }
 
     // Title with colored background using ring color
-    const titleText = `${fullyQualifiedRingName} Forms Scoring Sheet`;
+    const titleText = titleOverride ? titleOverride : `${fullyQualifiedRingName} Forms Scoring Sheet`;
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     
@@ -212,7 +213,12 @@ export function generateFormsScoringSheets(
       .filter((p) => ring.participantIds.includes(p.id))
       .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
 
-    ringParticipants.forEach((participant) => {
+    // If no participants, create 14 blank lines
+    const linesToRender = ringParticipants.length > 0 ? ringParticipants.length : 14;
+    
+    for (let i = 0; i < linesToRender; i++) {
+      const participant = ringParticipants[i]; // May be undefined for blank lines
+      
       // Check if we need a new page (leave room for placement table)
       if (y > pageHeight - 2.5) {
         doc.addPage();
@@ -275,10 +281,15 @@ export function generateFormsScoringSheets(
       doc.setFillColor(240, 240, 240); // Very light gray for data rows
       doc.rect(finalX, y - 0.12, colWidths.final, 0.3, 'F');
       
-      doc.text(`${participant.firstName} ${participant.lastName}`, x, y);
-      x += colWidths.name;
-      doc.text(participant.school.substring(0, 25), x, y);
-      x += colWidths.school;
+      if (participant) {
+        doc.text(`${participant.firstName} ${participant.lastName}`, x, y);
+        x += colWidths.name;
+        doc.text(participant.school.substring(0, 25), x, y);
+        x += colWidths.school;
+      } else {
+        // Blank line
+        x += colWidths.name + colWidths.school;
+      }
       
       // Draw score boxes for judges and final
       for (let i = 0; i < 4; i++) {
@@ -295,7 +306,7 @@ export function generateFormsScoringSheets(
       doc.setDrawColor(0, 0, 0); // Reset to black
       
       y += 0.12;
-    });
+    }
 
     // Final places table
     y += 0.3;

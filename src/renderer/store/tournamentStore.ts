@@ -296,6 +296,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       config: state.config,
       physicalRingMappings: state.physicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings,
+      customRings: state.customRings,
       lastSaved: new Date().toISOString(),
     };
     console.log('Saving autosave - participants count:', state.participants.length);
@@ -315,6 +316,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       competitionRings: [],
       config: initialConfig,
       checkpoints: [],
+      customRings: [],
     }),
 
   // Checkpoint management
@@ -333,6 +335,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         config: JSON.parse(JSON.stringify(state.config)),
         physicalRingMappings: JSON.parse(JSON.stringify(state.physicalRingMappings)),
         categoryPoolMappings: JSON.parse(JSON.stringify(state.categoryPoolMappings)),
+        customRings: JSON.parse(JSON.stringify(state.customRings)),
         lastSaved: timestamp,
       },
     };
@@ -501,6 +504,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         config: JSON.parse(JSON.stringify(checkpoint.state.config)),
         physicalRingMappings: JSON.parse(JSON.stringify(checkpoint.state.physicalRingMappings)),
         categoryPoolMappings: JSON.parse(JSON.stringify(checkpoint.state.categoryPoolMappings)),
+        customRings: checkpoint.state.customRings ? JSON.parse(JSON.stringify(checkpoint.state.customRings)) : [],
       });
       alert(`Checkpoint "${checkpoint.name}" loaded successfully`);
     }

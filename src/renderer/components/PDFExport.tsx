@@ -859,6 +859,117 @@ function PDFExport({ globalDivision }: PDFExportProps) {
           )}
         </div>
 
+        {/* Blank Sheets */}
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
+          <h3 style={{ fontSize: '16px', marginBottom: '15px', marginTop: 0 }}>Blank Scoring Sheets</h3>
+          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+            Print blank scoring sheets for manual use.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                setExporting(true);
+                try {
+                  const mockRing: CompetitionRing = {
+                    id: 'blank-forms',
+                    physicalRingId: '',
+                    categoryId: 'blank',
+                    division: 'Forms Scoring Sheet',
+                    type: 'forms',
+                    participantIds: [],
+                    name: 'Forms Scoring Sheet',
+                  };
+                  
+                  const pdf = generateFormsScoringSheets(
+                    [],
+                    [mockRing],
+                    config.physicalRings,
+                    'Forms Scoring Sheet',
+                    config.watermarkImage,
+                    [],
+                    undefined,
+                    'Forms Score Sheet'
+                  );
+                  
+                  const pdfBlob = pdf.output('blob');
+                  const pdfUrl = URL.createObjectURL(pdfBlob);
+                  const printWindow = window.open(pdfUrl);
+                  if (printWindow) {
+                    await new Promise<void>(resolve => {
+                      printWindow.addEventListener('load', () => {
+                        printWindow.print();
+                        setTimeout(() => {
+                          URL.revokeObjectURL(pdfUrl);
+                          resolve();
+                        }, 500);
+                      });
+                    });
+                  }
+                } catch (err) {
+                  alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              disabled={exporting}
+            >
+              {exporting ? 'Printing...' : 'Print Blank Forms Sheet'}
+            </button>
+            
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                setExporting(true);
+                try {
+                  const mockRing: CompetitionRing = {
+                    id: 'blank-sparring',
+                    physicalRingId: '',
+                    categoryId: 'blank',
+                    division: 'Sparring Bracket',
+                    type: 'sparring',
+                    participantIds: [],
+                    name: 'Sparring Bracket',
+                  };
+                  
+                  const pdf = generateSparringBrackets(
+                    [],
+                    [mockRing],
+                    config.physicalRings,
+                    'Sparring Bracket',
+                    config.watermarkImage,
+                    [],
+                    undefined,
+                    'Sparring Score Sheet'
+                  );
+                  
+                  const pdfBlob = pdf.output('blob');
+                  const pdfUrl = URL.createObjectURL(pdfBlob);
+                  const printWindow = window.open(pdfUrl);
+                  if (printWindow) {
+                    await new Promise<void>(resolve => {
+                      printWindow.addEventListener('load', () => {
+                        printWindow.print();
+                        setTimeout(() => {
+                          URL.revokeObjectURL(pdfUrl);
+                          resolve();
+                        }, 500);
+                      });
+                    });
+                  }
+                } catch (err) {
+                  alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              disabled={exporting}
+            >
+              {exporting ? 'Printing...' : 'Print Blank Sparring Bracket'}
+            </button>
+          </div>
+        </div>
+
       </div>
 
       {!config.watermarkImage && (
