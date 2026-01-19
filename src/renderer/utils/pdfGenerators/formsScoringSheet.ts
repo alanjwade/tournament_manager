@@ -180,34 +180,61 @@ export function generateFormsScoringSheets(
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     let x = margin;
+    const headerY = y - 0.15;
+    const headerHeight = 0.2;
     
-    // Shade the Final column header
+    // Shade the Judge columns header (lighter gray)
+    const judge1X = margin + colWidths.name + colWidths.school;
+    doc.setFillColor(245, 245, 245); // Very light gray for judges
+    doc.rect(judge1X, headerY, colWidths.judge1 + colWidths.judge2 + colWidths.judge3, headerHeight, 'F');
+    
+    // Shade the Final column header (slightly darker)
     const finalX = margin + colWidths.name + colWidths.school + colWidths.judge1 + 
                    colWidths.judge2 + colWidths.judge3;
     doc.setFillColor(220, 220, 220); // Light gray
-    doc.rect(finalX, y - 0.15, colWidths.final, 0.2, 'F');
+    doc.rect(finalX, headerY, colWidths.final, headerHeight, 'F');
     
-    doc.text('Participant', x, y);
+    doc.text('Participant', x + 0.05, y);
     x += colWidths.name;
-    doc.text('School', x, y);
+    doc.text('School', x + 0.05, y);
     x += colWidths.school;
-    doc.text('Judge 1', x, y);
+    doc.text('Judge 1', x + 0.1, y);
     x += colWidths.judge1;
-    doc.text('Judge 2', x, y);
+    doc.text('Judge 2', x + 0.1, y);
     x += colWidths.judge2;
-    doc.text('Judge 3', x, y);
+    doc.text('Judge 3', x + 0.1, y);
     x += colWidths.judge3;
-    doc.text('Final', x, y);
+    doc.text('Final', x + 0.1, y);
 
-    // Header line
+    // Draw header row borders (full grid)
     y += 0.05;
-    doc.setLineWidth(0.02);
-    doc.line(margin, y, margin + tableWidth, y);
+    doc.setLineWidth(0.015);
+    doc.setDrawColor(0, 0, 0);
+    x = margin;
+    
+    // Vertical lines for columns
+    doc.line(x, headerY, x, headerY + headerHeight); // Left edge
+    x += colWidths.name;
+    doc.line(x, headerY, x, headerY + headerHeight);
+    x += colWidths.school;
+    doc.line(x, headerY, x, headerY + headerHeight);
+    x += colWidths.judge1;
+    doc.line(x, headerY, x, headerY + headerHeight);
+    x += colWidths.judge2;
+    doc.line(x, headerY, x, headerY + headerHeight);
+    x += colWidths.judge3;
+    doc.line(x, headerY, x, headerY + headerHeight);
+    x += colWidths.final;
+    doc.line(x, headerY, x, headerY + headerHeight); // Right edge
+    
+    // Horizontal lines
+    doc.line(margin, headerY, margin + tableWidth, headerY);
+    doc.line(margin, headerY + headerHeight, margin + tableWidth, headerY + headerHeight);
 
     // Participants
-    y += 0.25;
+    y += 0.2;
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(10);
 
     const ringParticipants = participants
       .filter((p) => ring.participantIds.includes(p.id))
@@ -215,12 +242,13 @@ export function generateFormsScoringSheets(
 
     // If no participants, create 14 blank lines
     const linesToRender = ringParticipants.length > 0 ? ringParticipants.length : 14;
+    const rowHeight = 0.26;
     
     for (let i = 0; i < linesToRender; i++) {
       const participant = ringParticipants[i]; // May be undefined for blank lines
       
       // Check if we need a new page (leave room for placement table)
-      if (y > pageHeight - 2.5) {
+      if (y + rowHeight > pageHeight - 2.5) {
         doc.addPage();
         y = margin + 0.3;
         
@@ -273,39 +301,57 @@ export function generateFormsScoringSheets(
         doc.setFontSize(9);
       }
 
-      x = margin;
+      const rowY = y;
       
-      // Shade the Final column for this row
+      // Shade the Judge columns for this row (lighter gray)
+      const judge1X = margin + colWidths.name + colWidths.school;
+      doc.setFillColor(250, 250, 250); // Very light gray for judges
+      doc.rect(judge1X, rowY, colWidths.judge1 + colWidths.judge2 + colWidths.judge3, rowHeight, 'F');
+      
+      // Shade the Final column for this row (slightly darker)
       const finalX = margin + colWidths.name + colWidths.school + colWidths.judge1 + 
                      colWidths.judge2 + colWidths.judge3;
       doc.setFillColor(240, 240, 240); // Very light gray for data rows
-      doc.rect(finalX, y - 0.12, colWidths.final, 0.3, 'F');
+      doc.rect(finalX, rowY, colWidths.final, rowHeight, 'F');
       
+      let x = margin;
+      
+      // Draw row cell content
+      const textY = rowY + rowHeight / 2 + 0.01; // Center text vertically
       if (participant) {
-        doc.text(`${participant.firstName} ${participant.lastName}`, x, y);
-        x += colWidths.name;
-        doc.text(participant.school.substring(0, 25), x, y);
-        x += colWidths.school;
-      } else {
-        // Blank line
-        x += colWidths.name + colWidths.school;
+        doc.text(`${participant.firstName} ${participant.lastName}`, x + 0.05, textY);
+        doc.text(participant.school.substring(0, 25), x + colWidths.name + 0.05, textY);
       }
       
-      // Draw score boxes for judges and final
-      for (let i = 0; i < 4; i++) {
-        doc.setLineWidth(0.01);
-        doc.rect(x + 0.05, y - 0.12, 0.6, 0.2);
-        x += i < 3 ? (i === 0 ? colWidths.judge1 : colWidths.judge2) : colWidths.final;
+      // Draw top line for first row (continuation from header)
+      if (i === 0) {
+        doc.line(margin, rowY, margin + tableWidth, rowY);
       }
-
-      // Draw thin line under each row for easy following
-      y += 0.18;
-      doc.setLineWidth(0.005);
-      doc.setDrawColor(200, 200, 200); // Light gray line
-      doc.line(margin, y, margin + tableWidth, y);
-      doc.setDrawColor(0, 0, 0); // Reset to black
       
-      y += 0.12;
+      // Draw grid borders for this row
+      doc.setLineWidth(0.015);
+      doc.setDrawColor(0, 0, 0);
+      
+      x = margin;
+      // Vertical lines
+      doc.line(x, rowY, x, rowY + rowHeight); // Left edge
+      x += colWidths.name;
+      doc.line(x, rowY, x, rowY + rowHeight);
+      x += colWidths.school;
+      doc.line(x, rowY, x, rowY + rowHeight);
+      x += colWidths.judge1;
+      doc.line(x, rowY, x, rowY + rowHeight);
+      x += colWidths.judge2;
+      doc.line(x, rowY, x, rowY + rowHeight);
+      x += colWidths.judge3;
+      doc.line(x, rowY, x, rowY + rowHeight);
+      x += colWidths.final;
+      doc.line(x, rowY, x, rowY + rowHeight); // Right edge
+      
+      // Horizontal line at bottom
+      doc.line(margin, rowY + rowHeight, margin + tableWidth, rowY + rowHeight);
+      
+      y += rowHeight;
     }
 
     // Final places table
