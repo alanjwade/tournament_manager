@@ -47,11 +47,29 @@ function Configuration() {
   const setSchoolAbbreviations = useTournamentStore((state) => state.setSchoolAbbreviations);
   const saveState = useTournamentStore((state) => state.saveState);
   const loadState = useTournamentStore((state) => state.loadState);
+  const loadStateFromData = useTournamentStore((state) => state.loadStateFromData);
 
   const [divisionName, setDivisionName] = useState('');
   const [newSchoolName, setNewSchoolName] = useState('');
   const [newAbbreviation, setNewAbbreviation] = useState('');
   const [showAbbreviations, setShowAbbreviations] = useState(false);
+  const [backups, setBackups] = useState<{ fileName: string; path: string; mtimeMs: number }[]>([]);
+  const [selectedBackup, setSelectedBackup] = useState<string>('');
+  const [loadingBackup, setLoadingBackup] = useState(false);
+
+  const refreshBackups = async () => {
+    try {
+      const result = await window.electronAPI.listBackups();
+      if (result.success && result.data) {
+        setBackups(result.data);
+        if (!selectedBackup && result.data.length > 0) {
+          setSelectedBackup(result.data[0].fileName);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to list backups:', error);
+    }
+  };
 
   // Load default watermark if none is set
   useEffect(() => {
@@ -72,6 +90,10 @@ function Configuration() {
         });
     }
   }, []); // Only run once on mount
+
+  useEffect(() => {
+    refreshBackups();
+  }, []);
 
   const handleAddDivision = () => {
     if (!divisionName.trim()) return;
@@ -105,6 +127,32 @@ function Configuration() {
     }
   };
 
+  const handleLoadBackup = async () => {
+    if (!selectedBackup) {
+      return;
+    }
+    const confirmLoad = window.confirm(
+      'Load this backup? This will replace the current tournament data.'
+    );
+    if (!confirmLoad) {
+      return;
+    }
+    setLoadingBackup(true);
+    try {
+      const result = await window.electronAPI.loadBackup(selectedBackup);
+      if (result.success && result.data) {
+        loadStateFromData(result.data as any);
+        alert('Backup loaded successfully.');
+      } else {
+        alert(`Failed to load backup: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      alert(`Failed to load backup: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoadingBackup(false);
+    }
+  };
+
   const handleAddAbbreviation = () => {
     if (!newSchoolName.trim() || !newAbbreviation.trim()) return;
     
@@ -135,6 +183,41 @@ function Configuration() {
         <button className="btn btn-secondary" onClick={loadState}>
           📂 Load Tournament
         </button>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Backups (Recovery)</h3>
+        <p style={{ color: '#666', marginBottom: '10px', fontSize: '14px' }}>
+          Backups are saved every 20 minutes while the app is running and kept for 12 hours (at least one backup is retained).
+        </p>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <select
+            className="form-control"
+            style={{ minWidth: '320px' }}
+            value={selectedBackup}
+            onChange={(e) => setSelectedBackup(e.target.value)}
+          >
+            {backups.length === 0 ? (
+              <option value="">No backups available</option>
+            ) : (
+              backups.map((backup) => (
+                <option key={backup.fileName} value={backup.fileName}>
+                  {`${backup.fileName} (${new Date(backup.mtimeMs).toLocaleString()})`}
+                </option>
+              ))
+            )}
+          </select>
+          <button className="btn btn-secondary" onClick={refreshBackups}>
+            Refresh
+          </button>
+          <button
+            className="btn btn-warning"
+            onClick={handleLoadBackup}
+            disabled={loadingBackup || backups.length === 0 || !selectedBackup}
+          >
+            {loadingBackup ? 'Loading...' : 'Load Backup'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-2">

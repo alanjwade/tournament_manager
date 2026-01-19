@@ -10,6 +10,8 @@ export interface ElectronAPI {
   saveCheckpoint: (checkpoint: any) => Promise<{ success: boolean; path?: string; error?: string }>;
   loadCheckpoints: () => Promise<{ success: boolean; data?: any[]; error?: string }>;
   deleteCheckpoint: (checkpointId: string) => Promise<{ success: boolean; error?: string }>;
+  listBackups: () => Promise<{ success: boolean; data?: { fileName: string; path: string; mtimeMs: number }[]; error?: string }>;
+  loadBackup: (fileName: string) => Promise<{ success: boolean; data?: any; path?: string; error?: string }>;
 }
 
 declare global {

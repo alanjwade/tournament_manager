@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 let mainWindow: BrowserWindow | null = null;
+let backupInterval: NodeJS.Timeout | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -35,6 +36,9 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
+  // Start periodic backups while the app is running
+  startBackupScheduler();
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -45,6 +49,13 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  if (backupInterval) {
+    clearInterval(backupInterval);
+    backupInterval = null;
   }
 });
 
@@ -113,6 +124,84 @@ function getDataPath(): string {
   return app.getPath('userData');
 }
 
+function getAppBasePath(): string {
+  return process.env.NODE_ENV === 'development'
+    ? app.getAppPath()
+    : path.dirname(app.getPath('exe'));
+}
+
+function getBackupDir(): string {
+  const basePath = getAppBasePath();
+  return path.join(basePath, 'backups');
+}
+
+function formatBackupTimestamp(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
+function cleanupOldBackups(backupDir: string) {
+  if (!fs.existsSync(backupDir)) {
+    return;
+  }
+
+  const cutoff = Date.now() - 12 * 60 * 60 * 1000;
+  const files = fs.readdirSync(backupDir)
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => {
+      const fullPath = path.join(backupDir, file);
+      const stat = fs.statSync(fullPath);
+      return { file, fullPath, mtimeMs: stat.mtimeMs };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  if (files.length === 0) {
+    return;
+  }
+
+  const recent = files.filter((entry) => entry.mtimeMs >= cutoff);
+  const old = files.filter((entry) => entry.mtimeMs < cutoff);
+
+  if (recent.length > 0) {
+    old.forEach((entry) => fs.unlinkSync(entry.fullPath));
+    return;
+  }
+
+  // All backups are older than cutoff; keep the newest one
+  const [newest, ...rest] = files;
+  rest.forEach((entry) => fs.unlinkSync(entry.fullPath));
+}
+
+function runBackupJob() {
+  try {
+    const dataPath = getDataPath();
+    const autosavePath = path.join(dataPath, 'tournament-autosave.json');
+    if (!fs.existsSync(autosavePath)) {
+      return;
+    }
+
+    const backupDir = getBackupDir();
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    const timestamp = formatBackupTimestamp(new Date());
+    const backupFileName = `backup-${timestamp}.json`;
+    const backupPath = path.join(backupDir, backupFileName);
+    fs.copyFileSync(autosavePath, backupPath);
+
+    cleanupOldBackups(backupDir);
+  } catch (error) {
+    console.error('Error running backup job:', error);
+  }
+}
+
+function startBackupScheduler() {
+  runBackupJob();
+  const intervalMs = 20 * 60 * 1000;
+  backupInterval = setInterval(runBackupJob, intervalMs);
+}
+
 ipcMain.handle('save-autosave', async (event, data: string) => {
   try {
     const dataPath = getDataPath();
@@ -149,6 +238,44 @@ ipcMain.handle('load-autosave', async () => {
   } catch (error) {
     console.error('Error loading autosave:', error);
     return { success: false, error: String(error), path: 'unknown' };
+  }
+});
+
+ipcMain.handle('list-backups', async () => {
+  try {
+    const backupDir = getBackupDir();
+    if (!fs.existsSync(backupDir)) {
+      return { success: true, data: [] };
+    }
+
+    const files = fs.readdirSync(backupDir)
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => {
+        const fullPath = path.join(backupDir, file);
+        const stat = fs.statSync(fullPath);
+        return { fileName: file, path: fullPath, mtimeMs: stat.mtimeMs };
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    return { success: true, data: files };
+  } catch (error) {
+    console.error('Error listing backups:', error);
+    return { success: false, error: String(error), data: [] };
+  }
+});
+
+ipcMain.handle('load-backup', async (event, fileName: string) => {
+  try {
+    const backupDir = getBackupDir();
+    const filePath = path.join(backupDir, fileName);
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'Backup file not found' };
+    }
+    const data = fs.readFileSync(filePath, 'utf-8');
+    return { success: true, data: JSON.parse(data), path: filePath };
+  } catch (error) {
+    console.error('Error loading backup:', error);
+    return { success: false, error: String(error) };
   }
 });
 

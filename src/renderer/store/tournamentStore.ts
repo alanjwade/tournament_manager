@@ -28,6 +28,7 @@ interface TournamentState {
   setSchoolAbbreviations: (abbreviations: { [schoolName: string]: string }) => void;
   saveState: () => Promise<void>;
   loadState: () => Promise<void>;
+  loadStateFromData: (data: SavedState) => void;
   autoSave: () => void;
   reset: () => void;
   
@@ -259,33 +260,36 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const result = await window.electronAPI.loadTournamentState();
     if (result && result.success && result.data) {
       const state = result.data as SavedState;
-      
-      // Merge divisions to preserve abbreviations from initial config
-      const mergedDivisions = (state.config?.divisions || []).map((savedDiv) => {
-        const defaultDiv = initialConfig.divisions.find(d => d.name === savedDiv.name);
-        return {
-          ...savedDiv,
-          // Preserve abbreviation from default config if not in saved state
-          abbreviation: savedDiv.abbreviation || defaultDiv?.abbreviation
-        };
-      });
-      
-      set({
-        participants: state.participants || [],
-        categories: state.categories || [],
-        competitionRings: state.competitionRings || [],
-        config: {
-          ...(state.config || initialConfig),
-          divisions: mergedDivisions
-        },
-        physicalRingMappings: state.physicalRingMappings || [],
-        categoryPoolMappings: state.categoryPoolMappings || [],
-        customRings: state.customRings || [],
-      });
+      get().loadStateFromData(state);
       alert('Tournament state loaded successfully!');
     } else if (result && !result.success) {
       alert('Failed to load tournament state');
     }
+  },
+
+  loadStateFromData: (state) => {
+    // Merge divisions to preserve abbreviations from initial config
+    const mergedDivisions = (state.config?.divisions || []).map((savedDiv) => {
+      const defaultDiv = initialConfig.divisions.find(d => d.name === savedDiv.name);
+      return {
+        ...savedDiv,
+        // Preserve abbreviation from default config if not in saved state
+        abbreviation: savedDiv.abbreviation || defaultDiv?.abbreviation
+      };
+    });
+
+    set({
+      participants: state.participants || [],
+      categories: state.categories || [],
+      competitionRings: state.competitionRings || [],
+      config: {
+        ...(state.config || initialConfig),
+        divisions: mergedDivisions
+      },
+      physicalRingMappings: state.physicalRingMappings || [],
+      categoryPoolMappings: state.categoryPoolMappings || [],
+      customRings: state.customRings || [],
+    });
   },
 
   autoSave: async () => {
