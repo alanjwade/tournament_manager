@@ -1,6 +1,6 @@
 {
   "name": "tournament-manager",
-  "version": "0.99.2",
+  "version": "0.99.3",
   "description": "Martial Arts Tournament Management Application",
   "main": "dist/src/main/index.js",
   "scripts": {
@@ -48,7 +48,7 @@
   },
   "build": {
     "appId": "com.tournament.manager",
-    "productName": "Tournament Manager",
+    "productName": "TournamentManager",
     "icon": "src/renderer/assets/icons/app-icon.png",
     "directories": {
       "output": "release"
@@ -81,13 +81,7 @@
     "win": {
       "target": [
         {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "zip",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
@@ -95,10 +89,14 @@
       ],
       "icon": "src/renderer/assets/icons/app-icon.png",
       "signAndEditExecutable": false,
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
-    "portable": {
-      "artifactName": "${productName}-${version}-portable.${ext}"
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TournamentManager"
     },
     "publish": null
   }
