@@ -1,6 +1,6 @@
 {
   "name": "tournament-manager",
-  "version": "0.99.3",
+  "version": "0.99.4",
   "description": "Martial Arts Tournament Management Application",
   "main": "dist/src/main/index.js",
   "scripts": {
