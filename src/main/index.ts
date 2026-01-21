@@ -280,6 +280,31 @@ ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint
   }
 });
 
+ipcMain.handle('get-file-locations', async () => {
+  const dataPath = getDataPath();
+  const backupDir = getBackupDir();
+  const autosavePath = path.join(dataPath, 'tournament-autosave.json');
+  
+  // Get PDF output directory
+  const appPath = process.env.NODE_ENV === 'development' 
+    ? app.getAppPath() 
+    : path.dirname(app.getPath('exe'));
+  const defaultPdfOutputDir = path.join(appPath, 'pdf_outputs');
+  
+  // Get executable path
+  const exePath = process.env.NODE_ENV === 'development'
+    ? app.getAppPath()
+    : app.getPath('exe');
+  
+  return {
+    dataPath,
+    backupDir,
+    autosavePath,
+    defaultPdfOutputDir,
+    exePath
+  };
+});
+
 ipcMain.handle('select-image', async () => {
   if (!mainWindow) {
     throw new Error('Main window not available');

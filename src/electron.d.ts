@@ -12,6 +12,7 @@ export interface ElectronAPI {
   deleteCheckpoint: (checkpointId: string) => Promise<{ success: boolean; error?: string }>;
   listBackups: () => Promise<{ success: boolean; data?: { fileName: string; path: string; mtimeMs: number }[]; error?: string }>;
   loadBackup: (fileName: string) => Promise<{ success: boolean; data?: any; path?: string; error?: string }>;
+  getFileLocations: () => Promise<{ dataPath: string; backupDir: string; autosavePath: string; defaultPdfOutputDir: string; exePath: string }>;
   getAppVersion: () => Promise<string>;
   checkForUpdates: () => Promise<{ success: boolean; currentVersion: string; latestVersion?: string; updateAvailable?: boolean; downloadUrl?: string; error?: string }>;
   openDownloadPage: () => Promise<{ success: boolean }>;

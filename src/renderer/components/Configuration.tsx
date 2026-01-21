@@ -56,6 +56,13 @@ function Configuration() {
   const [backups, setBackups] = useState<{ fileName: string; path: string; mtimeMs: number }[]>([]);
   const [selectedBackup, setSelectedBackup] = useState<string>('');
   const [loadingBackup, setLoadingBackup] = useState(false);
+  const [fileLocations, setFileLocations] = useState<{
+    dataPath: string;
+    backupDir: string;
+    autosavePath: string;
+    defaultPdfOutputDir: string;
+    exePath: string;
+  } | null>(null);
 
   const refreshBackups = async () => {
     try {
@@ -93,6 +100,8 @@ function Configuration() {
 
   useEffect(() => {
     refreshBackups();
+    // Load file locations
+    window.electronAPI.getFileLocations().then(setFileLocations).catch(console.error);
   }, []);
 
   const handleAddDivision = () => {
@@ -100,7 +109,8 @@ function Configuration() {
     const newDivision: Division = {
       name: divisionName.trim(),
       order: config.divisions.length + 1,
-      numPools: 1,
+      numRings: 2,
+      abbreviation: '',
     };
     setDivisions([...config.divisions, newDivision]);
     setDivisionName('');
@@ -202,7 +212,7 @@ function Configuration() {
             ) : (
               backups.map((backup) => (
                 <option key={backup.fileName} value={backup.fileName}>
-                  {`${backup.fileName} (${new Date(backup.mtimeMs).toLocaleString()})`}
+                  {new Date(backup.mtimeMs).toLocaleString()}
                 </option>
               ))
             )}
@@ -305,6 +315,45 @@ function Configuration() {
           <p style={{ marginTop: '10px', color: '#2e7d32', fontSize: '14px' }}>
             ✓ PDFs will be saved to: <code style={{ backgroundColor: '#f5f5f5', padding: '2px 6px', borderRadius: '3px' }}>{config.pdfOutputDirectory}</code>
           </p>
+        )}
+      </div>
+
+      <div style={{ marginTop: '30px' }}>
+        <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
+          File Locations
+        </h3>
+        <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
+          Application data and file storage locations (read-only).
+        </p>
+        {fileLocations ? (
+          <div style={{ fontSize: '14px', fontFamily: 'monospace', backgroundColor: '#f5f5f5', padding: '15px', borderRadius: '5px' }}>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Data Directory:</strong><br />
+              <code>{fileLocations.dataPath}</code>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Backup Directory:</strong><br />
+              <code>{fileLocations.backupDir}</code>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Autosave File:</strong><br />
+              <code>{fileLocations.autosavePath}</code>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Default PDF Output:</strong><br />
+              <code>{fileLocations.defaultPdfOutputDir}</code>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>PDF Output (Configured):</strong><br />
+              <code>{config.pdfOutputDirectory || '(not set - will use default)'}</code>
+            </div>
+            <div>
+              <strong>Application Executable:</strong><br />
+              <code>{fileLocations.exePath}</code>
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: '#999', fontSize: '14px' }}>Loading file locations...</p>
         )}
       </div>
 

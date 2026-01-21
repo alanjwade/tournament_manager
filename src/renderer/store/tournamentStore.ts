@@ -51,10 +51,10 @@ interface TournamentState {
 const initialConfig: TournamentConfig = {
   divisions: [
     { name: 'Black Belt', order: 1, numRings: 2, abbreviation: 'BLKB' },
-    { name: 'Level 1', order: 2, numRings: 2, abbreviation: 'LVL1' },
-    { name: 'Level 2', order: 3, numRings: 2, abbreviation: 'LVL2' },
-    { name: 'Level 3', order: 4, numRings: 2, abbreviation: 'LVL3' },
-    { name: 'Beginner', order: 5, numRings: 2, abbreviation: 'BGNR' },
+    { name: 'Beginner', order: 2, numRings: 2, abbreviation: 'BGNR' },
+    { name: 'Level 1', order: 3, numRings: 2, abbreviation: 'LVL1' },
+    { name: 'Level 2', order: 4, numRings: 2, abbreviation: 'LVL2' },
+    { name: 'Level 3', order: 5, numRings: 2, abbreviation: 'LVL3' },
   ],
   physicalRings: [],
   watermarkImage: undefined,

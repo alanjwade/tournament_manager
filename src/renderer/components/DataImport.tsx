@@ -109,49 +109,7 @@ function DataImport() {
         )}
       </div>
 
-      {participants.length > 0 && (
-        <div className="mt-2">
-          <h3 style={{ marginBottom: '10px', fontSize: '16px' }}>
-            Participant Preview (first 10)
-          </h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Age</th>
-                  <th>Gender</th>
-                  <th>Height</th>
-                  <th>School</th>
-                  <th>Forms Div</th>
-                  <th>Sparring Div</th>
-                </tr>
-              </thead>
-              <tbody>
-                {participants.slice(0, 10).map((p) => (
-                  <tr key={p.id}>
-                    <td>{`${p.firstName} ${p.lastName}`}</td>
-                    <td>{p.age} {p.age === 18 ? '(18+)' : ''}</td>
-                    <td>{p.gender}</td>
-                    <td>{`${p.heightFeet}'${p.heightInches}"`}</td>
-                    <td>
-                      {p.school}
-                      {p.branch && ` - ${p.branch}`}
-                    </td>
-                    <td>{p.formsDivision}</td>
-                    <td>{p.sparringDivision}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Debug: Show all unique ages */}
-          <div className="info mt-2">
-            <strong>All unique ages in data:</strong> {Array.from(new Set(participants.map(p => p.age))).sort((a, b) => a - b).join(', ')}
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
