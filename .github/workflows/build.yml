@@ -35,18 +35,11 @@ jobs:
         run: dir release
         shell: cmd
       
-      - name: Upload portable executable
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: windows-portable
+          name: windows-installer
           path: release/*.exe
-          if-no-files-found: warn
-      
-      - name: Upload zip archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-zip
-          path: release/*.zip
           if-no-files-found: warn
       
       - name: Create Release
@@ -55,24 +48,23 @@ jobs:
         with:
           files: |
             release/*.exe
-            release/*.zip
             WINDOWS_RELEASE_README.md
           draft: false
           prerelease: false
           generate_release_notes: true
           body: |
-            ## 📦 Download and Run
+            ## 📦 Download and Install
             
             **For Windows Users:**
-            1. Download `Tournament Manager-*-portable.exe` (recommended)
-            2. OR download `Tournament Manager-*-x64.zip` and extract
-            3. Double-click to run - no installation needed!
+            1. Download `TournamentManager-Setup-*.exe`
+            2. Run the installer and follow the prompts
+            3. Launch TournamentManager from your Start Menu or Desktop shortcut
             
             📖 See `WINDOWS_RELEASE_README.md` for complete instructions.
             
             ## 💾 Tournament Data
             
-            Your tournament data saves automatically to a `tournament-data` folder next to the exe.
-            To share tournament data, just share the `tournament-autosave.json` file!
+            Your tournament data saves automatically to your user AppData folder.
+            Data persists across updates and can be exported/imported as needed.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

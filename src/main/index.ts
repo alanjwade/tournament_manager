@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as https from 'https';
 
 let mainWindow: BrowserWindow | null = null;
 let backupInterval: NodeJS.Timeout | null = null;
@@ -35,6 +36,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  createMenu();
 
   // Start periodic backups while the app is running
   startBackupScheduler();
@@ -85,54 +87,15 @@ ipcMain.handle('select-file', async () => {
 });
 
 // Autosave handlers
-// For portable builds, prefer saving in the app directory if possible
+// Use the standard userData directory for installed apps
 function getDataPath(): string {
-  // PRIMARY: Check for PORTABLE_EXECUTABLE_DIR env var (set by electron-builder portable)
-  const portableDir = process.env.PORTABLE_EXECUTABLE_DIR;
-  if (portableDir) {
-    const dataDir = path.join(portableDir, 'tournament-data');
-    
-    // Create directory if it doesn't exist
-    try {
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-      return dataDir;
-    } catch (error) {
-      console.error('Error creating portable data directory:', error);
-    }
-  }
-  
-  // FALLBACK: Check if "portable" is in the exe name or path
-  const exePath = app.getPath('exe');
-  const lowerExePath = exePath.toLowerCase();
-  if (lowerExePath.includes('portable') && app.isPackaged) {
-    const appDir = path.dirname(exePath);
-    const dataDir = path.join(appDir, 'tournament-data');
-    
-    try {
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-      return dataDir;
-    } catch (error) {
-      console.error('Error creating fallback portable directory:', error);
-    }
-  }
-  
-  // DEFAULT: use userData directory
+  // Use userData directory (on Windows: %APPDATA%/TournamentManager)
   return app.getPath('userData');
 }
 
-function getAppBasePath(): string {
-  return process.env.NODE_ENV === 'development'
-    ? app.getAppPath()
-    : path.dirname(app.getPath('exe'));
-}
-
 function getBackupDir(): string {
-  const basePath = getAppBasePath();
-  return path.join(basePath, 'backups');
+  const dataPath = getDataPath();
+  return path.join(dataPath, 'backups');
 }
 
 function formatBackupTimestamp(date: Date): string {
@@ -470,3 +433,128 @@ ipcMain.handle('delete-checkpoint', async (event, checkpointId: string) => {
     return { success: false, error: String(error) };
   }
 });
+
+// Version and Update handlers
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  return new Promise((resolve) => {
+    const currentVersion = app.getVersion();
+    const options = {
+      hostname: 'api.github.com',
+      path: '/repos/alanjwade/tournament_manager/releases/latest',
+      method: 'GET',
+      headers: {
+        'User-Agent': 'TournamentManager'
+      }
+    };
+
+    https.get(options, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          const release = JSON.parse(data);
+          const latestVersion = release.tag_name.replace('v', '');
+          const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
+          
+          resolve({
+            success: true,
+            currentVersion,
+            latestVersion,
+            updateAvailable,
+            downloadUrl: release.html_url
+          });
+        } catch (error) {
+          resolve({
+            success: false,
+            error: 'Failed to parse release data',
+            currentVersion
+          });
+        }
+      });
+    }).on('error', (error) => {
+      resolve({
+        success: false,
+        error: error.message,
+        currentVersion
+      });
+    });
+  });
+});
+
+ipcMain.handle('open-download-page', async () => {
+  await shell.openExternal('https://github.com/alanjwade/tournament_manager/releases/latest');
+  return { success: true };
+});
+
+// Helper function to compare version strings
+function compareVersions(v1: string, v2: string): number {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const part1 = parts1[i] || 0;
+    const part2 = parts2[i] || 0;
+    
+    if (part1 > part2) return 1;
+    if (part1 < part2) return -1;
+  }
+  
+  return 0;
+}
+
+// Create application menu
+function createMenu() {
+  const template: any[] = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Exit',
+          accelerator: 'Alt+F4',
+          click: () => {
+            app.quit();
+          }
+        }
+      ]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'About TournamentManager',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('show-about-dialog');
+            }
+          }
+        },
+        {
+          label: 'Check for Updates...',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('check-for-updates');
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'GitHub Repository',
+          click: async () => {
+            await shell.openExternal('https://github.com/alanjwade/tournament_manager');
+          }
+        }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}

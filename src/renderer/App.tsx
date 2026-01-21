@@ -13,6 +13,8 @@ import Configuration from './components/Configuration';
 import CheckpointManager from './components/CheckpointManager';
 import TournamentDay from './components/TournamentDay';
 import AddParticipantModal from './components/AddParticipantModal';
+import AboutDialog from './components/AboutDialog';
+import UpdateChecker from './components/UpdateChecker';
 
 type Tab = 'dashboard' | 'import' | 'categories' | 'editor' | 'overview' | 'ringmap' | 'export' | 'checkpoints' | 'tournament-day';
 type Theme = 'light' | 'dark';
@@ -23,6 +25,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchFocused, setSearchFocused] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isUpdateCheckerOpen, setIsUpdateCheckerOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => {
     // Default to dark theme, but check localStorage for user preference
     const savedTheme = localStorage.getItem('tournament-theme') as Theme;
@@ -41,6 +45,17 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('tournament-theme', theme);
   }, [theme]);
+
+  // Listen for menu events from main process
+  useEffect(() => {
+    window.electronAPI.onShowAboutDialog(() => {
+      setIsAboutOpen(true);
+    });
+
+    window.electronAPI.onCheckForUpdates(() => {
+      setIsUpdateCheckerOpen(true);
+    });
+  }, []);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -508,6 +523,18 @@ function App() {
       <AddParticipantModal 
         isOpen={isAddModalOpen} 
         onClose={() => setIsAddModalOpen(false)} 
+      />
+
+      {/* About Dialog */}
+      <AboutDialog 
+        isOpen={isAboutOpen} 
+        onClose={() => setIsAboutOpen(false)} 
+      />
+
+      {/* Update Checker */}
+      <UpdateChecker 
+        isOpen={isUpdateCheckerOpen} 
+        onClose={() => setIsUpdateCheckerOpen(false)} 
       />
     </div>
   );

@@ -11,10 +11,9 @@
    ```
 
 2. GitHub Actions will automatically:
-   - Build the Windows portable executable
-   - Create a ZIP archive
+   - Build the Windows installer
    - Create a GitHub release
-   - Upload both files as release assets
+   - Upload the installer as a release asset
 
 3. Users can then download from the Releases page
 
@@ -32,8 +31,7 @@ npm run package:win
 ```
 
 The output will be in the `release/` folder:
-- `Tournament Manager-X.X.X-portable.exe` - Single portable executable
-- `Tournament Manager-X.X.X-x64.zip` - ZIP archive with all files
+- `TournamentManager-Setup-X.X.X.exe` - Windows installer
 
 ## What Gets Included
 
@@ -43,41 +41,41 @@ The build automatically includes:
 - ✅ Application icons
 - ✅ All required dependencies
 
-Users just need:
-1. The `.exe` file (portable) or
-2. The `.zip` file (extract and run)
+Users just need to:
+1. Download the installer
+2. Run it and follow the installation wizard
 
 ## Data File Location
 
-When users run the portable version:
-- Tournament data saves to: `[app-folder]/tournament-data/tournament-autosave.json`
-- This makes it truly portable - they can move the whole folder anywhere
-- To share tournament data, just share the `tournament-autosave.json` file
+When users run the installed version:
+- Tournament data saves to: `C:\Users\[Username]\AppData\Roaming\TournamentManager\`
+- Data persists across updates
+- To share tournament data, use the Export/Import features in the Data Viewer tab
 
 ## Distribution
 
 1. After GitHub Actions builds the release, download:
-   - `Tournament Manager-X.X.X-portable.exe`
+   - `TournamentManager-Setup-X.X.X.exe`
    - `WINDOWS_RELEASE_README.md` (from repo)
 
-2. Provide both files to users:
-   - The `.exe` is the application
-   - The README explains how to use it
+2. Provide the installer to users:
+   - The installer includes everything needed
+   - The README explains installation and usage
 
-3. Tournament data file:
-   - You can create a sample `tournament-autosave.json`
-   - Users place it in `tournament-data` folder next to the exe
-   - Or just send them the JSON file directly
+3. Tournament data:
+   - Users can export/import tournament data via the app
+   - Data is automatically saved in AppData
 
-## Testing the Portable Build
+## Testing the Installer
 
-1. Build the portable exe: `npm run package:win`
-2. Create a test folder on Desktop
-3. Copy the `.exe` from `release/` to the test folder
-4. Run the exe
+1. Build the installer: `npm run package:win`
+2. Run the installer from `release/` folder
+3. Install to a test location
+4. Run the application
 5. Make some changes in the app
-6. Close and check that `tournament-data/tournament-autosave.json` was created
-7. Run the exe again and verify data loads
+6. Close and check that data was saved in AppData
+7. Run the app again and verify data loads
+8. Test uninstall to ensure it works correctly
 
 ## Troubleshooting
 

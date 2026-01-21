@@ -14,4 +14,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteCheckpoint: (checkpointId: string) => ipcRenderer.invoke('delete-checkpoint', checkpointId),
   listBackups: () => ipcRenderer.invoke('list-backups'),
   loadBackup: (fileName: string) => ipcRenderer.invoke('load-backup', fileName),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  openDownloadPage: () => ipcRenderer.invoke('open-download-page'),
+  onShowAboutDialog: (callback: () => void) => ipcRenderer.on('show-about-dialog', callback),
+  onCheckForUpdates: (callback: () => void) => ipcRenderer.on('check-for-updates', callback),
 });

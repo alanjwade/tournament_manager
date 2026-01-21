@@ -1,50 +1,47 @@
-# Tournament Manager - Windows Portable
+# TournamentManager - Windows Installer
 
 ## Quick Start
 
 1. **Download** the latest release:
-   - `Tournament-Manager-X.X.X-portable.exe` (recommended - single file)
-   - OR `Tournament-Manager-X.X.X-x64.zip` (zip archive)
+   - `TournamentManager-Setup-X.X.X.exe`
 
-2. **For Portable EXE:**
-   - Download `Tournament-Manager-X.X.X-portable.exe`
-   - Create a folder on your Desktop (e.g., `Tournament Manager`)
-   - Move the `.exe` file into this folder
-   - Double-click to run - **No installation required!**
+2. **Install:**
+   - Double-click the installer
+   - Choose installation location (or use default: `C:\Program Files\TournamentManager`)
+   - Select if you want a desktop shortcut and Start Menu entry
+   - Click Install
+   - Launch TournamentManager from your Desktop or Start Menu
 
-3. **For ZIP Archive:**
-   - Download and extract the `.zip` file to a folder (e.g., Desktop)
-   - Open the extracted folder
-   - Double-click `Tournament Manager.exe` to run
+3. **First Launch:**
+   - The app will automatically create a data folder in your AppData
+   - You can start creating your tournament or import existing data
 
 ## Tournament Data Storage
 
-### For Portable Version (.exe)
+### Installed Version
 
-The application saves your tournament data in a `tournament-data` folder next to the executable:
+The application saves your tournament data in your Windows user AppData folder:
 ```
-[Your Folder]\
-  ├── Tournament Manager.exe  (or Tournament-Manager-X.X.X-portable.exe)
-  └── tournament-data\
-      └── tournament-autosave.json
+C:\Users\[YourUsername]\AppData\Roaming\TournamentManager\
+  ├── tournament-autosave.json
+  └── backups\
+      └── backup-*.json
 ```
 
-### For Extracted ZIP Version
-
-Same structure - data is saved in `tournament-data` folder next to the `.exe`.
+This is the standard location for application data on Windows and ensures:
+- Data persists across app updates
+- Data is backed up with your user profile
+- No permission issues
 
 ### Sharing Tournament Data
 
 To share or backup your tournament:
-1. Locate the `tournament-data` folder in your app folder
-2. Copy the `tournament-autosave.json` file to share with others or backup
-3. To use someone else's tournament data:
-   - Create a `tournament-data` folder next to your `.exe` if it doesn't exist
-   - Place their `tournament-autosave.json` file in this folder
-   - Restart the application
-   - The tournament data will load automatically
+1. Go to the Data Viewer tab in the app
+2. Use the "Export Database" feature to save a `.json` file anywhere
+3. Share this file with others
+4. To import someone else's data, use "Load Database" and select their file
 
-**Pro Tip:** You can have multiple portable installations with different tournaments by keeping them in separate folders!
+**Pro Tip:** The app automatically creates backups every 20 minutes in the backups folder!
 
 ## Default Assets Included
 
@@ -58,17 +55,26 @@ You can customize these through the Configuration tab if needed.
 ## System Requirements
 
 - Windows 10 or later (64-bit)
-- No additional software installation required
+- ~150 MB disk space for installation
 - Internet connection NOT required for normal operation
 
-## Portable vs Installed
+## Updates
 
-This is a **portable application**:
-- ✅ No installation wizard
-- ✅ No registry modifications
-- ✅ Can run from USB drive or any folder
-- ✅ Easy to move or delete - just delete the folder
-- ✅ Multiple versions can run side-by-side (in different folders)
+When a new version is released:
+1. Download the new installer
+2. Run it - it will automatically update your existing installation
+3. Your tournament data is preserved during updates
+
+## Uninstalling
+
+To remove TournamentManager:
+1. Go to Windows Settings → Apps → Apps & features
+2. Find "TournamentManager" in the list
+3. Click Uninstall
+
+**Note:** This removes the application but your tournament data remains in AppData.
+To completely remove all data, manually delete the folder at:
+`C:\Users\[YourUsername]\AppData\Roaming\TournamentManager\`
 
 ## Troubleshooting
 

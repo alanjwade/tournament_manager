@@ -1,24 +1,24 @@
-# Windows Portable Build - Complete Setup Summary
+# Windows Installer Build - Complete Setup Summary
 
 ## ✅ What's Configured
 
 ### 1. Build Configuration (`package.json`)
-- **Portable executable** target (no installer needed)
-- **ZIP archive** for alternative distribution
+- **NSIS installer** for professional Windows installation
 - **All assets bundled** (logos, icons automatically included)
+- **Product name**: TournamentManager
 - **Artifact naming** configured for clear version tracking
 
 ### 2. GitHub Actions (`.github/workflows/build.yml`)
 - **Automatic builds** when you push a version tag
 - **Windows-only** builds (on `windows-latest` runner)
-- **Artifacts uploaded** to GitHub Releases automatically
+- **Installer uploaded** to GitHub Releases automatically
 - **Trigger**: Push a tag like `v1.0.0`
 
 ### 3. Data Storage (`src/main/index.ts`)
-- **Portable-aware** data location
-- **Saves next to exe**: `tournament-data/tournament-autosave.json`
+- **AppData location**: `C:\Users\[Username]\AppData\Roaming\TournamentManager\`
 - **Automatic folder creation** on first run
-- **Fallback** to standard location if portable dir fails
+- **Persistent across updates**
+- **Standard Windows app data location**
 
 ### 4. Assets Bundled
 All these are automatically included in the build:
@@ -47,37 +47,40 @@ git push origin v1.0.0
 # 4. After ~5-10 minutes, release appears at:
 # https://github.com/alanjwade/tournament_manager/releases
 
-# 5. Download files:
-# - Tournament Manager-1.0.0-portable.exe
-# - Tournament Manager-1.0.0-x64.zip
+# 5. Download file:
+# - TournamentManager-Setup-1.0.0.exe
 ```
 
 ## 📦 What Users Get
 
 ### Downloads:
-1. **`Tournament Manager-1.0.0-portable.exe`** (recommended)
-   - Single executable file
+1. **`TournamentManager-Setup-1.0.0.exe`**
+   - Windows installer
    - ~150-200 MB
    - All assets included
-
-2. **`Tournament Manager-1.0.0-x64.zip`**
-   - Alternative format
-   - Extract and run
+   - Creates Start Menu and Desktop shortcuts
 
 ### User Instructions:
 Give them `WINDOWS_RELEASE_README.md` which explains:
-- Download and extract
-- No installation needed
+- Download and run installer
+- Choose installation location
 - Where data is saved
-- How to share tournament files
+- How to export/import tournament data
 
-## 📁 File Structure After Running
+## 📁 File Structure After Installation
 
 ```
-User's Folder (e.g., Desktop/Tournament Manager)/
-├── Tournament Manager.exe          ← The application
-└── tournament-data/                ← Created on first run
-    └── tournament-autosave.json   ← Tournament data here
+Installation:
+C:\Program Files\TournamentManager\
+├── TournamentManager.exe           ← The application
+├── resources\
+└── ... (other app files)
+
+User Data:
+C:\Users\[Username]\AppData\Roaming\TournamentManager\
+├── tournament-autosave.json       ← Tournament data
+└── backups\                       ← Automatic backups
+    └── backup-*.json
 ```
 
 ## 🔄 Workflow for Updates
@@ -99,17 +102,17 @@ git push origin v1.1.0
 
 ## 📤 Sharing Tournament Data
 
-### Option 1: JSON File
-1. You create/edit a tournament in the app
-2. Find `tournament-data/tournament-autosave.json`
+### Using Built-in Export/Import:
+1. Open the app and go to Data Viewer tab
+2. Click "Export Database" to save a JSON file
 3. Send this file to others
-4. They put it in their `tournament-data/` folder
-5. Restart app - data loads automatically
+4. They click "Load Database" and select the file
+5. Data is imported automatically
 
-### Option 2: Whole Folder
-1. Zip the entire `tournament-data/` folder
-2. Send to others
-3. They extract next to their exe
+### Direct File Access:
+1. Navigate to: `%APPDATA%\TournamentManager\`
+2. Find `tournament-autosave.json`
+3. Copy and share this file
 
 ## 🧪 Testing Locally
 
@@ -122,29 +125,34 @@ npm run package:win
 # Output will be in release/
 ls release/
 
-# Copy to test location and verify:
-# - App starts correctly
-# - Data saves to tournament-data/
+# Install and verify:
+# - Installer runs correctly
+# - App installs to Program Files
+# - Data saves to AppData
 # - Data loads on restart
 # - Logos display correctly
+# - Uninstaller works
 ```
 
 ## ❓ Common Questions
 
-**Q: Why portable instead of installer?**
-A: Portable apps are simpler - just download and run. No admin rights needed, no registry changes, easy to move or delete.
+**Q: Why use an installer instead of portable?**
+A: Installers provide a more professional experience with automatic updates, proper uninstall, and standard Windows integration.
 
-**Q: Can users run multiple versions?**
-A: Yes! Each folder is independent. They can have v1.0.0 in one folder and v1.1.0 in another with different tournament data.
+**Q: Will updates preserve data?**
+A: Yes! Data is stored separately in AppData, so updates won't affect tournament data.
 
-**Q: What if they already have data in the old location?**
-A: The app checks multiple locations. Existing data will still work.
+**Q: Can they have multiple installations?**
+A: No, the installer updates the existing installation. Use export/import to manage multiple tournaments.
+
+**Q: What if they want to move to another computer?**
+A: Export the tournament data from one computer and import it on the other.
 
 **Q: Do they need internet?**
-A: No, the app works completely offline once downloaded.
+A: No, the app works completely offline once installed.
 
 **Q: How big is the download?**
-A: ~150-200 MB for the portable exe (includes Electron runtime + assets)
+A: ~150-200 MB for the installer (includes Electron runtime + assets)
 
 ## 🎯 Next Steps
 
