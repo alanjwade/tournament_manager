@@ -250,16 +250,10 @@ ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint
   // Determine output directory
   let outputDir = pdfData.outputDirectory;
   
-  // If no outputDirectory provided, use default pdf_outputs folder next to exe
+  // If no outputDirectory provided, use default pdf_outputs folder (sibling to backups)
   if (!outputDir) {
-    // Get the directory where the app is running from
-    // In production, this is the directory containing the .exe on Windows
-    // In development, this is the project root
-    const appPath = process.env.NODE_ENV === 'development' 
-      ? app.getAppPath() 
-      : path.dirname(app.getPath('exe'));
-    
-    outputDir = path.join(appPath, 'pdf_outputs');
+    const dataPath = getDataPath();
+    outputDir = path.join(dataPath, 'pdf_outputs');
   }
   
   const filePath = path.join(outputDir, pdfData.fileName);
@@ -285,11 +279,8 @@ ipcMain.handle('get-file-locations', async () => {
   const backupDir = getBackupDir();
   const autosavePath = path.join(dataPath, 'tournament-autosave.json');
   
-  // Get PDF output directory
-  const appPath = process.env.NODE_ENV === 'development' 
-    ? app.getAppPath() 
-    : path.dirname(app.getPath('exe'));
-  const defaultPdfOutputDir = path.join(appPath, 'pdf_outputs');
+  // PDF output directory is a sibling to backups, not next to exe
+  const defaultPdfOutputDir = path.join(dataPath, 'pdf_outputs');
   
   // Get executable path
   const exePath = process.env.NODE_ENV === 'development'
@@ -342,6 +333,20 @@ ipcMain.handle('select-directory', async () => {
   }
 
   return result.filePaths[0];
+});
+
+ipcMain.handle('open-directory', async (event, directoryPath: string) => {
+  try {
+    // Ensure directory exists
+    if (!fs.existsSync(directoryPath)) {
+      fs.mkdirSync(directoryPath, { recursive: true });
+    }
+    await shell.openPath(directoryPath);
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening directory:', error);
+    return { success: false, error: String(error) };
+  }
 });
 
 ipcMain.handle('save-tournament-state', async (event, state: any) => {

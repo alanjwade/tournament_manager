@@ -3,6 +3,7 @@ export interface ElectronAPI {
   savePDF: (data: { fileName: string; data: Uint8Array; outputDirectory?: string }) => Promise<{ success: boolean; path?: string; error?: string }>;
   selectImage: () => Promise<{ path: string; data: number[] } | null>;
   selectDirectory: () => Promise<string | null>;
+  openDirectory: (directoryPath: string) => Promise<{ success: boolean; error?: string }>;
   saveTournamentState: (state: any) => Promise<{ success: boolean; path?: string; error?: string }>;
   loadTournamentState: () => Promise<{ success: boolean; data?: any; error?: string } | null>;
   saveAutosave: (data: string) => Promise<{ success: boolean; error?: string; path?: string }>;

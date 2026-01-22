@@ -63,3 +63,9 @@ Execute a release with version 1.0.0
 - ✓ Push changes to GitHub
 
 All operations will use standard git commands and file editing tools.
+
+---
+
+# Release Process
+
+- Make sure everything is checked in. Do not proceed unless it is.

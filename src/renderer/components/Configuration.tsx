@@ -137,6 +137,12 @@ function Configuration() {
     }
   };
 
+  const handleOpenPdfDirectory = async () => {
+    if (!fileLocations) return;
+    const dirToOpen = config.pdfOutputDirectory || fileLocations.defaultPdfOutputDir;
+    await window.electronAPI.openDirectory(dirToOpen);
+  };
+
   const handleLoadBackup = async () => {
     if (!selectedBackup) {
       return;
@@ -304,16 +310,21 @@ function Configuration() {
         <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
           PDF Output Directory (Optional)
         </h3>
-        <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '14px' }}>
           Select a default directory where all PDFs will be saved. If not set,
-          you'll be prompted to choose a location each time you export a PDF.
+          PDFs will be saved to the default pdf_outputs directory.
         </p>
-        <button className="btn btn-secondary" onClick={handlePdfDirectorySelect}>
-          Select PDF Directory
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary" onClick={handlePdfDirectorySelect}>
+            Select PDF Directory
+          </button>
+          <button className="btn btn-secondary" onClick={handleOpenPdfDirectory}>
+            📁 Open PDF Folder
+          </button>
+        </div>
         {config.pdfOutputDirectory && (
-          <p style={{ marginTop: '10px', color: '#2e7d32', fontSize: '14px' }}>
-            ✓ PDFs will be saved to: <code style={{ backgroundColor: '#f5f5f5', padding: '2px 6px', borderRadius: '3px' }}>{config.pdfOutputDirectory}</code>
+          <p style={{ marginTop: '10px', color: 'var(--success-text)', fontSize: '14px' }}>
+            ✓ PDFs will be saved to: <code style={{ backgroundColor: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '3px' }}>{config.pdfOutputDirectory}</code>
           </p>
         )}
       </div>
@@ -326,7 +337,7 @@ function Configuration() {
           Application data and file storage locations (read-only).
         </p>
         {fileLocations ? (
-          <div style={{ fontSize: '14px', fontFamily: 'monospace', backgroundColor: '#f5f5f5', padding: '15px', borderRadius: '5px' }}>
+          <div style={{ fontSize: '14px', fontFamily: 'monospace', backgroundColor: 'var(--bg-tertiary)', padding: '15px', borderRadius: '5px', border: '1px solid var(--border-color)' }}>
             <div style={{ marginBottom: '10px' }}>
               <strong>Data Directory:</strong><br />
               <code>{fileLocations.dataPath}</code>
@@ -353,7 +364,7 @@ function Configuration() {
             </div>
           </div>
         ) : (
-          <p style={{ color: '#999', fontSize: '14px' }}>Loading file locations...</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading file locations...</p>
         )}
       </div>
 
