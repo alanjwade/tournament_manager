@@ -145,13 +145,17 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
   // Count changed rings by type (forms vs sparring)
   const changedRingsCounts = useMemo(() => {
     const changedFormsCount = competitionRings
-      .filter(ring => ring.type === 'forms' && changedRings.has(ring.name || ring.division))
+      .filter(ring => ring.type === 'forms' && 
+              changedRings.has(ring.name || ring.division) &&
+              (selectedDivision === 'all' || ring.division === selectedDivision))
       .length;
     const changedSparringCount = competitionRings
-      .filter(ring => ring.type === 'sparring' && changedRings.has(ring.name || ring.division))
+      .filter(ring => ring.type === 'sparring' && 
+              changedRings.has(ring.name || ring.division) &&
+              (selectedDivision === 'all' || ring.division === selectedDivision))
       .length;
     return { forms: changedFormsCount, sparring: changedSparringCount };
-  }, [competitionRings, changedRings]);
+  }, [competitionRings, changedRings, selectedDivision]);
 
   // Print a single ring's forms
   const handlePrintForms = async (ring: CompetitionRing) => {
@@ -224,12 +228,20 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
       return;
     }
 
-    // Get all competition rings that have changed (from full set, not filtered)
+    // Get all competition rings that have changed, filtered by selected division
     const changedFormsRings = competitionRings
-      .filter(ring => ring.type === 'forms' && changedRings.has(ring.name || ring.division));
+      .filter(ring => 
+        ring.type === 'forms' && 
+        changedRings.has(ring.name || ring.division) &&
+        (selectedDivision === 'all' || ring.division === selectedDivision)
+      );
     
     const changedSparringRings = competitionRings
-      .filter(ring => ring.type === 'sparring' && changedRings.has(ring.name || ring.division));
+      .filter(ring => 
+        ring.type === 'sparring' && 
+        changedRings.has(ring.name || ring.division) &&
+        (selectedDivision === 'all' || ring.division === selectedDivision)
+      );
 
     if (changedFormsRings.length === 0 && changedSparringRings.length === 0) {
       alert('No forms or sparring rings found for changed rings.');
@@ -355,7 +367,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
                 fontWeight: 'bold',
               }}
             >
-              🖨️ Print All Changed ({changedRingsCounts.forms} forms, {changedRingsCounts.sparring} sparring)
+              🖨️ Print All {selectedDivision !== 'all' ? `${selectedDivision} ` : ''}Changed ({changedRingsCounts.forms} forms, {changedRingsCounts.sparring} sparring)
             </button>
           )}
         </div>

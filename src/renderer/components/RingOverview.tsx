@@ -45,7 +45,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [copySparringFromForms, setCopySparringFromForms] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Partial<Participant>>({});
   const [printing, setPrinting] = useState<string | null>(null);
-  const [grandChampionExpanded, setGrandChampionExpanded] = useState(true);
+  const [grandChampionExpanded, setGrandChampionExpanded] = useState(false);
   const [editingRingName, setEditingRingName] = useState<string | null>(null);
   const [editingRingNameValue, setEditingRingNameValue] = useState('');
   const [showCreateRingModal, setShowCreateRingModal] = useState(false);
@@ -155,12 +155,20 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       return;
     }
 
-    // Get all competition rings that have changed
+    // Get all competition rings that have changed, filtered by selected division
     const changedFormsRings = competitionRings
-      .filter(ring => ring.type === 'forms' && changedRings.has(ring.name || ring.division));
+      .filter(ring => 
+        ring.type === 'forms' && 
+        changedRings.has(ring.name || ring.division) &&
+        (selectedDivision === 'all' || ring.division === selectedDivision)
+      );
     
     const changedSparringRings = competitionRings
-      .filter(ring => ring.type === 'sparring' && changedRings.has(ring.name || ring.division));
+      .filter(ring => 
+        ring.type === 'sparring' && 
+        changedRings.has(ring.name || ring.division) &&
+        (selectedDivision === 'all' || ring.division === selectedDivision)
+      );
 
     if (changedFormsRings.length === 0 && changedSparringRings.length === 0) {
       alert('No forms or sparring rings found for changed rings.');
@@ -361,17 +369,21 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   // Count changed rings for display
   const changedRingsCounts = useMemo(() => {
     const changedFormsRings = competitionRings.filter(
-      ring => ring.type === 'forms' && changedRings.has(ring.name || ring.division)
+      ring => ring.type === 'forms' && 
+              changedRings.has(ring.name || ring.division) &&
+              (selectedDivision === 'all' || ring.division === selectedDivision)
     );
     const changedSparringRings = competitionRings.filter(
-      ring => ring.type === 'sparring' && changedRings.has(ring.name || ring.division)
+      ring => ring.type === 'sparring' && 
+              changedRings.has(ring.name || ring.division) &&
+              (selectedDivision === 'all' || ring.division === selectedDivision)
     );
     return {
       forms: changedFormsRings.length,
       sparring: changedSparringRings.length,
       total: changedFormsRings.length + changedSparringRings.length
     };
-  }, [competitionRings, changedRings]);
+  }, [competitionRings, changedRings, selectedDivision]);
 
   // Filter ring pairs by selected division
   const filteredRingPairs = useMemo(() => {
@@ -2004,7 +2016,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                                       config.physicalRings,
                                       ring.name,
                                       config.watermarkImage,
-                                      []
+                                      [],
+                                      undefined,
+                                      undefined,
+                                      true // isCustomRing
                                     )
                                   : generateSparringBrackets(
                                       participantsWithOrder,
@@ -2012,7 +2027,10 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                                       config.physicalRings,
                                       ring.name,
                                       config.watermarkImage,
-                                      []
+                                      [],
+                                      undefined,
+                                      undefined,
+                                      true // isCustomRing
                                     );
                                 
                                 const pdfBlob = pdf.output('blob');
@@ -2291,7 +2309,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               whiteSpace: 'nowrap',
             }}
           >
-            🖨️ Print All Changed ({changedRingsCounts.forms} forms, {changedRingsCounts.sparring} sparring)
+            🖨️ Print All {selectedDivision !== 'all' ? `${selectedDivision} ` : ''}Changed ({changedRingsCounts.forms} forms, {changedRingsCounts.sparring} sparring)
           </button>
         )}
       </div>

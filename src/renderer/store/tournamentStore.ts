@@ -100,7 +100,22 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   physicalRingMappings: [],
   categoryPoolMappings: [],
   checkpoints: [],
-  customRings: [],
+  customRings: [
+    {
+      id: 'grand-champion-forms-1',
+      name: 'Black Belt Grand Champion Ring 1',
+      type: 'forms',
+      participantIds: [],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'grand-champion-forms-2',
+      name: 'Black Belt Grand Champion Ring 2',
+      type: 'forms',
+      participantIds: [],
+      createdAt: new Date().toISOString(),
+    },
+  ],
 
   setParticipants: (participants) => {
     // Normalize participant objects - migrate from old model to new

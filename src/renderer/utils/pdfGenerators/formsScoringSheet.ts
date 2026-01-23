@@ -11,7 +11,8 @@ export function generateFormsScoringSheets(
   watermark?: string,
   physicalRingMappings?: { categoryPoolName: string; physicalRingName: string }[],
   masterPdf?: jsPDF,
-  titleOverride?: string
+  titleOverride?: string,
+  isCustomRing?: boolean
 ): jsPDF {
   const doc = masterPdf || new jsPDF({
     orientation: 'portrait',
@@ -74,7 +75,11 @@ export function generateFormsScoringSheets(
       ? getPhysicalRingId(ring.name, physicalRingMappings)
       : null;
     
-    const fullyQualifiedRingName = getFullyQualifiedRingName(division, physicalRingId, physicalRings);
+    // For custom rings (Grand Champion), use division name directly
+    // Otherwise, get fully qualified ring name with physical ring info
+    const fullyQualifiedRingName = isCustomRing
+      ? division
+      : getFullyQualifiedRingName(division, physicalRingId, physicalRings);
     
     // Get ring color for title styling
     let ringColor = '';

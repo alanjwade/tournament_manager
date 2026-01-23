@@ -218,7 +218,7 @@ function Configuration() {
             ) : (
               backups.map((backup) => (
                 <option key={backup.fileName} value={backup.fileName}>
-                  {new Date(backup.mtimeMs).toLocaleString()}
+                  {backup.fileName}
                 </option>
               ))
             )}
