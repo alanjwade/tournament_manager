@@ -43,14 +43,14 @@ export interface NameTagConfig {
 // Name tag dimensions:
 // width: 3 3/8" = 3.375 inches = 85.725 mm
 // height: 2 1/3" = 2.333 inches = 59.27 mm
-// leftMargin: 7/8" = 0.875 inches = 22.225 mm
-// topMargin: 3/4" = 0.75 inches = 19.05 mm
+// leftMargin: 11/16" = 0.6875 inches = 17.4625 mm
+// topMargin: 9/16" = 0.5625 inches = 14.2875 mm
 const DEFAULT_NAME_TAG_CONFIG: NameTagConfig = {
   width: 85.725,  // 3 3/8 inches
   height: 59.27,  // 2 1/3 inches
   fontSize: 24,   // 24pt Calibri to match GAS
-  marginX: 22.225, // 7/8 inches (left margin to first column)
-  marginY: 19.05,  // 3/4 inches (top margin to first row)
+  marginX: 17.4625, // 11/16 inches (left margin to first column)
+  marginY: 14.2875,  // 9/16 inches (top margin to first row)
 };
 
 export function generateNameTags(
@@ -80,11 +80,18 @@ export function generateNameTags(
   const rowSpacing = 4.7625;   // 3/16 inches = 4.7625 mm
   
   // Filter participants by division - check formsDivision, sparringDivision, or legacy division field
-  const divisionParticipants = participants.filter((p) => {
-    return p.formsDivision === division || 
-           p.sparringDivision === division || 
-           p.division === division;
-  });
+  const divisionParticipants = participants
+    .filter((p) => {
+      return p.formsDivision === division || 
+             p.sparringDivision === division || 
+             p.division === division;
+    })
+    .sort((a, b) => {
+      // Sort by last name, then first name
+      const lastNameCompare = a.lastName.localeCompare(b.lastName);
+      if (lastNameCompare !== 0) return lastNameCompare;
+      return a.firstName.localeCompare(b.firstName);
+    });
   
   let currentPage = 0;
   let currentPosition = 0;
@@ -104,7 +111,7 @@ export function generateNameTags(
     const y = config.marginY + row * (config.height + rowSpacing);
 
     // Draw border (light yellow box around each name tag)
-    doc.setDrawColor(255, 255, 150); // Black border for visibility
+    doc.setDrawColor(255, 255, 255); // White border for visibility
     doc.setLineWidth(.5); // Thicker border
     doc.rect(x, y, config.width, config.height);
 

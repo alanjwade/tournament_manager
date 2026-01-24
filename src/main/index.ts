@@ -349,6 +349,20 @@ ipcMain.handle('open-directory', async (event, directoryPath: string) => {
   }
 });
 
+ipcMain.handle('open-pdf-folder', async (event, directoryPath: string) => {
+  try {
+    // Ensure directory exists
+    if (!fs.existsSync(directoryPath)) {
+      fs.mkdirSync(directoryPath, { recursive: true });
+    }
+    await shell.openPath(directoryPath);
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening PDF folder:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
 ipcMain.handle('save-tournament-state', async (event, state: any) => {
   const result = await dialog.showSaveDialog({
     defaultPath: 'tournament-state.json',

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectImage: () => ipcRenderer.invoke('select-image'),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   openDirectory: (directoryPath: string) => ipcRenderer.invoke('open-directory', directoryPath),
+  openPDFFolder: (directoryPath: string) => ipcRenderer.invoke('open-pdf-folder', directoryPath),
   saveTournamentState: (state: any) => ipcRenderer.invoke('save-tournament-state', state),
   loadTournamentState: () => ipcRenderer.invoke('load-tournament-state'),
   saveAutosave: (data: string) => ipcRenderer.invoke('save-autosave', data),

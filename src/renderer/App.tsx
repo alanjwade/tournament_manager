@@ -275,7 +275,17 @@ function App() {
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexShrink: 0 }}>
-        <h1 style={{ margin: 0, color: '#333' }}>
+        <h1 style={{ 
+          margin: 0, 
+          fontSize: '32px',
+          fontWeight: 'bold',
+          background: 'linear-gradient(135deg, var(--accent-color, #007bff), var(--accent-light, #0056b3))',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          textShadow: 'none',
+          letterSpacing: '0.5px'
+        }}>
           Tournament Manager
         </h1>
         

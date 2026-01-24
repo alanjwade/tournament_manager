@@ -33,25 +33,37 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
     }
   }, [globalDivision]);
 
-  // Get unique ages from participants in selected division
+  // Get unique ages from participants in selected division with unassigned participants
   const availableAges = useMemo(() => {
     if (!selectedDivision) return [];
     
     const agesInDivision = new Set<number>();
+    
+    // Filter by gender and check for unassigned participants
     participants.forEach((p) => {
+      // Check gender match
+      const genderMatch = selectedGender === 'mixed' || p.gender.toLowerCase() === selectedGender;
+      if (!genderMatch) return;
+      
       // Use forms division, fallback to sparring if not participating in forms
       const effectiveDivision = getEffectiveDivision(p, 'forms') || getEffectiveDivision(p, 'sparring');
       if (effectiveDivision === selectedDivision) {
-        const age = p.age;
-        // Only add valid numeric ages
-        if (typeof age === 'number' && !isNaN(age) && age > 0) {
-          agesInDivision.add(age);
+        // Check if participant is unassigned in at least one event type
+        const unassignedInForms = p.competingForms && !p.formsCategoryId;
+        const unassignedInSparring = p.competingSparring && !p.sparringCategoryId;
+        
+        if (unassignedInForms || unassignedInSparring) {
+          const age = p.age;
+          // Only add valid numeric ages
+          if (typeof age === 'number' && !isNaN(age) && age > 0) {
+            agesInDivision.add(age);
+          }
         }
       }
     });
     
     const ages = Array.from(agesInDivision).sort((a, b) => a - b);
-    console.log('Ages in division:', selectedDivision, ages);
+    console.log('Available unassigned ages in division:', selectedDivision, ages);
     
     // Convert to display format
     const displayAges = ages.map(age => {
@@ -65,7 +77,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
     
     // Remove duplicates
     return Array.from(new Set(displayAges));
-  }, [participants, selectedDivision]);
+  }, [participants, selectedDivision, selectedGender]);
 
   const toggleAge = (age: string) => {
     const newSelected = new Set(selectedAges);

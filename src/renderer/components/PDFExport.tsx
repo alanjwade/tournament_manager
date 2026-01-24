@@ -6,6 +6,7 @@ import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringS
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
 import { generateRingOverviewPDF } from '../utils/pdfGenerators/ringOverview';
 import { computeCompetitionRings } from '../utils/computeRings';
+import { getEffectiveDivision } from '../utils/excelParser';
 import { CompetitionRing } from '../types/tournament';
 import logoImage from '../assets/logos/logo_orig_dark_letters.png';
 
@@ -441,14 +442,153 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     if (!selectedDivision) return;
     setExporting(true);
     try {
-      // Export all 5 PDFs in sequence
-      await handleExportNameTags();
-      await handleExportCheckIn();
-      await handleExportRingOverview();
-      await handleExportFormsScoring();
-      await handleExportSparringBrackets();
+      if (selectedDivision === 'all') {
+        // Export for all divisions that have participants
+        const divisionsWithParticipants = new Set<string>();
+        
+        participants.forEach((p) => {
+          const formsDiv = getEffectiveDivision(p, 'forms');
+          const sparringDiv = getEffectiveDivision(p, 'sparring');
+          if (formsDiv) divisionsWithParticipants.add(formsDiv);
+          if (sparringDiv) divisionsWithParticipants.add(sparringDiv);
+        });
+
+        // Export PDFs for each division
+        for (const division of Array.from(divisionsWithParticipants).sort()) {
+          // Temporarily set division and export
+          const previousDivision = selectedDivision;
+          setSelectedDivision(division);
+          
+          // Export all 5 PDFs for this division
+          await exportPDFsForDivision(division);
+        }
+      } else {
+        // Export all 5 PDFs for the selected division
+        await exportPDFsForDivision(selectedDivision);
+      }
     } finally {
       setExporting(false);
+    }
+  };
+
+  const exportPDFsForDivision = async (division: string) => {
+    // Export all 5 PDFs for a specific division
+    const divisionParticipants = participants.filter((p) => {
+      const formsDiv = getEffectiveDivision(p, 'forms');
+      const sparringDiv = getEffectiveDivision(p, 'sparring');
+      return formsDiv === division || sparringDiv === division;
+    });
+
+    if (divisionParticipants.length === 0) return;
+
+    // Temporarily set division and export
+    const currentDivision = selectedDivision;
+    
+    // Create temporary state for export
+    const tempDiv = division;
+    
+    // Export name tags
+    const namePdf = generateNameTags(
+      participants,
+      division,
+      config.physicalRings,
+      config.watermarkImage,
+      undefined,
+      physicalRingMappings,
+      config.schoolAbbreviations,
+      logoDataUrl,
+      categories
+    );
+    await savePDF(namePdf, `name-tags-${division}.pdf`);
+
+    // Export check-in sheet
+    const checkInPdf = generateCheckInSheet(
+      participants,
+      division,
+      config.physicalRings,
+      physicalRingMappings,
+      categories,
+      config.schoolAbbreviations
+    );
+    await savePDF(checkInPdf, `check-in-${division}.pdf`);
+
+    // Export ring overview
+    const pairMap = new Map<string, any>();
+    
+    competitionRings.forEach(ring => {
+      const ringName = ring.name || `${ring.division} Ring`;
+      const key = `${ring.division}|||${ringName}|||${ring.physicalRingId}`;
+      
+      if (!pairMap.has(key)) {
+        const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
+        pairMap.set(key, { 
+          cohortRingName: ringName,
+          physicalRingName: mapping?.physicalRingName,
+          division: ring.division,
+        });
+      }
+      
+      const pair = pairMap.get(key)!;
+      
+      if (ring.type === 'forms') {
+        pair.formsRing = ring;
+      } else if (ring.type === 'sparring') {
+        pair.sparringRing = ring;
+      }
+    });
+
+    const ringPairs = Array.from(pairMap.values()).sort((a, b) => {
+      const aNum = a.physicalRingName ? parseInt(a.physicalRingName.match(/\d+/)?.[0] || '999') : 999;
+      const bNum = b.physicalRingName ? parseInt(b.physicalRingName.match(/\d+/)?.[0] || '999') : 999;
+      
+      if (aNum !== bNum) {
+        return aNum - bNum;
+      }
+      
+      if (a.physicalRingName && b.physicalRingName) {
+        const aLetter = a.physicalRingName.match(/[a-z]/i)?.[0]?.toLowerCase() || '';
+        const bLetter = b.physicalRingName.match(/[a-z]/i)?.[0]?.toLowerCase() || '';
+        
+        return aLetter.localeCompare(bLetter);
+      }
+      
+      return a.physicalRingName.localeCompare(b.physicalRingName);
+    });
+
+    const ringOverviewPdf = generateRingOverviewPDF(participants, ringPairs, categories, division);
+    await savePDF(ringOverviewPdf, `ring-overview-${division}.pdf`);
+
+    // Export forms scoring sheets
+    const formsPdf = generateFormsScoringSheets(
+      participants,
+      competitionRings,
+      config.physicalRings,
+      division,
+      config.watermarkImage,
+      physicalRingMappings
+    );
+    await savePDF(formsPdf, `forms-scoring-${division}.pdf`);
+
+    // Export sparring brackets
+    const sparringPdf = generateSparringBrackets(
+      participants,
+      competitionRings,
+      config.physicalRings,
+      division,
+      config.watermarkImage,
+      physicalRingMappings
+    );
+    await savePDF(sparringPdf, `sparring-brackets-${division}.pdf`);
+  };
+
+  const handleOpenPDFFolder = async () => {
+    try {
+      const result = await window.electronAPI.openPDFFolder(config.pdfOutputDirectory);
+      if (!result.success) {
+        alert(`Error opening folder: ${result.error}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -481,6 +621,16 @@ function PDFExport({ globalDivision }: PDFExportProps) {
           style={{ width: '100%' }}
         >
           {exporting ? 'Exporting All PDFs...' : `Export All ${selectedDivision} PDFs`}
+        </button>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <button
+          className="btn btn-secondary"
+          onClick={handleOpenPDFFolder}
+          style={{ width: '100%' }}
+        >
+          📁 Open PDF Outputs Folder
         </button>
       </div>
 
