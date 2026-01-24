@@ -10,6 +10,49 @@ import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket
 import { Participant, CompetitionRing } from '../types/tournament';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 
+interface CheckpointItemProps {
+  checkpoint: { id: string; name: string; timestamp: string };
+  onLoad: () => void;
+}
+
+function CheckpointItem({ checkpoint, onLoad }: CheckpointItemProps) {
+  return (
+    <div
+      style={{
+        padding: '8px',
+        marginBottom: '6px',
+        backgroundColor: 'var(--bg-secondary)',
+        border: '1px solid var(--border-color)',
+        borderRadius: '4px',
+        fontSize: '12px',
+      }}
+    >
+      <div style={{ fontWeight: 'bold', marginBottom: '4px', color: 'var(--text-primary)' }}>
+        {checkpoint.name}
+      </div>
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+        {new Date(checkpoint.timestamp).toLocaleString()}
+      </div>
+      <button
+        onClick={onLoad}
+        style={{
+          width: '100%',
+          padding: '4px 8px',
+          fontSize: '11px',
+          backgroundColor: '#007bff',
+          color: 'white',
+          border: 'none',
+          borderRadius: '3px',
+          cursor: 'pointer',
+          fontWeight: '600',
+        }}
+      >
+        Load
+      </button>
+    </div>
+  );
+}
+
 interface RingPair {
   cohortRingName: string;
   formsRing?: any;
@@ -54,6 +97,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [participantSelectionModal, setParticipantSelectionModal] = useState<{
     ringId: string;
   } | null>(null);
+  const [newCheckpointName, setNewCheckpointName] = useState('');
   
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
@@ -71,6 +115,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const addParticipantToCustomRing = useTournamentStore((state) => state.addParticipantToCustomRing);
   const removeParticipantFromCustomRing = useTournamentStore((state) => state.removeParticipantFromCustomRing);
   const moveParticipantInCustomRing = useTournamentStore((state) => state.moveParticipantInCustomRing);
+  const createCheckpoint = useTournamentStore((state) => state.createCheckpoint);
+  const loadCheckpoint = useTournamentStore((state) => state.loadCheckpoint);
 
   // Reset copySparringFromForms and pendingChanges when quickEdit changes
   useEffect(() => {
@@ -1692,8 +1738,27 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     );
   }
 
+  // Sort checkpoints from newest to oldest
+  const sortedCheckpoints = useMemo(() => 
+    [...checkpoints].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    ),
+    [checkpoints]
+  );
+
+  const handleCreateCheckpoint = () => {
+    if (newCheckpointName.trim()) {
+      createCheckpoint(newCheckpointName.trim());
+      setNewCheckpointName('');
+    } else {
+      createCheckpoint();
+    }
+  };
+
   return (
-    <div className="card" style={{ maxHeight: '100vh', overflowY: 'auto' }}>
+    <div style={{ display: 'flex', gap: '15px', height: '100vh' }}>
+      {/* Main Content */}
+      <div className="card" style={{ width: 'fit-content', minWidth: 0, maxHeight: '100vh', overflowY: 'auto' }}>
       {/* Quick Edit Modal */}
       {renderQuickEditModal()}
       
@@ -2443,6 +2508,87 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         })}
       </div>
     </div>
+    
+    {/* Checkpoint Sidebar */}
+    <div
+      style={{
+        minWidth: '250px',
+        height: '100vh',
+        backgroundColor: 'var(--bg-primary)',
+        border: '2px solid var(--border-color)',
+        borderRadius: '8px',
+        padding: '15px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+      }}
+    >
+      <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--text-primary)' }}>
+        Checkpoints
+      </h3>
+      
+      {/* Create Checkpoint */}
+      <div>
+        <input
+          type="text"
+          placeholder="Checkpoint name (optional)"
+          value={newCheckpointName}
+          onChange={(e) => setNewCheckpointName(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '6px',
+            fontSize: '12px',
+            marginBottom: '6px',
+            border: '1px solid var(--input-border)',
+            borderRadius: '4px',
+            backgroundColor: 'var(--input-bg)',
+            color: 'var(--text-primary)',
+            boxSizing: 'border-box',
+          }}
+        />
+        <button
+          onClick={handleCreateCheckpoint}
+          style={{
+            width: '100%',
+            padding: '6px 12px',
+            fontSize: '12px',
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: '600',
+          }}
+        >
+          Create Checkpoint
+        </button>
+      </div>
+      
+      {/* Checkpoint List */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          borderTop: '1px solid var(--border-color)',
+          paddingTop: '10px',
+        }}
+      >
+        {sortedCheckpoints.length === 0 ? (
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
+            No checkpoints saved
+          </p>
+        ) : (
+          sortedCheckpoints.map((checkpoint) => (
+            <CheckpointItem
+              key={checkpoint.id}
+              checkpoint={checkpoint}
+              onLoad={() => loadCheckpoint(checkpoint.id)}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  </div>
   );
 }
 
