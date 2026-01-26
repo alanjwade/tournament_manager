@@ -51,3 +51,5 @@ pdf_outputs/
 # Session/state files (user data)
 tournament-state.json
 *.session
+BUG_ANALYSIS.md
+UI_UX_SUGGESTIONS.md

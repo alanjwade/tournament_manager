@@ -444,41 +444,67 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
           });
 
           // Track affected rings
-          if (field === 'formsCategoryId' || field === 'formsPool') {
-            if (checkpointValue) {
-              const categoryId = field === 'formsCategoryId' ? checkpointValue : checkpointP.formsCategoryId;
-              const category = checkpoint.state.categories.find(c => c.id === categoryId);
-              if (category) {
-                const pool = checkpointP.formsPool || 'P1';
-                ringsAffected.add(`${category.name}_${pool}`);
-              }
-            }
-            if (currentValue) {
-              const categoryId = field === 'formsCategoryId' ? currentValue : currentP.formsCategoryId;
+          if (field === 'formsCategoryId' || field === 'formsPool' || field === 'formsRankOrder') {
+            // For rank order changes, only track the current state (reordering doesn't move between rings)
+            if (field === 'formsRankOrder') {
+              const categoryId = currentP.formsCategoryId;
               const category = state.categories.find(c => c.id === categoryId);
               if (category) {
                 const pool = currentP.formsPool || 'P1';
                 ringsAffected.add(`${category.name}_${pool}`);
               }
-            }
-          }
-          if (field === 'sparringCategoryId' || field === 'sparringPool' || field === 'sparringAltRing') {
-            if (checkpointValue) {
-              const categoryId = field === 'sparringCategoryId' ? checkpointValue : checkpointP.sparringCategoryId;
-              const category = checkpoint.state.categories.find(c => c.id === categoryId);
-              if (category) {
-                const pool = checkpointP.sparringPool || 'P1';
-                const altRingSuffix = checkpointP.sparringAltRing ? `_${checkpointP.sparringAltRing}` : '';
-                ringsAffected.add(`${category.name}_${pool}${altRingSuffix}`);
+            } else {
+              // For category or pool changes, track both old and new rings
+              if (checkpointValue) {
+                const categoryId = field === 'formsCategoryId' ? checkpointValue : checkpointP.formsCategoryId;
+                const category = checkpoint.state.categories.find(c => c.id === categoryId);
+                if (category) {
+                  const pool = checkpointP.formsPool || 'P1';
+                  ringsAffected.add(`${category.name}_${pool}`);
+                }
+              }
+              if (currentValue) {
+                const categoryId = field === 'formsCategoryId' ? currentValue : currentP.formsCategoryId;
+                const category = state.categories.find(c => c.id === categoryId);
+                if (category) {
+                  const pool = currentP.formsPool || 'P1';
+                  ringsAffected.add(`${category.name}_${pool}`);
+                }
               }
             }
-            if (currentValue) {
-              const categoryId = field === 'sparringCategoryId' ? currentValue : currentP.sparringCategoryId;
+          }
+          if (field === 'sparringCategoryId' || field === 'sparringPool' || field === 'sparringAltRing' || field === 'sparringRankOrder') {
+            // For rank order changes, only track the current state (reordering doesn't move between rings)
+            // Don't include alt ring suffix since ring names don't include it
+            if (field === 'sparringRankOrder') {
+              const categoryId = currentP.sparringCategoryId;
               const category = state.categories.find(c => c.id === categoryId);
               if (category) {
                 const pool = currentP.sparringPool || 'P1';
-                const altRingSuffix = currentP.sparringAltRing ? `_${currentP.sparringAltRing}` : '';
-                ringsAffected.add(`${category.name}_${pool}${altRingSuffix}`);
+                ringsAffected.add(`${category.name}_${pool}`);
+              }
+            } else {
+              // For category, pool, or alt ring changes, track both old and new rings
+              // Include alt ring suffix only for sparringAltRing field changes
+              const includeAltSuffix = field === 'sparringAltRing';
+              
+              if (checkpointValue) {
+                const categoryId = field === 'sparringCategoryId' ? checkpointValue : checkpointP.sparringCategoryId;
+                const category = checkpoint.state.categories.find(c => c.id === categoryId);
+                if (category) {
+                  const pool = checkpointP.sparringPool || 'P1';
+                  const altRingSuffix = includeAltSuffix && checkpointP.sparringAltRing ? `_${checkpointP.sparringAltRing}` : '';
+                  ringsAffected.add(`${category.name}_${pool}${altRingSuffix}`);
+                }
+              }
+              if (currentValue) {
+                const categoryId = field === 'sparringCategoryId' ? currentValue : currentP.sparringCategoryId;
+                const category = state.categories.find(c => c.id === categoryId);
+                if (category) {
+                  const pool = currentP.sparringPool || 'P1';
+                  const altRingSuffix = includeAltSuffix && currentP.sparringAltRing ? `_${currentP.sparringAltRing}` : '';
+                  ringsAffected.add(`${category.name}_${pool}${altRingSuffix}`);
+                }
               }
             }
           }
