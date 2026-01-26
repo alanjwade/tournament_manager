@@ -8,6 +8,7 @@ import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
 import { Participant, CompetitionRing } from '../types/tournament';
+import { RING_BALANCE } from '../utils/constants';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 
 interface CheckpointItemProps {
@@ -73,7 +74,7 @@ interface RingOverviewProps {
 
 // Ring balance indicator helper
 const getRingBalanceStyle = (participantCount: number): { color: string; bg: string; label: string } => {
-  if (participantCount >= 8 && participantCount <= 12) {
+  if (participantCount >= RING_BALANCE.MIN_GOOD && participantCount <= RING_BALANCE.MAX_GOOD) {
     return { color: '#155724', bg: '#d4edda', label: 'balanced' };
   } else if ((participantCount >= 5 && participantCount <= 7) || (participantCount >= 13 && participantCount <= 15)) {
     return { color: '#856404', bg: '#fff3cd', label: 'acceptable' };
@@ -450,8 +451,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     
     const { participant, ringType } = quickEdit;
     const currentDivision = ringType === 'forms' 
-      ? (participant.formsDivision || participant.division) 
-      : (participant.sparringDivision || participant.division);
+      ? participant.formsDivision
+      : participant.sparringDivision;
     
     if (!currentDivision) return [];
     
@@ -521,12 +522,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     const { participant } = quickEdit;
     
     // Get current values (either from pending changes or participant)
-    const currentFormsDivision = pendingChanges.formsDivision !== undefined ? pendingChanges.formsDivision : (participant.formsDivision || participant.division);
+    const currentFormsDivision = pendingChanges.formsDivision !== undefined ? pendingChanges.formsDivision : participant.formsDivision;
     const currentFormsCategoryId = pendingChanges.formsCategoryId !== undefined ? pendingChanges.formsCategoryId : participant.formsCategoryId;
     const currentFormsPool = pendingChanges.formsPool !== undefined ? pendingChanges.formsPool : participant.formsPool;
     const currentFormsRankOrder = pendingChanges.formsRankOrder !== undefined ? pendingChanges.formsRankOrder : participant.formsRankOrder;
     
-    const currentSparringDivision = pendingChanges.sparringDivision !== undefined ? pendingChanges.sparringDivision : (participant.sparringDivision || participant.division);
+    const currentSparringDivision = pendingChanges.sparringDivision !== undefined ? pendingChanges.sparringDivision : participant.sparringDivision;
     const currentSparringCategoryId = pendingChanges.sparringCategoryId !== undefined ? pendingChanges.sparringCategoryId : participant.sparringCategoryId;
     const currentSparringPool = pendingChanges.sparringPool !== undefined ? pendingChanges.sparringPool : participant.sparringPool;
     const currentSparringRankOrder = pendingChanges.sparringRankOrder !== undefined ? pendingChanges.sparringRankOrder : participant.sparringRankOrder;
@@ -1117,11 +1118,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                           sparringPool: currentFormsPool,
                         });
                       } else {
-                        // Unchecking - mark that we're uncoupling sparring from forms
-                        // Add a dummy update to trigger pendingChanges to be non-empty
-                        // Use a marker flag that won't affect the data
-                        console.log('[QuickEdit] Checkbox unchecked - marking sparring as decoupled from forms');
-                        updatePending({ _sparringDecoupled: true });
+                        // Unchecking - decouple sparring from forms by clearing the values
+                        console.log('[QuickEdit] Checkbox unchecked - decoupling sparring from forms');
+                        updatePending({
+                          sparringDivision: null,
+                          sparringCategoryId: undefined,
+                          sparringPool: undefined,
+                        });
                       }
                     }}
                     style={{ marginRight: '8px' }}

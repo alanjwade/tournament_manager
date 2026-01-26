@@ -582,6 +582,10 @@ function PDFExport({ globalDivision }: PDFExportProps) {
   };
 
   const handleOpenPDFFolder = async () => {
+    if (!config.pdfOutputDirectory) {
+      alert('PDF output directory is not configured');
+      return;
+    }
     try {
       const result = await window.electronAPI.openPDFFolder(config.pdfOutputDirectory);
       if (!result.success) {

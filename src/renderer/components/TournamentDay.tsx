@@ -6,6 +6,7 @@ import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringS
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
 import { formatPoolNameForDisplay } from '../utils/ringNameFormatter';
 import { CompetitionRing } from '../types/tournament';
+import { DEFAULT_DIVISION_ORDER } from '../utils/constants';
 
 interface RingPair {
   cohortRingName: string;
@@ -91,8 +92,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
     // Sort by division order, then by physical ring name
     return pairs.sort((a, b) => {
       // First sort by division order
-      const aDivOrder = config.divisions.find(d => d.name === a.division)?.order ?? 999;
-      const bDivOrder = config.divisions.find(d => d.name === b.division)?.order ?? 999;
+      const aDivOrder = config.divisions.find(d => d.name === a.division)?.order ?? DEFAULT_DIVISION_ORDER;
+      const bDivOrder = config.divisions.find(d => d.name === b.division)?.order ?? DEFAULT_DIVISION_ORDER;
       if (aDivOrder !== bDivOrder) return aDivOrder - bDivOrder;
 
       // Then sort by physical ring name
@@ -125,8 +126,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
     });
     // Sort by division order from config
     return Array.from(divSet).sort((a, b) => {
-      const aOrder = config.divisions.find(d => d.name === a)?.order ?? 999;
-      const bOrder = config.divisions.find(d => d.name === b)?.order ?? 999;
+      const aOrder = config.divisions.find(d => d.name === a)?.order ?? DEFAULT_DIVISION_ORDER;
+      const bOrder = config.divisions.find(d => d.name === b)?.order ?? DEFAULT_DIVISION_ORDER;
       return aOrder - bOrder;
     });
   }, [ringPairs, config.divisions]);

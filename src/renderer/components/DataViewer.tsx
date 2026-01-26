@@ -344,21 +344,6 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     setParticipants(updatedParticipants);
   };
 
-  // Update participant pool (formsPool or sparringPool)
-  const updateParticipantCohortRing = (participantId: string, field: 'formsPool' | 'sparringPool', value: string) => {
-    const updatedParticipants = participants.map(p => {
-      if (p.id === participantId) {
-        const updates: Partial<Participant> = {
-          [field]: value || undefined
-        };
-        
-        return { ...p, ...updates };
-      }
-      return p;
-    });
-    setParticipants(updatedParticipants);
-  };
-
   // Update participant physical ring - this will update division, category, and pool based on ring map
   // NOTE: This function reassigns the participant to a DIFFERENT category/pool based on the
   // physical ring mapping. It does NOT just change which physical ring they're assigned to.

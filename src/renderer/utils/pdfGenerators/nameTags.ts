@@ -79,12 +79,11 @@ export function generateNameTags(
   const columnSpacing = 9.525; // 3/8 inches = 9.525 mm
   const rowSpacing = 4.7625;   // 3/16 inches = 4.7625 mm
   
-  // Filter participants by division - check formsDivision, sparringDivision, or legacy division field
+  // Filter participants by division - check formsDivision or sparringDivision
   const divisionParticipants = participants
     .filter((p) => {
       return p.formsDivision === division || 
-             p.sparringDivision === division || 
-             p.division === division;
+             p.sparringDivision === division;
     })
     .sort((a, b) => {
       // Sort by last name, then first name
@@ -190,7 +189,7 @@ export function generateNameTags(
     doc.setFontSize(20); // Large size for division
     
     // Division
-    const displayDivision = participant.formsDivision || participant.sparringDivision || participant.division || division;
+    const displayDivision = participant.formsDivision || participant.sparringDivision || division;
     doc.text(displayDivision, x + 5, textY);
 
     // Physical Ring with colored background

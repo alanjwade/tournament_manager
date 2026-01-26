@@ -1,4 +1,5 @@
 import { Participant, Category } from '../types/tournament';
+import { AGE_THRESHOLDS } from './constants';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CategoryDefinition {
@@ -76,13 +77,13 @@ export function autoGenerateCategoryDefinitions(
       const maxAge = ages[ages.length - 1];
 
       // Determine if adult (18+)
-      const hasAdults = parts.some((p) => p.age >= 18);
+      const hasAdults = parts.some((p) => p.age >= AGE_THRESHOLDS.ADULT);
       const hasYouth = parts.some((p) => p.age < 18);
 
       if (hasAdults && hasYouth) {
         // Split into youth and adult
         const youth = parts.filter((p) => p.age < 18);
-        const adults = parts.filter((p) => p.age >= 18);
+        const adults = parts.filter((p) => p.age >= AGE_THRESHOLDS.ADULT);
 
         if (youth.length > 0) {
           definitions.push({

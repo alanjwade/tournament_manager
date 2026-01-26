@@ -3,6 +3,7 @@ import { useTournamentStore } from '../store/tournamentStore';
 import { Category } from '../types/tournament';
 import { getEffectiveDivision } from '../utils/excelParser';
 import { autoAssignAndOrderCategory } from '../utils/autoAssignAndOrder';
+import { AGE_THRESHOLDS, DEFAULT_DIVISION_ORDER } from '../utils/constants';
 
 // Generate deterministic category ID based on properties
 function generateCategoryId(type: 'forms' | 'sparring', division: string, gender: string, minAge: number, maxAge: number): string {
@@ -67,7 +68,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
     
     // Convert to display format
     const displayAges = ages.map(age => {
-      if (age >= 18) {
+      if (age >= AGE_THRESHOLDS.ADULT) {
         return '18 and Up';
       }
       return age.toString();
@@ -103,7 +104,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
       
       // Age matching with checkbox logic
       let ageMatch = false;
-      if (selectedAges.has('18 and Up') && p.age >= 18) {
+      if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
         ageMatch = true;
       }
       if (selectedAges.has(p.age.toString())) {
@@ -184,7 +185,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
       const unassigned = !p.formsCategoryId;
 
       let ageMatch = false;
-      if (selectedAges.has('18 and Up') && p.age >= 18) {
+      if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
         ageMatch = true;
       }
       if (selectedAges.has(p.age.toString())) {
@@ -202,7 +203,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
       const unassigned = !p.sparringCategoryId;
 
       let ageMatch = false;
-      if (selectedAges.has('18 and Up') && p.age >= 18) {
+      if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
         ageMatch = true;
       }
       if (selectedAges.has(p.age.toString())) {
@@ -565,7 +566,7 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
               type="number"
               className="form-control"
               value={numPools}
-              onChange={(e) => setNumRings(parseInt(e.target.value) || 1)}
+              onChange={(e) => setNumPools(parseInt(e.target.value) || 1)}
               min={1}
               max={10}
               style={{ width: '100px' }}
@@ -713,8 +714,8 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
               }}>
                 {Object.entries(ringTotalsByDivision)
                   .sort(([divA], [divB]) => {
-                    const orderA = config.divisions.find(d => d.name === divA)?.order ?? 999;
-                    const orderB = config.divisions.find(d => d.name === divB)?.order ?? 999;
+                    const orderA = config.divisions.find(d => d.name === divA)?.order ?? DEFAULT_DIVISION_ORDER;
+                    const orderB = config.divisions.find(d => d.name === divB)?.order ?? DEFAULT_DIVISION_ORDER;
                     return orderA - orderB;
                   })
                   .map(([division, total]) => (

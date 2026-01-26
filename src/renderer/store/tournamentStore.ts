@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { Participant, Category, CompetitionRing, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CategoryPoolMapping, TournamentState as SavedState, Checkpoint, CheckpointDiff, ParticipantChange, CustomRing } from '../types/tournament';
+import { debounce } from '../utils/debounce';
+import { AUTOSAVE_DELAY_MS } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 interface TournamentState {
   participants: Participant[];
   categories: Category[];
-  competitionRings: CompetitionRing[]; // DEPRECATED: Now computed from participants, not stored
   config: TournamentConfig;
   physicalRingMappings: PhysicalRingMapping[]; // Legacy
   categoryPoolMappings: CategoryPoolMapping[]; // New mapping system
@@ -16,9 +18,7 @@ interface TournamentState {
   updateParticipant: (id: string, updates: Partial<Participant>) => void;
   setCategories: (categories: Category[]) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
-  setCompetitionRings: (rings: CompetitionRing[]) => void; // DEPRECATED: For backward compatibility only
   setPhysicalRingMappings: (mappings: PhysicalRingMapping[]) => void;
-  setCategoryPoolMappings: (mappings: CategoryPoolMapping[]) => void;
   updatePhysicalRingMapping: (categoryPoolName: string, physicalRingName: string) => void;
   updateConfig: (config: Partial<TournamentConfig>) => void;
   setDivisions: (divisions: Division[]) => void;
@@ -95,7 +95,6 @@ const initialConfig: TournamentConfig = {
 export const useTournamentStore = create<TournamentState>((set, get) => ({
   participants: [],
   categories: [],
-  competitionRings: [],
   config: initialConfig,
   physicalRingMappings: [],
   categoryPoolMappings: [],
@@ -151,7 +150,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       return normalized as Participant;
     });
     set({ participants: normalized });
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
   
   updateParticipant: (id, updates) => {
@@ -160,12 +159,12 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         p.id === id ? { ...p, ...updates } : p
       ),
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   setCategories: (categories) => {
     set({ categories });
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
   
   updateCategory: (id, updates) => {
@@ -174,22 +173,12 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         c.id === id ? { ...c, ...updates } : c
       ),
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
-  },
-
-  setCompetitionRings: (rings) => {
-    set({ competitionRings: rings });
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   setPhysicalRingMappings: (mappings) => {
     set({ physicalRingMappings: mappings });
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
-  },
-
-  setCategoryPoolMappings: (mappings) => {
-    set({ categoryPoolMappings: mappings });
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   updatePhysicalRingMapping: (categoryPoolName, physicalRingName) => {
@@ -207,49 +196,49 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         };
       }
     });
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   updateConfig: (configUpdates) => {
     set((state) => ({
       config: { ...state.config, ...configUpdates },
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   setDivisions: (divisions) => {
     set((state) => ({
       config: { ...state.config, divisions },
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   setPhysicalRings: (rings) => {
     set((state) => ({
       config: { ...state.config, physicalRings: rings },
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   setWatermark: (image) => {
     set((state) => ({
       config: { ...state.config, watermarkImage: image },
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   setPdfOutputDirectory: (directory) => {
     set((state) => ({
       config: { ...state.config, pdfOutputDirectory: directory },
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   setSchoolAbbreviations: (abbreviations) => {
     set((state) => ({
       config: { ...state.config, schoolAbbreviations: abbreviations },
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   saveState: async () => {
@@ -296,7 +285,6 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     set({
       participants: state.participants || [],
       categories: state.categories || [],
-      competitionRings: state.competitionRings || [],
       config: {
         ...(state.config || initialConfig),
         divisions: mergedDivisions
@@ -318,13 +306,13 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       customRings: state.customRings,
       lastSaved: new Date().toISOString(),
     };
-    console.log('Saving autosave - participants count:', state.participants.length);
+    logger.debug('Saving autosave - participants count:', state.participants.length);
     
     try {
       const result = await window.electronAPI.saveAutosave(JSON.stringify(tournamentState));
-      console.log('Autosave result:', result.success ? 'success' : result.error);
+      logger.debug('Autosave result:', result.success ? 'success' : result.error);
     } catch (error) {
-      console.error('Failed to save autosave:', error);
+      logger.error('Failed to save autosave:', error);
     }
   },
 
@@ -332,7 +320,6 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     set({
       participants: [],
       categories: [],
-      competitionRings: [],
       config: initialConfig,
       checkpoints: [],
       customRings: [],
@@ -349,12 +336,12 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       name: checkpointName,
       timestamp,
       state: {
-        participants: JSON.parse(JSON.stringify(state.participants)),
-        categories: JSON.parse(JSON.stringify(state.categories)),
-        config: JSON.parse(JSON.stringify(state.config)),
-        physicalRingMappings: JSON.parse(JSON.stringify(state.physicalRingMappings)),
-        categoryPoolMappings: JSON.parse(JSON.stringify(state.categoryPoolMappings)),
-        customRings: JSON.parse(JSON.stringify(state.customRings)),
+        participants: structuredClone(state.participants),
+        categories: structuredClone(state.categories),
+        config: structuredClone(state.config),
+        physicalRingMappings: structuredClone(state.physicalRingMappings),
+        categoryPoolMappings: structuredClone(state.categoryPoolMappings),
+        customRings: structuredClone(state.customRings),
         lastSaved: timestamp,
       },
     };
@@ -367,12 +354,12 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     try {
       const result = await window.electronAPI.saveCheckpoint(checkpoint);
       if (result.success) {
-        console.log('Checkpoint saved:', checkpoint.name);
+        logger.debug('Checkpoint saved:', checkpoint.name);
       } else {
-        console.error('Failed to save checkpoint:', result.error);
+        logger.error('Failed to save checkpoint:', result.error);
       }
     } catch (error) {
-      console.error('Error saving checkpoint:', error);
+      logger.error('Error saving checkpoint:', error);
     }
 
     return checkpoint;
@@ -390,7 +377,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const checkpoint = state.checkpoints.find(cp => cp.id === checkpointId);
     if (checkpoint) {
       window.electronAPI.saveCheckpoint(checkpoint).catch(err => {
-        console.error('Failed to update checkpoint name:', err);
+        logger.error('Failed to update checkpoint name:', err);
       });
     }
   },
@@ -402,7 +389,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
     // Delete from disk
     window.electronAPI.deleteCheckpoint(checkpointId).catch(err => {
-      console.error('Failed to delete checkpoint:', err);
+      logger.error('Failed to delete checkpoint:', err);
     });
   },
 
@@ -518,12 +505,12 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
     if (confirm(`Load checkpoint "${checkpoint.name}"? This will replace your current state.`)) {
       set({
-        participants: JSON.parse(JSON.stringify(checkpoint.state.participants)),
-        categories: JSON.parse(JSON.stringify(checkpoint.state.categories)),
-        config: JSON.parse(JSON.stringify(checkpoint.state.config)),
-        physicalRingMappings: JSON.parse(JSON.stringify(checkpoint.state.physicalRingMappings)),
-        categoryPoolMappings: JSON.parse(JSON.stringify(checkpoint.state.categoryPoolMappings)),
-        customRings: checkpoint.state.customRings ? JSON.parse(JSON.stringify(checkpoint.state.customRings)) : [],
+        participants: structuredClone(checkpoint.state.participants),
+        categories: structuredClone(checkpoint.state.categories),
+        config: structuredClone(checkpoint.state.config),
+        physicalRingMappings: structuredClone(checkpoint.state.physicalRingMappings),
+        categoryPoolMappings: structuredClone(checkpoint.state.categoryPoolMappings),
+        customRings: checkpoint.state.customRings ? structuredClone(checkpoint.state.customRings) : [],
       });
       alert(`Checkpoint "${checkpoint.name}" loaded successfully`);
     }
@@ -541,7 +528,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     set((state) => ({
       customRings: [...state.customRings, newRing],
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
     return newRing;
   },
 
@@ -549,7 +536,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     set((state) => ({
       customRings: state.customRings.filter(r => r.id !== id),
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   updateCustomRing: (id: string, updates: Partial<CustomRing>) => {
@@ -558,7 +545,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         r.id === id ? { ...r, ...updates } : r
       ),
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   addParticipantToCustomRing: (ringId: string, participantId: string) => {
@@ -569,7 +556,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
           : r
       ),
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   removeParticipantFromCustomRing: (ringId: string, participantId: string) => {
@@ -580,7 +567,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
           : r
       ),
     }));
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   moveParticipantInCustomRing: (ringId: string, participantId: string, direction: 'up' | 'down') => {
@@ -604,7 +591,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         ),
       };
     });
-    setTimeout(() => useTournamentStore.getState().autoSave(), 100);
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 }));
 
@@ -615,6 +602,6 @@ if (typeof window !== 'undefined' && window.electronAPI?.loadCheckpoints) {
       useTournamentStore.setState({ checkpoints: result.data });
     }
   }).catch((error) => {
-    console.error('Error loading checkpoints on startup:', error);
+    logger.error('Error loading checkpoints on startup:', error);
   });
 }

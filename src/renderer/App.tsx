@@ -148,10 +148,10 @@ function App() {
     config.divisions.forEach(division => {
       const divisionFormsRings = categories
         .filter(c => c.division === division.name && c.type === 'forms')
-        .reduce((sum, c) => sum + c.numRings, 0);
+        .reduce((sum, c) => sum + (c.numPools || 1), 0);
       const divisionSparringRings = categories
         .filter(c => c.division === division.name && c.type === 'sparring')
-        .reduce((sum, c) => sum + c.numRings, 0);
+        .reduce((sum, c) => sum + (c.numPools || 1), 0);
       const physicalRings = division.numRings || 0;
       
       if (divisionFormsRings > physicalRings) configErrors++;
@@ -251,7 +251,6 @@ function App() {
           useTournamentStore.setState({
             participants: cleanedParticipants,
             categories: state.categories || [],
-            competitionRings: state.competitionRings || [],
             config: { 
               ...defaultConfig, 
               ...state.config,
