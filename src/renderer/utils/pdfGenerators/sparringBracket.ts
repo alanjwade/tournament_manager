@@ -19,6 +19,14 @@ interface Match {
   nextMatch?: number;
 }
 
+/**
+ * Options for filtering which alt rings to generate
+ */
+export interface SparringBracketOptions {
+  /** Only generate brackets for specific alt rings ('a', 'b', or undefined for all) */
+  altRingFilter?: Set<string>;
+}
+
 export function generateSparringBrackets(
   participants: Participant[],
   competitionRings: CompetitionRing[],
@@ -28,7 +36,8 @@ export function generateSparringBrackets(
   physicalRingMappings?: { categoryPoolName: string; physicalRingName: string }[],
   masterPdf?: jsPDF,
   titleOverride?: string,
-  isCustomRing?: boolean
+  isCustomRing?: boolean,
+  options?: SparringBracketOptions
 ): jsPDF {
   const doc = masterPdf || new jsPDF({
     orientation: 'portrait',
@@ -253,10 +262,18 @@ export function generateSparringBrackets(
       const participantsB = allRingParticipants.filter(p => p.sparringAltRing === 'b');
       console.log('[sparringBracket] Splitting into alt rings - A:', participantsA.length, 'B:', participantsB.length);
       
-      if (participantsA.length > 0) {
+      // Check if we have an alt ring filter
+      const altRingFilter = options?.altRingFilter;
+      const shouldGenerateA = !altRingFilter || altRingFilter.has('a') || altRingFilter.has('sparring');
+      const shouldGenerateB = !altRingFilter || altRingFilter.has('b') || altRingFilter.has('sparring');
+      
+      console.log('[sparringBracket] Alt ring filter:', altRingFilter ? Array.from(altRingFilter) : 'none');
+      console.log('[sparringBracket] shouldGenerateA:', shouldGenerateA, 'shouldGenerateB:', shouldGenerateB);
+      
+      if (participantsA.length > 0 && shouldGenerateA) {
         generateBracketForAltRing(participantsA, 'Alt Ring A');
       }
-      if (participantsB.length > 0) {
+      if (participantsB.length > 0 && shouldGenerateB) {
         generateBracketForAltRing(participantsB, 'Alt Ring B');
       }
     } else {

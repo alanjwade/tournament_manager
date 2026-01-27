@@ -12,6 +12,7 @@ interface TournamentState {
   categoryPoolMappings: CategoryPoolMapping[]; // New mapping system
   checkpoints: Checkpoint[]; // Checkpoint system
   customRings: CustomRing[]; // Grand Champion / Side rings
+  highlightedParticipantId: string | null; // For cross-component highlighting
   
   // Actions
   setParticipants: (participants: Participant[]) => void;
@@ -46,6 +47,7 @@ interface TournamentState {
   addParticipantToCustomRing: (ringId: string, participantId: string) => void;
   removeParticipantFromCustomRing: (ringId: string, participantId: string) => void;
   moveParticipantInCustomRing: (ringId: string, participantId: string, direction: 'up' | 'down') => void;
+  setHighlightedParticipantId: (id: string | null) => void;
 }
 
 const initialConfig: TournamentConfig = {
@@ -115,6 +117,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       createdAt: new Date().toISOString(),
     },
   ],
+  highlightedParticipantId: null,
 
   setParticipants: (participants) => {
     // Normalize participant objects - migrate from old model to new
@@ -418,6 +421,29 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const participantsModified: ParticipantChange[] = [];
     const ringsAffected = new Set<string>();
 
+    /**
+     * Build a ring identifier with all necessary context.
+     * Format: CategoryName_Pool_type[_altRing]
+     * 
+     * Examples:
+     * - "Beginner_P1_forms" - Forms ring
+     * - "Beginner_P1_sparring" - Sparring ring (no alt rings)
+     * - "Beginner_P1_sparring_a" - Sparring alt ring A
+     * - "Beginner_P1_sparring_b" - Sparring alt ring B
+     */
+    const buildRingId = (
+      categoryName: string,
+      pool: string,
+      type: 'forms' | 'sparring',
+      altRing?: string
+    ): string => {
+      let id = `${categoryName}_${pool}_${type}`;
+      if (type === 'sparring' && altRing) {
+        id += `_${altRing}`;
+      }
+      return id;
+    };
+
     currentParticipants.forEach(currentP => {
       const checkpointP = checkpointMap.get(currentP.id);
       if (!checkpointP) return; // Already counted in participantsAdded
@@ -443,67 +469,59 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
             newValue: currentValue,
           });
 
-          // Track affected rings
-          if (field === 'formsCategoryId' || field === 'formsPool' || field === 'formsRankOrder') {
+          // Track affected rings for forms changes
+          if (field === 'formsCategoryId' || field === 'formsPool' || field === 'formsRankOrder' || field === 'competingForms') {
             // For rank order changes, only track the current state (reordering doesn't move between rings)
             if (field === 'formsRankOrder') {
               const categoryId = currentP.formsCategoryId;
               const category = state.categories.find(c => c.id === categoryId);
-              if (category) {
+              if (category && currentP.competingForms) {
                 const pool = currentP.formsPool || 'P1';
-                ringsAffected.add(`${category.name}_${pool}`);
+                ringsAffected.add(buildRingId(category.name, pool, 'forms'));
               }
             } else {
-              // For category or pool changes, track both old and new rings
-              if (checkpointValue) {
-                const categoryId = field === 'formsCategoryId' ? checkpointValue : checkpointP.formsCategoryId;
-                const category = checkpoint.state.categories.find(c => c.id === categoryId);
+              // For category, pool, or competing changes, track both old and new rings
+              if (checkpointP.competingForms && checkpointP.formsCategoryId) {
+                const category = checkpoint.state.categories.find(c => c.id === checkpointP.formsCategoryId);
                 if (category) {
                   const pool = checkpointP.formsPool || 'P1';
-                  ringsAffected.add(`${category.name}_${pool}`);
+                  ringsAffected.add(buildRingId(category.name, pool, 'forms'));
                 }
               }
-              if (currentValue) {
-                const categoryId = field === 'formsCategoryId' ? currentValue : currentP.formsCategoryId;
-                const category = state.categories.find(c => c.id === categoryId);
+              if (currentP.competingForms && currentP.formsCategoryId) {
+                const category = state.categories.find(c => c.id === currentP.formsCategoryId);
                 if (category) {
                   const pool = currentP.formsPool || 'P1';
-                  ringsAffected.add(`${category.name}_${pool}`);
+                  ringsAffected.add(buildRingId(category.name, pool, 'forms'));
                 }
               }
             }
           }
-          if (field === 'sparringCategoryId' || field === 'sparringPool' || field === 'sparringAltRing' || field === 'sparringRankOrder') {
-            // For rank order changes, only track the current state (reordering doesn't move between rings)
-            // Don't include alt ring suffix since ring names don't include it
+          
+          // Track affected rings for sparring changes
+          if (field === 'sparringCategoryId' || field === 'sparringPool' || field === 'sparringAltRing' || field === 'sparringRankOrder' || field === 'competingSparring') {
+            // For rank order changes, track the specific alt ring that was reordered
             if (field === 'sparringRankOrder') {
               const categoryId = currentP.sparringCategoryId;
               const category = state.categories.find(c => c.id === categoryId);
-              if (category) {
+              if (category && currentP.competingSparring) {
                 const pool = currentP.sparringPool || 'P1';
-                ringsAffected.add(`${category.name}_${pool}`);
+                ringsAffected.add(buildRingId(category.name, pool, 'sparring', currentP.sparringAltRing || undefined));
               }
             } else {
-              // For category, pool, or alt ring changes, track both old and new rings
-              // Include alt ring suffix only for sparringAltRing field changes
-              const includeAltSuffix = field === 'sparringAltRing';
-              
-              if (checkpointValue) {
-                const categoryId = field === 'sparringCategoryId' ? checkpointValue : checkpointP.sparringCategoryId;
-                const category = checkpoint.state.categories.find(c => c.id === categoryId);
+              // For category, pool, alt ring, or competing changes, track both old and new rings
+              if (checkpointP.competingSparring && checkpointP.sparringCategoryId) {
+                const category = checkpoint.state.categories.find(c => c.id === checkpointP.sparringCategoryId);
                 if (category) {
                   const pool = checkpointP.sparringPool || 'P1';
-                  const altRingSuffix = includeAltSuffix && checkpointP.sparringAltRing ? `_${checkpointP.sparringAltRing}` : '';
-                  ringsAffected.add(`${category.name}_${pool}${altRingSuffix}`);
+                  ringsAffected.add(buildRingId(category.name, pool, 'sparring', checkpointP.sparringAltRing || undefined));
                 }
               }
-              if (currentValue) {
-                const categoryId = field === 'sparringCategoryId' ? currentValue : currentP.sparringCategoryId;
-                const category = state.categories.find(c => c.id === categoryId);
+              if (currentP.competingSparring && currentP.sparringCategoryId) {
+                const category = state.categories.find(c => c.id === currentP.sparringCategoryId);
                 if (category) {
                   const pool = currentP.sparringPool || 'P1';
-                  const altRingSuffix = includeAltSuffix && currentP.sparringAltRing ? `_${currentP.sparringAltRing}` : '';
-                  ringsAffected.add(`${category.name}_${pool}${altRingSuffix}`);
+                  ringsAffected.add(buildRingId(category.name, pool, 'sparring', currentP.sparringAltRing || undefined));
                 }
               }
             }
@@ -618,6 +636,10 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       };
     });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+  },
+
+  setHighlightedParticipantId: (id: string | null) => {
+    set({ highlightedParticipantId: id });
   },
 }));
 

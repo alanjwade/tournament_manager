@@ -9,6 +9,8 @@ import {
   formatDateWithOrdinal,
   getPhysicalRingId,
   getExpandedRingName,
+  isRingAffected,
+  isRingAffectedSimple,
 } from '../src/renderer/utils/ringNameFormatter';
 
 describe('ringNameFormatter', () => {
@@ -123,6 +125,127 @@ describe('ringNameFormatter', () => {
 
     it('should handle lowercase letters', () => {
       expect(getExpandedRingName('PR3a')).toBe('Ring 3a');
+    });
+  });
+
+  describe('isRingAffected', () => {
+    // New API returns { isAffected: boolean; altRings?: Set<string> }
+    
+    describe('forms rings', () => {
+      it('should match forms ring with _forms suffix', () => {
+        const changedRings = new Set(['Beginner_P1_forms']);
+        const result = isRingAffected('Beginner_P1', 'forms', changedRings);
+        expect(result.isAffected).toBe(true);
+        expect(result.altRings).toBeUndefined();
+      });
+
+      it('should NOT match forms ring with _sparring suffix', () => {
+        const changedRings = new Set(['Beginner_P1_sparring']);
+        const result = isRingAffected('Beginner_P1', 'forms', changedRings);
+        expect(result.isAffected).toBe(false);
+      });
+
+      it('should NOT match forms ring with alt ring suffix (_a, _b)', () => {
+        const changedRings = new Set(['Beginner_P1_sparring_a', 'Beginner_P1_sparring_b']);
+        const result = isRingAffected('Beginner_P1', 'forms', changedRings);
+        expect(result.isAffected).toBe(false);
+      });
+    });
+
+    describe('sparring rings', () => {
+      it('should match sparring ring with _sparring suffix', () => {
+        const changedRings = new Set(['Beginner_P1_sparring']);
+        const result = isRingAffected('Beginner_P1', 'sparring', changedRings);
+        expect(result.isAffected).toBe(true);
+        expect(result.altRings).toBeUndefined();
+      });
+
+      it('should match sparring ring with alt ring suffix _a and return altRings', () => {
+        const changedRings = new Set(['Beginner_P1_sparring_a']);
+        const result = isRingAffected('Beginner_P1', 'sparring', changedRings);
+        expect(result.isAffected).toBe(true);
+        expect(result.altRings).toBeDefined();
+        expect(result.altRings?.has('a')).toBe(true);
+        expect(result.altRings?.has('b')).toBe(false);
+      });
+
+      it('should match sparring ring with alt ring suffix _b and return altRings', () => {
+        const changedRings = new Set(['Beginner_P1_sparring_b']);
+        const result = isRingAffected('Beginner_P1', 'sparring', changedRings);
+        expect(result.isAffected).toBe(true);
+        expect(result.altRings).toBeDefined();
+        expect(result.altRings?.has('b')).toBe(true);
+        expect(result.altRings?.has('a')).toBe(false);
+      });
+
+      it('should match both alt rings when both changed', () => {
+        const changedRings = new Set(['Beginner_P1_sparring_a', 'Beginner_P1_sparring_b']);
+        const result = isRingAffected('Beginner_P1', 'sparring', changedRings);
+        expect(result.isAffected).toBe(true);
+        expect(result.altRings).toBeDefined();
+        expect(result.altRings?.has('a')).toBe(true);
+        expect(result.altRings?.has('b')).toBe(true);
+      });
+
+      it('should NOT match sparring ring with _forms suffix', () => {
+        const changedRings = new Set(['Beginner_P1_forms']);
+        const result = isRingAffected('Beginner_P1', 'sparring', changedRings);
+        expect(result.isAffected).toBe(false);
+      });
+    });
+
+    describe('separation of forms and sparring', () => {
+      it('should correctly separate forms and sparring when both have suffixes', () => {
+        const changedRings = new Set(['Beginner_P1_forms']);
+        expect(isRingAffected('Beginner_P1', 'forms', changedRings).isAffected).toBe(true);
+        expect(isRingAffected('Beginner_P1', 'sparring', changedRings).isAffected).toBe(false);
+      });
+
+      it('should correctly separate sparring from forms with alt ring suffixes', () => {
+        const changedRings = new Set(['Beginner_P1_sparring_a']);
+        expect(isRingAffected('Beginner_P1', 'forms', changedRings).isAffected).toBe(false);
+        expect(isRingAffected('Beginner_P1', 'sparring', changedRings).isAffected).toBe(true);
+      });
+
+      it('should handle mixed forms and sparring alt ring changes', () => {
+        const changedRings = new Set(['Beginner_P1_forms', 'Beginner_P1_sparring_a']);
+        expect(isRingAffected('Beginner_P1', 'forms', changedRings).isAffected).toBe(true);
+        const sparringResult = isRingAffected('Beginner_P1', 'sparring', changedRings);
+        expect(sparringResult.isAffected).toBe(true);
+        expect(sparringResult.altRings?.has('a')).toBe(true);
+        expect(sparringResult.altRings?.size).toBe(1);
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should handle empty changedRings set', () => {
+        const changedRings = new Set<string>();
+        expect(isRingAffected('Beginner_P1', 'forms', changedRings).isAffected).toBe(false);
+        expect(isRingAffected('Beginner_P1', 'sparring', changedRings).isAffected).toBe(false);
+      });
+
+      it('should handle ring names with underscores in category name', () => {
+        const changedRings = new Set(['Male_8-10_P1_forms']);
+        const result = isRingAffected('Male_8-10_P1', 'forms', changedRings);
+        expect(result.isAffected).toBe(true);
+      });
+    });
+  });
+
+  describe('isRingAffectedSimple', () => {
+    it('should return true when ring is affected', () => {
+      const changedRings = new Set(['Beginner_P1_forms']);
+      expect(isRingAffectedSimple('Beginner_P1', 'forms', changedRings)).toBe(true);
+    });
+
+    it('should return false when ring is not affected', () => {
+      const changedRings = new Set(['Beginner_P1_sparring']);
+      expect(isRingAffectedSimple('Beginner_P1', 'forms', changedRings)).toBe(false);
+    });
+
+    it('should return true for sparring with alt rings', () => {
+      const changedRings = new Set(['Beginner_P1_sparring_a']);
+      expect(isRingAffectedSimple('Beginner_P1', 'sparring', changedRings)).toBe(true);
     });
   });
 });

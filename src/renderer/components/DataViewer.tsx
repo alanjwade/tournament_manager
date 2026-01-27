@@ -17,6 +17,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
+  const highlightedParticipantId = useTournamentStore((state) => state.highlightedParticipantId);
+  const setHighlightedParticipantId = useTournamentStore((state) => state.setHighlightedParticipantId);
   
   // State for highlighted participant from search
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -67,12 +69,11 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     }
   }, [globalDivision]);
 
-  // Check for highlighted participant from global search
+  // Check for highlighted participant from global search - use store instead of sessionStorage
   useEffect(() => {
-    const storedId = sessionStorage.getItem('highlightParticipant');
-    if (storedId) {
-      sessionStorage.removeItem('highlightParticipant');
-      setHighlightedId(storedId);
+    if (highlightedParticipantId) {
+      setHighlightedId(highlightedParticipantId);
+      setHighlightedParticipantId(null); // Clear immediately
       
       // Clear all filters to ensure participant is visible
       setFilters({
@@ -102,7 +103,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       // Clear highlight after 5 seconds
       setTimeout(() => setHighlightedId(null), 5000);
     }
-  }, []);
+  }, [highlightedParticipantId, setHighlightedParticipantId]);
 
   // Scroll to highlighted row when it becomes visible
   useEffect(() => {

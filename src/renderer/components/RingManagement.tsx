@@ -14,7 +14,6 @@ function RingManagement({ globalDivision }: RingManagementProps) {
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const config = useTournamentStore((state) => state.config);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
-  const setCompetitionRings = useTournamentStore((state) => state.setCompetitionRings);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -160,11 +159,8 @@ function RingManagement({ globalDivision }: RingManagementProps) {
       // Now map sparring participants into the same physical rings
       const sparringResult = mapSparringToForms(categories, formsResult.updatedParticipants, formsResult.competitionRings);
 
-      // Merge forms + sparring competition rings with any other existing rings from other divisions
-      const otherRings = competitionRings.filter((r) => r.division !== selectedDivision);
-      setCompetitionRings([...otherRings, ...formsResult.competitionRings, ...sparringResult.competitionRings]);
-
       // Update participants: apply updates from forms then sparring mapping
+      // Competition rings will be automatically recomputed from participant data
       setParticipants(sparringResult.updatedParticipants);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error assigning rings');

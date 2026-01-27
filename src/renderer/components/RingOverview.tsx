@@ -3,7 +3,7 @@ import jsPDF from 'jspdf';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
 import { checkSparringAltRingStatus, orderFormsRing, orderSparringRing } from '../utils/ringOrdering';
-import { formatPoolNameForDisplay, formatPoolOnly } from '../utils/ringNameFormatter';
+import { formatPoolNameForDisplay, formatPoolOnly, isRingAffected, isRingAffectedSimple } from '../utils/ringNameFormatter';
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
@@ -203,21 +203,36 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     }
 
     // Get all competition rings that have changed, filtered by selected division
+    // For forms, we just need to know if the ring changed
     const changedFormsRings = competitionRings
       .filter(ring => 
         ring.type === 'forms' && 
-        changedRings.has(ring.name || ring.division) &&
+        isRingAffected(ring.name || ring.division, 'forms', changedRings).isAffected &&
         (selectedDivision === 'all' || ring.division === selectedDivision)
       );
     
-    const changedSparringRings = competitionRings
-      .filter(ring => 
-        ring.type === 'sparring' && 
-        changedRings.has(ring.name || ring.division) &&
-        (selectedDivision === 'all' || ring.division === selectedDivision)
-      );
+    // For sparring, we need to track which specific alt rings changed
+    interface SparringRingWithAltFilter {
+      ring: CompetitionRing;
+      altRings?: Set<string>;
+    }
+    const changedSparringRingsWithFilter: SparringRingWithAltFilter[] = [];
+    
+    competitionRings.forEach(ring => {
+      if (ring.type !== 'sparring') return;
+      if (selectedDivision !== 'all' && ring.division !== selectedDivision) return;
+      
+      const baseRingName = ring.name || ring.division;
+      const result = isRingAffected(baseRingName, 'sparring', changedRings);
+      if (result.isAffected) {
+        changedSparringRingsWithFilter.push({
+          ring,
+          altRings: result.altRings,
+        });
+      }
+    });
 
-    if (changedFormsRings.length === 0 && changedSparringRings.length === 0) {
+    if (changedFormsRings.length === 0 && changedSparringRingsWithFilter.length === 0) {
       alert('No forms or sparring rings found for changed rings.');
       return;
     }
@@ -253,24 +268,28 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         }
       }
 
-      // Group by division for sparring
-      const sparringByDivision = new Map<string, CompetitionRing[]>();
-      changedSparringRings.forEach(ring => {
-        const existing = sparringByDivision.get(ring.division) || [];
-        sparringByDivision.set(ring.division, [...existing, ring]);
+      // Group by division for sparring, keeping track of alt ring filters per ring
+      const sparringByDivision = new Map<string, SparringRingWithAltFilter[]>();
+      changedSparringRingsWithFilter.forEach(item => {
+        const existing = sparringByDivision.get(item.ring.division) || [];
+        sparringByDivision.set(item.ring.division, [...existing, item]);
       });
 
       // Generate all sparring PDFs, adding directly to master
-      for (const [division, rings] of sparringByDivision) {
-        if (rings.length > 0) {
+      // We need to process each ring individually to apply the correct alt ring filter
+      for (const [division, ringItems] of sparringByDivision) {
+        for (const item of ringItems) {
           generateSparringBrackets(
             participants,
-            rings,
+            [item.ring],
             config.physicalRings,
             division,
             config.watermarkImage,
             physicalRingMappings,
-            masterPdf  // Pass master PDF to add to
+            masterPdf,  // Pass master PDF to add to
+            undefined,  // titleOverride
+            false,      // isCustomRing
+            { altRingFilter: item.altRings }  // Pass the alt ring filter
           );
         }
       }
@@ -417,13 +436,17 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const changedRingsCounts = useMemo(() => {
     const changedFormsRings = competitionRings.filter(
       ring => ring.type === 'forms' && 
-              changedRings.has(ring.name || ring.division) &&
+              isRingAffected(ring.name || ring.division, 'forms', changedRings).isAffected &&
               (selectedDivision === 'all' || ring.division === selectedDivision)
     );
     const changedSparringRings = competitionRings.filter(
-      ring => ring.type === 'sparring' && 
-              changedRings.has(ring.name || ring.division) &&
-              (selectedDivision === 'all' || ring.division === selectedDivision)
+      ring => {
+        if (ring.type !== 'sparring') return false;
+        if (selectedDivision !== 'all' && ring.division !== selectedDivision) return false;
+        
+        const baseRingName = ring.name || ring.division;
+        return isRingAffected(baseRingName, 'sparring', changedRings).isAffected;
+      }
     );
     return {
       forms: changedFormsRings.length,
@@ -2411,8 +2434,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       <div>
         {filteredRingPairs.map((pair) => {
           // Check if this ring pair has changed since checkpoint
-          const formsChanged = pair.formsRing && changedRings.has(pair.formsRing.name || pair.cohortRingName);
-          const sparringChanged = pair.sparringRing && changedRings.has(pair.sparringRing.name || pair.cohortRingName);
+          const formsChanged = pair.formsRing && isRingAffectedSimple(pair.formsRing.name || pair.cohortRingName, 'forms', changedRings);
+          const sparringChanged = pair.sparringRing && isRingAffectedSimple(pair.sparringRing.name || pair.cohortRingName, 'sparring', changedRings);
           const hasChanged = formsChanged || sparringChanged;
 
           // Get participant counts for balance indicators

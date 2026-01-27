@@ -155,3 +155,116 @@ export function getFullyQualifiedRingNameFromCompetitionRing(
   
   return getFullyQualifiedRingName(ring.division, physicalRing.id, physicalRings);
 }
+
+/**
+ * Ring identifier parsing result.
+ * Ring IDs have the format: CategoryName_Pool_type[_altRing]
+ * Examples:
+ * - "Beginner_P1_forms"
+ * - "Beginner_P1_sparring"
+ * - "Beginner_P1_sparring_a"
+ */
+export interface ParsedRingId {
+  categoryPool: string;  // "Beginner_P1"
+  type: 'forms' | 'sparring';
+  altRing?: string;  // 'a', 'b', etc.
+}
+
+/**
+ * Parse a ring identifier into its components.
+ */
+export function parseRingId(ringId: string): ParsedRingId | null {
+  // Match pattern: CategoryName_Pool_type[_altRing]
+  // The type is always 'forms' or 'sparring'
+  const sparringAltMatch = ringId.match(/^(.+)_sparring_([a-z])$/);
+  if (sparringAltMatch) {
+    return {
+      categoryPool: sparringAltMatch[1],
+      type: 'sparring',
+      altRing: sparringAltMatch[2],
+    };
+  }
+  
+  const sparringMatch = ringId.match(/^(.+)_sparring$/);
+  if (sparringMatch) {
+    return {
+      categoryPool: sparringMatch[1],
+      type: 'sparring',
+    };
+  }
+  
+  const formsMatch = ringId.match(/^(.+)_forms$/);
+  if (formsMatch) {
+    return {
+      categoryPool: formsMatch[1],
+      type: 'forms',
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Check if a ring is affected based on the changedRings set from checkpoint diff.
+ * 
+ * The new ring ID format is: CategoryName_Pool_type[_altRing]
+ * Examples:
+ * - "Beginner_P1_forms" - Forms ring
+ * - "Beginner_P1_sparring" - Sparring ring (no alt rings)
+ * - "Beginner_P1_sparring_a" - Sparring alt ring A
+ * 
+ * @param ringName - The base ring name from CompetitionRing (e.g., "Beginner_P1")
+ * @param ringType - The type of ring ('forms' or 'sparring')
+ * @param changedRings - The set of changed ring IDs from diffCheckpoint
+ * @returns Object with isAffected flag and optional altRing filter
+ */
+export function isRingAffected(
+  ringName: string,
+  ringType: 'forms' | 'sparring',
+  changedRings: Set<string>
+): { isAffected: boolean; altRings?: Set<string> } {
+  if (ringType === 'forms') {
+    // For forms, check for CategoryName_Pool_forms
+    const isAffected = changedRings.has(`${ringName}_forms`);
+    return { isAffected };
+  } else {
+    // For sparring, check for:
+    // - CategoryName_Pool_sparring (no alt rings - print entire sparring bracket)
+    // - CategoryName_Pool_sparring_a (alt ring A)
+    // - CategoryName_Pool_sparring_b (alt ring B)
+    
+    // If the whole sparring ring changed (no specific alt ring), print all alt rings
+    if (changedRings.has(`${ringName}_sparring`)) {
+      return { isAffected: true };  // No altRings filter = print all
+    }
+    
+    // Otherwise, check for specific alt rings
+    const affectedAltRings = new Set<string>();
+    if (changedRings.has(`${ringName}_sparring_a`)) {
+      affectedAltRings.add('a');
+    }
+    if (changedRings.has(`${ringName}_sparring_b`)) {
+      affectedAltRings.add('b');
+    }
+    
+    if (affectedAltRings.size > 0) {
+      return {
+        isAffected: true,
+        altRings: affectedAltRings,
+      };
+    }
+    
+    return { isAffected: false };
+  }
+}
+
+/**
+ * Simple boolean check if a ring is affected (for backwards compatibility).
+ */
+export function isRingAffectedSimple(
+  ringName: string,
+  ringType: 'forms' | 'sparring',
+  changedRings: Set<string>
+): boolean {
+  return isRingAffected(ringName, ringType, changedRings).isAffected;
+}

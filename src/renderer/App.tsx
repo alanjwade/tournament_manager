@@ -103,10 +103,10 @@ function App() {
   const handleSearchSelect = (participantId: string) => {
     setSearchQuery('');
     setSearchFocused(false);
-    // Navigate to editor tab - the DataViewer component will need to handle highlighting
+    // Navigate to editor tab with highlighted participant
     setActiveTab('editor');
-    // Store selected participant ID for the editor to pick up
-    sessionStorage.setItem('highlightParticipant', participantId);
+    // Use store instead of sessionStorage
+    useTournamentStore.getState().setHighlightedParticipantId(participantId);
   };
 
   // Compute competition rings for status tracking

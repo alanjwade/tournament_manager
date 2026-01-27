@@ -311,4 +311,315 @@ describe('Tournament Store', () => {
       expect(state.checkpoints).toEqual([]);
     });
   });
+
+  describe('Checkpoint Diff - Alt Rings and Forms/Sparring Distinction', () => {
+    it('should track only the specific alt ring when only its order changes', async () => {
+      // Setup: participant in sparring with alt ring 'a'
+      const participant = createTestParticipant({
+        id: 'p1',
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+        sparringAltRing: 'a',
+        sparringRankOrder: 1,
+      });
+
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        type: 'sparring',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([participant]);
+      useTournamentStore.getState().setCategories([category]);
+
+      // Create checkpoint
+      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+
+      // Change only the rank order in alt ring 'a'
+      useTournamentStore.getState().updateParticipant('p1', { sparringRankOrder: 2 });
+
+      // Get diff
+      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      
+      expect(diff).not.toBeNull();
+      // New format uses _sparring_a suffix
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring_a')).toBe(true);
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring_b')).toBe(false);
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring')).toBe(false);
+    });
+
+    it('should track forms and sparring separately when both exist with same category/pool', async () => {
+      // Setup: participants in forms and sparring with same category/pool
+      const formsPart = createTestParticipant({
+        id: 'pf1',
+        competingForms: true,
+        formsCategoryId: 'cat1',
+        formsPool: 'P1',
+        formsRankOrder: 1,
+      });
+
+      const sparringPart = createTestParticipant({
+        id: 'ps1',
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+        sparringAltRing: '',
+        sparringRankOrder: 1,
+      });
+
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([formsPart, sparringPart]);
+      useTournamentStore.getState().setCategories([category]);
+
+      // Create checkpoint
+      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+
+      // Change ONLY forms order
+      useTournamentStore.getState().updateParticipant('pf1', { formsRankOrder: 2 });
+
+      // Get diff
+      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      
+      expect(diff).not.toBeNull();
+      // Should track forms ring as changed
+      expect(diff!.ringsAffected.has('Beginner_P1_forms')).toBe(true);
+      // Should NOT track sparring ring as changed (only forms changed)
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring')).toBe(false);
+    });
+
+    it('should track sparring with multiple alt rings separately', async () => {
+      // Setup: two participants in sparring alt rings a and b
+      const partA = createTestParticipant({
+        id: 'p1',
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+        sparringAltRing: 'a',
+        sparringRankOrder: 1,
+      });
+
+      const partB = createTestParticipant({
+        id: 'p2',
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+        sparringAltRing: 'b',
+        sparringRankOrder: 1,
+      });
+
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        type: 'sparring',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([partA, partB]);
+      useTournamentStore.getState().setCategories([category]);
+
+      // Create checkpoint
+      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+
+      // Change ONLY alt ring 'a' order
+      useTournamentStore.getState().updateParticipant('p1', { sparringRankOrder: 2 });
+
+      // Get diff
+      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      
+      expect(diff).not.toBeNull();
+      // Should track only alt ring a as changed (new format)
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring_a')).toBe(true);
+      // Should NOT track alt ring b
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring_b')).toBe(false);
+      // Should NOT track base sparring ring
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring')).toBe(false);
+    });
+
+    it('should match ring names correctly when filtering for PDF export', async () => {
+      // This test simulates the PDF export scenario where we need to match
+      // diff.ringsAffected (which includes suffixes) against competitionRings (which don't)
+      
+      // Import computeCompetitionRings
+      const { computeCompetitionRings } = await import('../src/renderer/utils/computeRings');
+      
+      // Setup: participants in both forms and sparring with same category/pool
+      const formsPart = createTestParticipant({
+        id: 'pf1',
+        competingForms: true,
+        formsCategoryId: 'cat1',
+        formsPool: 'P1',
+        formsRankOrder: 1,
+      });
+
+      const sparringPart = createTestParticipant({
+        id: 'ps1',
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+        sparringAltRing: '',
+        sparringRankOrder: 1,
+      });
+
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([formsPart, sparringPart]);
+      useTournamentStore.getState().setCategories([category]);
+
+      // Create checkpoint
+      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+
+      // Change ONLY forms order
+      useTournamentStore.getState().updateParticipant('pf1', { formsRankOrder: 2 });
+
+      // Get diff and compute rings (simulating what happens in app)
+      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      const state = useTournamentStore.getState();
+      const competitionRings = computeCompetitionRings(
+        state.participants,
+        state.categories,
+        state.categoryPoolMappings
+      );
+      
+      expect(diff).not.toBeNull();
+      expect(diff!.ringsAffected.has('Beginner_P1_forms')).toBe(true);
+      
+      // The ring in competitionRings has name "Beginner_P1" (without suffix)
+      const formsRing = competitionRings.find(r => 
+        r.name === 'Beginner_P1' && r.type === 'forms'
+      );
+      const sparringRing = competitionRings.find(r => 
+        r.name === 'Beginner_P1' && r.type === 'sparring'
+      );
+      
+      expect(formsRing).toBeDefined();
+      expect(sparringRing).toBeDefined();
+      
+      // To correctly match, we need to check if the ring matches the affected name
+      // by comparing base name + type suffix
+      const shouldIncludeFormsRing = diff!.ringsAffected.has(`${formsRing!.name}_forms`);
+      const shouldIncludeSparringRing = diff!.ringsAffected.has(`${sparringRing!.name}_sparring`);
+      
+      expect(shouldIncludeFormsRing).toBe(true); // Forms changed, should be included
+      expect(shouldIncludeSparringRing).toBe(false); // Sparring didn't change
+    });
+
+    it('should only track forms when only forms order changes (comprehensive scenario)', async () => {
+      // This test covers the user's exact scenario:
+      // - Category has both forms and sparring participants
+      // - Sparring has alt rings a and b
+      // - Only forms order changes
+      // - Should only track forms, not sparring alt a or b
+      
+      const { computeCompetitionRings } = await import('../src/renderer/utils/computeRings');
+      
+      // Setup: forms participant + sparring participants in alt rings
+      const formsPart = createTestParticipant({
+        id: 'pf1',
+        competingForms: true,
+        formsCategoryId: 'cat1',
+        formsPool: 'P1',
+        formsRankOrder: 1,
+      });
+
+      const sparringPartA = createTestParticipant({
+        id: 'ps1',
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+        sparringAltRing: 'a',
+        sparringRankOrder: 1,
+      });
+
+      const sparringPartB = createTestParticipant({
+        id: 'ps2',
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+        sparringAltRing: 'b',
+        sparringRankOrder: 1,
+      });
+
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([formsPart, sparringPartA, sparringPartB]);
+      useTournamentStore.getState().setCategories([category]);
+
+      // Create checkpoint
+      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+
+      // Change ONLY forms order
+      useTournamentStore.getState().updateParticipant('pf1', { formsRankOrder: 2 });
+
+      // Get diff
+      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      
+      expect(diff).not.toBeNull();
+      
+      // Should ONLY track forms
+      expect(diff!.ringsAffected.has('Beginner_P1_forms')).toBe(true);
+      
+      // Should NOT track any sparring rings (new format uses _sparring prefix)
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring')).toBe(false);
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring_a')).toBe(false);
+      expect(diff!.ringsAffected.has('Beginner_P1_sparring_b')).toBe(false);
+      
+      // Verify only 1 ring is affected (forms)
+      expect(diff!.ringsAffected.size).toBe(1);
+      
+      // Verify the correct ring is matched for PDF export
+      const state = useTournamentStore.getState();
+      const competitionRings = computeCompetitionRings(
+        state.participants,
+        state.categories,
+        state.categoryPoolMappings
+      );
+      
+      const formsRing = competitionRings.find(r => 
+        r.name === 'Beginner_P1' && r.type === 'forms'
+      );
+      const sparringRing = competitionRings.find(r => 
+        r.name === 'Beginner_P1' && r.type === 'sparring'
+      );
+      
+      expect(formsRing).toBeDefined();
+      expect(sparringRing).toBeDefined();
+      
+      // Simulate PDF export matching logic (as implemented in PDFExport.tsx)
+      const shouldExportForms = Array.from(diff!.ringsAffected).some(ringName => {
+        // Skip if explicitly sparring
+        if (ringName.endsWith('_sparring')) {
+          return false;
+        }
+        const baseRingName = ringName.replace(/_(forms|sparring|[a-z])$/i, '');
+        return (formsRing!.name === ringName || formsRing!.name === baseRingName);
+      });
+      
+      const shouldExportSparring = Array.from(diff!.ringsAffected).some(ringName => {
+        // Skip if explicitly forms
+        if (ringName.endsWith('_forms')) {
+          return false;
+        }
+        const baseRingName = ringName.replace(/_(forms|sparring|[a-z])$/i, '');
+        return (sparringRing!.name === ringName || sparringRing!.name === baseRingName);
+      });
+      
+      expect(shouldExportForms).toBe(true);  // Should export forms
+      expect(shouldExportSparring).toBe(false); // Should NOT export sparring
+    });
+  });
 });

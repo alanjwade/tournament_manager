@@ -149,8 +149,19 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     // Get affected ring names for the selected division
     const affectedRings = new Set<string>();
     diff.ringsAffected.forEach(ringName => {
-      // Find corresponding competition ring
-      const ring = availableFormsRings.find(r => r.name === ringName && r.type === 'forms');
+      // Ring names in diff may have suffixes like _forms, _sparring, _a, _b
+      // For forms, skip if this is explicitly a sparring ring (has _sparring suffix)
+      if (ringName.endsWith('_sparring')) {
+        return;
+      }
+      
+      // Strip suffixes to match against competition ring names
+      const baseRingName = ringName.replace(/_(forms|sparring|[a-z])$/i, '');
+      
+      // Find corresponding competition ring - check both exact match and base name match
+      const ring = availableFormsRings.find(r => 
+        (r.name === ringName || r.name === baseRingName) && r.type === 'forms'
+      );
       if (ring) {
         affectedRings.add(ring.id);
       }
@@ -178,8 +189,19 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     // Get affected ring names for the selected division
     const affectedRings = new Set<string>();
     diff.ringsAffected.forEach(ringName => {
-      // Find corresponding competition ring
-      const ring = availableSparringRings.find(r => r.name === ringName && r.type === 'sparring');
+      // Ring names in diff may have suffixes like _forms, _sparring, _a, _b
+      // For sparring, skip if this is explicitly a forms ring (has _forms suffix)
+      if (ringName.endsWith('_forms')) {
+        return;
+      }
+      
+      // Strip suffixes to match against competition ring names
+      const baseRingName = ringName.replace(/_(forms|sparring|[a-z])$/i, '');
+      
+      // Find corresponding competition ring - check both exact match and base name match
+      const ring = availableSparringRings.find(r => 
+        (r.name === ringName || r.name === baseRingName) && r.type === 'sparring'
+      );
       if (ring) {
         affectedRings.add(ring.id);
       }
