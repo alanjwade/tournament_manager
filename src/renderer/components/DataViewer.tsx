@@ -26,6 +26,29 @@ function DataViewer({ globalDivision }: DataViewerProps) {
   
   // State for Add Participant modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  // State for column visibility
+  const [visibleColumns, setVisibleColumns] = useState({
+    name: true,
+    age: true,
+    gender: true,
+    height: true,
+    school: true,
+    branch: true,
+    formsDivision: true,
+    formsCategory: true,
+    formsRing: true,
+    formsPhysicalRing: true,
+    formsOrder: true,
+    sparringDivision: true,
+    sparringCategory: true,
+    sparringRing: true,
+    sparringPhysicalRing: true,
+    sparringAltRing: true,
+    sparringOrder: true
+  });
+  
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -117,6 +140,74 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     if (!categoryId) return 'Unassigned';
     const category = categories.find((c) => c.id === categoryId);
     return category ? `${category.name} (${category.division})` : 'Unknown';
+  };
+  
+  // Export to CSV (Excel-compatible)
+  const exportToExcel = () => {
+    const headers = [];
+    if (visibleColumns.name) headers.push('First Name', 'Last Name');
+    if (visibleColumns.age) headers.push('Age');
+    if (visibleColumns.gender) headers.push('Gender');
+    if (visibleColumns.height) headers.push('Height (ft)', 'Height (in)');
+    if (visibleColumns.school) headers.push('School');
+    if (visibleColumns.branch) headers.push('Branch');
+    if (visibleColumns.formsDivision) headers.push('Forms Division');
+    if (visibleColumns.formsCategory) headers.push('Forms Category');
+    if (visibleColumns.formsRing) headers.push('Forms Ring');
+    if (visibleColumns.formsPhysicalRing) headers.push('Forms Physical Ring');
+    if (visibleColumns.formsOrder) headers.push('Forms Order');
+    if (visibleColumns.sparringDivision) headers.push('Sparring Division');
+    if (visibleColumns.sparringCategory) headers.push('Sparring Category');
+    if (visibleColumns.sparringRing) headers.push('Sparring Ring');
+    if (visibleColumns.sparringPhysicalRing) headers.push('Sparring Physical Ring');
+    if (visibleColumns.sparringAltRing) headers.push('Sparring Alt');
+    if (visibleColumns.sparringOrder) headers.push('Sparring Order');
+
+    const rows = filteredParticipants.map(p => {
+      const row = [];
+      if (visibleColumns.name) row.push(p.firstName, p.lastName);
+      if (visibleColumns.age) row.push(p.age);
+      if (visibleColumns.gender) row.push(p.gender);
+      if (visibleColumns.height) row.push(p.heightFeet || '', p.heightInches || '');
+      if (visibleColumns.school) row.push(p.school || '');
+      if (visibleColumns.branch) row.push(p.branch || '');
+      if (visibleColumns.formsDivision) row.push(p.formsDivision || 'Not Participating');
+      if (visibleColumns.formsCategory) row.push(getCohortName(p.formsCategoryId));
+      if (visibleColumns.formsRing) row.push(p.formsPool ? formatPoolOnly(p.formsPool) : '');
+      if (visibleColumns.formsPhysicalRing) {
+        const formsPhysRing = p.formsCategoryId && p.formsPool
+          ? physicalRingMappings.find(m => m.categoryPoolName?.startsWith(`${categories.find(c => c.id === p.formsCategoryId)?.name}_${p.formsPool}`))
+          : undefined;
+        row.push(formsPhysRing?.physicalRingName || '');
+      }
+      if (visibleColumns.formsOrder) row.push(p.formsRankOrder || '');
+      if (visibleColumns.sparringDivision) row.push(p.sparringDivision || 'Not Participating');
+      if (visibleColumns.sparringCategory) row.push(getCohortName(p.sparringCategoryId));
+      if (visibleColumns.sparringRing) row.push(p.sparringPool ? formatPoolOnly(p.sparringPool) : '');
+      if (visibleColumns.sparringPhysicalRing) {
+        const sparringPhysRing = p.sparringCategoryId && p.sparringPool
+          ? physicalRingMappings.find(m => m.categoryPoolName?.startsWith(`${categories.find(c => c.id === p.sparringCategoryId)?.name}_${p.sparringPool}`))
+          : undefined;
+        row.push(sparringPhysRing?.physicalRingName || '');
+      }
+      if (visibleColumns.sparringAltRing) row.push(p.sparringAltRing || '');
+      if (visibleColumns.sparringOrder) row.push(p.sparringRankOrder || '');
+      return row;
+    });
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `participants-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Get all unique divisions from config
@@ -533,11 +624,110 @@ function DataViewer({ globalDivision }: DataViewerProps) {
           >
             ➕ Add Participant
           </button>
+          <button 
+            onClick={exportToExcel} 
+            className="btn btn-success"
+            style={{ padding: '8px 16px' }}
+            title="Export filtered participants to CSV"
+          >
+            📥 Export to Excel
+          </button>
+          <button 
+            onClick={() => setShowColumnSelector(!showColumnSelector)} 
+            className="btn btn-secondary"
+            style={{ padding: '8px 16px' }}
+          >
+            👁️ Columns
+          </button>
           <button onClick={clearFilters} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
             Clear All Filters
           </button>
         </div>
       </div>
+
+      {/* Column Selector */}
+      {showColumnSelector && (
+        <div style={{
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '8px',
+          padding: '15px',
+          marginBottom: '15px',
+          flexShrink: 0
+        }}>
+          <h3 style={{ marginTop: 0, marginBottom: '12px', fontSize: '14px', fontWeight: 'bold' }}>Column Visibility</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px', fontSize: '13px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.name} onChange={(e) => setVisibleColumns({...visibleColumns, name: e.target.checked})} />
+              Name
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.age} onChange={(e) => setVisibleColumns({...visibleColumns, age: e.target.checked})} />
+              Age
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.gender} onChange={(e) => setVisibleColumns({...visibleColumns, gender: e.target.checked})} />
+              Gender
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.height} onChange={(e) => setVisibleColumns({...visibleColumns, height: e.target.checked})} />
+              Height
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.school} onChange={(e) => setVisibleColumns({...visibleColumns, school: e.target.checked})} />
+              School
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.branch} onChange={(e) => setVisibleColumns({...visibleColumns, branch: e.target.checked})} />
+              Branch
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.formsDivision} onChange={(e) => setVisibleColumns({...visibleColumns, formsDivision: e.target.checked})} />
+              Forms Division
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.formsCategory} onChange={(e) => setVisibleColumns({...visibleColumns, formsCategory: e.target.checked})} />
+              Forms Category
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.formsRing} onChange={(e) => setVisibleColumns({...visibleColumns, formsRing: e.target.checked})} />
+              Forms Pool
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.formsPhysicalRing} onChange={(e) => setVisibleColumns({...visibleColumns, formsPhysicalRing: e.target.checked})} />
+              Forms Physical Ring
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.formsOrder} onChange={(e) => setVisibleColumns({...visibleColumns, formsOrder: e.target.checked})} />
+              Forms Order
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.sparringDivision} onChange={(e) => setVisibleColumns({...visibleColumns, sparringDivision: e.target.checked})} />
+              Sparring Division
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.sparringCategory} onChange={(e) => setVisibleColumns({...visibleColumns, sparringCategory: e.target.checked})} />
+              Sparring Category
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.sparringRing} onChange={(e) => setVisibleColumns({...visibleColumns, sparringRing: e.target.checked})} />
+              Sparring Pool
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.sparringPhysicalRing} onChange={(e) => setVisibleColumns({...visibleColumns, sparringPhysicalRing: e.target.checked})} />
+              Sparring Physical Ring
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.sparringAltRing} onChange={(e) => setVisibleColumns({...visibleColumns, sparringAltRing: e.target.checked})} />
+              Sparring Alt Ring
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={visibleColumns.sparringOrder} onChange={(e) => setVisibleColumns({...visibleColumns, sparringOrder: e.target.checked})} />
+              Sparring Order
+            </label>
+          </div>
+        </div>
+      )}
 
       <AddParticipantModal 
         isOpen={isAddModalOpen} 
@@ -545,6 +735,26 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       />
 
       <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}>
+        {/* Dynamic column visibility styles */}
+        <style>{`
+          ${!visibleColumns.name ? 'table th:nth-child(1), table td:nth-child(1), table th:nth-child(2), table td:nth-child(2) { display: none !important; }' : ''}
+          ${!visibleColumns.age ? 'table th:nth-child(3), table td:nth-child(3) { display: none !important; }' : ''}
+          ${!visibleColumns.gender ? 'table th:nth-child(4), table td:nth-child(4) { display: none !important; }' : ''}
+          ${!visibleColumns.height ? 'table th:nth-child(5), table td:nth-child(5), table th:nth-child(6), table td:nth-child(6) { display: none !important; }' : ''}
+          ${!visibleColumns.school ? 'table th:nth-child(7), table td:nth-child(7) { display: none !important; }' : ''}
+          ${!visibleColumns.branch ? 'table th:nth-child(8), table td:nth-child(8) { display: none !important; }' : ''}
+          ${!visibleColumns.formsDivision ? 'table th:nth-child(9), table td:nth-child(9), table th:nth-child(10), table td:nth-child(10) { display: none !important; }' : ''}
+          ${!visibleColumns.formsCategory ? 'table th:nth-child(11), table td:nth-child(11) { display: none !important; }' : ''}
+          ${!visibleColumns.formsRing ? 'table th:nth-child(12), table td:nth-child(12) { display: none !important; }' : ''}
+          ${!visibleColumns.formsPhysicalRing ? 'table th:nth-child(13), table td:nth-child(13) { display: none !important; }' : ''}
+          ${!visibleColumns.formsOrder ? 'table th:nth-child(14), table td:nth-child(14) { display: none !important; }' : ''}
+          ${!visibleColumns.sparringDivision ? 'table th:nth-child(15), table td:nth-child(15), table th:nth-child(16), table td:nth-child(16) { display: none !important; }' : ''}
+          ${!visibleColumns.sparringCategory ? 'table th:nth-child(17), table td:nth-child(17) { display: none !important; }' : ''}
+          ${!visibleColumns.sparringRing ? 'table th:nth-child(18), table td:nth-child(18) { display: none !important; }' : ''}
+          ${!visibleColumns.sparringPhysicalRing ? 'table th:nth-child(19), table td:nth-child(19) { display: none !important; }' : ''}
+          ${!visibleColumns.sparringAltRing ? 'table th:nth-child(20), table td:nth-child(20) { display: none !important; }' : ''}
+          ${!visibleColumns.sparringOrder ? 'table th:nth-child(21), table td:nth-child(21) { display: none !important; }' : ''}
+        `}</style>
         <table style={{ width: 'auto', borderCollapse: 'collapse', fontSize: '14px' }}>
           <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-tertiary)', zIndex: 1 }}>
             <tr>

@@ -325,6 +325,13 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
         }
       }
 
+      // Remove the trailing blank page that generators add for page management
+      // Each generator adds a blank page at the end to prevent the next generator from overlaying
+      // We need to remove the final blank page before printing
+      if (masterPdf.getNumberOfPages() > 1) {
+        masterPdf.deletePage(masterPdf.getNumberOfPages());
+      }
+
       // Open the combined PDF in a single print dialog
       const pdfBlob = masterPdf.output('blob');
       const pdfUrl = URL.createObjectURL(pdfBlob);

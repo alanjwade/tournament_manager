@@ -1039,7 +1039,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
         <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
           <h3 style={{ fontSize: '16px', marginBottom: '15px', marginTop: 0 }}>Blank Scoring Sheets</h3>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-            Print blank scoring sheets for manual use.
+            Export blank scoring sheets for manual use.
           </p>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
@@ -1068,20 +1068,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
                     'Forms Score Sheet'
                   );
                   
-                  const pdfBlob = pdf.output('blob');
-                  const pdfUrl = URL.createObjectURL(pdfBlob);
-                  const printWindow = window.open(pdfUrl);
-                  if (printWindow) {
-                    await new Promise<void>(resolve => {
-                      printWindow.addEventListener('load', () => {
-                        printWindow.print();
-                        setTimeout(() => {
-                          URL.revokeObjectURL(pdfUrl);
-                          resolve();
-                        }, 500);
-                      });
-                    });
-                  }
+                  await savePDF(pdf, 'forms-blank.pdf');
                 } catch (err) {
                   alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
                 } finally {
@@ -1090,7 +1077,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
               }}
               disabled={exporting}
             >
-              {exporting ? 'Printing...' : 'Print Blank Forms Sheet'}
+              {exporting ? 'Exporting...' : 'Export Blank Forms Sheet'}
             </button>
             
             <button
@@ -1119,20 +1106,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
                     'Sparring Score Sheet'
                   );
                   
-                  const pdfBlob = pdf.output('blob');
-                  const pdfUrl = URL.createObjectURL(pdfBlob);
-                  const printWindow = window.open(pdfUrl);
-                  if (printWindow) {
-                    await new Promise<void>(resolve => {
-                      printWindow.addEventListener('load', () => {
-                        printWindow.print();
-                        setTimeout(() => {
-                          URL.revokeObjectURL(pdfUrl);
-                          resolve();
-                        }, 500);
-                      });
-                    });
-                  }
+                  await savePDF(pdf, 'sparring-blank.pdf');
                 } catch (err) {
                   alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
                 } finally {
@@ -1141,7 +1115,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
               }}
               disabled={exporting}
             >
-              {exporting ? 'Printing...' : 'Print Blank Sparring Bracket'}
+              {exporting ? 'Exporting...' : 'Export Blank Sparring Bracket'}
             </button>
           </div>
         </div>

@@ -64,11 +64,11 @@ export function generateFormsScoringSheets(
     });
 
   divisionRings.forEach((ring, index) => {
-    // Add a new page for each ring, except:
-    // - If this is the very first ring (index 0) AND we're on the initial blank page (startingPageCount === 1)
-    if (index > 0 || startingPageCount > 1) {
+    // Add a new page for each ring after the first one
+    if (index > 0) {
       doc.addPage();
     }
+    // Note: For index 0, we use whatever page we're currently on (initial blank or provided by masterPdf)
 
     // Get physical ring ID from mapping using the pool name
     const physicalRingId = ring.name && physicalRingMappings 
@@ -375,6 +375,12 @@ export function generateFormsScoringSheets(
       y += 0.3;
     });
   });
+
+  // If using a master PDF and we rendered content, add a page so subsequent generators  
+  // know this page is occupied and don't overlay
+  if (masterPdf && divisionRings.length > 0) {
+    doc.addPage();
+  }
 
   // Add timestamp to all pages
   const totalPages = doc.getNumberOfPages();

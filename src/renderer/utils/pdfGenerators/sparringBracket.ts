@@ -89,11 +89,17 @@ export function generateSparringBrackets(
     });
 
   divisionRings.forEach((ring, index) => {
-    // Add a new page for each ring, except:
-    // - If this is the very first ring (index 0) AND we're on the initial blank page (startingPageCount === 1)
-    if (index > 0 || startingPageCount > 1) {
+    // For rings after the first, always add a new page
+    if (index > 0) {
       doc.addPage();
     }
+    // For the first ring (index 0), check if we need a new page
+    // We need a page if the PDF already has content (more pages than when we started)
+    else if (doc.getNumberOfPages() > startingPageCount) {
+      // Previous generator added pages, so we need a new one
+      doc.addPage();
+    }
+    // Otherwise use the current page (initial blank or same page we started on)
 
     // Track if this is the first alt ring bracket for this specific ring (for alt A/B splits)
     let isFirstBracketForRing = true;
@@ -282,6 +288,12 @@ export function generateSparringBrackets(
       generateBracketForAltRing(allRingParticipants);
     }
   });
+
+  // If using a master PDF and we rendered content, add a page so subsequent generators
+  // know this page is occupied and don't overlay
+  if (masterPdf && divisionRings.length > 0) {
+    doc.addPage();
+  }
 
   return doc;
 }

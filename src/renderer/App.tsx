@@ -16,7 +16,7 @@ import AddParticipantModal from './components/AddParticipantModal';
 import AboutDialog from './components/AboutDialog';
 import UpdateChecker from './components/UpdateChecker';
 
-type Tab = 'dashboard' | 'import' | 'categories' | 'editor' | 'overview' | 'ringmap' | 'export' | 'checkpoints' | 'tournament-day';
+type Tab = 'dashboard' | 'import' | 'configuration' | 'categories' | 'editor' | 'overview' | 'ringmap' | 'export' | 'checkpoints' | 'tournament-day';
 type Theme = 'light' | 'dark';
 
 function App() {
@@ -455,6 +455,13 @@ function App() {
           {participants.length > 0 && <Badge count={participants.length} type="info" />}
         </button>
         <button
+          className={`tab ${activeTab === 'configuration' ? 'active' : ''}`}
+          onClick={() => setActiveTab('configuration')}
+        >
+          Configuration
+          <Badge count={tabStatus.configuration} type="warning" />
+        </button>
+        <button
           className={`tab ${activeTab === 'categories' ? 'active' : ''}`}
           onClick={() => setActiveTab('categories')}
           disabled={participants.length === 0}
@@ -511,14 +518,8 @@ function App() {
 
       <div className="tab-content">
         {activeTab === 'dashboard' && <Dashboard onNavigate={(tab) => setActiveTab(tab as Tab)} />}
-        {activeTab === 'import' && (
-          <>
-            <DataImport />
-            <div style={{ marginTop: '20px' }}>
-              <Configuration />
-            </div>
-          </>
-        )}
+        {activeTab === 'import' && <DataImport />}
+        {activeTab === 'configuration' && <Configuration />}
         {activeTab === 'categories' && <CategoryManagement globalDivision={globalDivision} />}
         {activeTab === 'ringmap' && <RingMapEditor globalDivision={globalDivision} />}
         {activeTab === 'editor' && <DataViewer globalDivision={globalDivision} />}
