@@ -344,9 +344,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     // Sort by physical ring name if available, otherwise by pool name
     return pairs.sort((a, b) => {
       if (a.physicalRingName && b.physicalRingName) {
-        // Custom sort for physical ring names (PR1, PR1a, PR1b, PR2, etc.)
-        const aMatch = a.physicalRingName.match(/PR(\d+)([a-z])?/i);
-        const bMatch = b.physicalRingName.match(/PR(\d+)([a-z])?/i);
+        // Custom sort for physical ring names (Ring 1, Ring 1a, Ring 1b, Ring 2, etc.)
+        const aMatch = a.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
+        const bMatch = b.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
         
         if (aMatch && bMatch) {
           const aNum = parseInt(aMatch[1]);
@@ -460,8 +460,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     
     return Array.from(physicalRingSet).sort((a, b) => {
       // Sort by ring number (PR1, PR1a, PR2, etc.)
-      const aMatch = a.match(/PR(\d+)([a-z]?)/);
-      const bMatch = b.match(/PR(\d+)([a-z]?)/);
+      const aMatch = a.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/);
+      const bMatch = b.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/);
       if (aMatch && bMatch) {
         const aNum = parseInt(aMatch[1]);
         const bNum = parseInt(bMatch[1]);
@@ -770,9 +770,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           label: `${m.physicalRingName} (${formatPoolNameForDisplay(m.categoryPoolName || '')})`
         }))
         .sort((a, b) => {
-          // Sort by ring number (PR1, PR1a, PR2, etc.)
-          const aMatch = a.physicalRingName.match(/PR(\d+)([a-z]?)/);
-          const bMatch = b.physicalRingName.match(/PR(\d+)([a-z]?)/);
+          // Sort by ring number (Ring 1, Ring 1a, Ring 2, etc.)
+          const aMatch = a.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/);
+          const bMatch = b.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/);
           if (aMatch && bMatch) {
             const aNum = parseInt(aMatch[1]);
             const bNum = parseInt(bMatch[1]);

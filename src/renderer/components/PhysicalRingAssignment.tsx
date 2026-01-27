@@ -82,11 +82,11 @@ function PhysicalRingAssignment() {
     const newAssignments: PhysicalRingAssignment[] = [];
     const totalRings = sortedCohortRings.length;
 
-    // If we have fewer pools than physical rings, use PR1, PR2, etc.
+    // If we have fewer pools than physical rings, use Ring 1, Ring 2, etc.
     if (totalRings <= numPhysicalRings) {
       sortedCohortRings.forEach((pool, index) => {
         newAssignments.push({
-          physicalRingName: `PR${index + 1}`,
+          physicalRingName: `Ring ${index + 1}`,
           cohortRingName: pool.ringName,
           cohortRingId: pool.ringId,
           division: pool.division,
@@ -107,7 +107,7 @@ function PhysicalRingAssignment() {
         const suffix = String.fromCharCode(97 + sessionIndex); // 'a', 'b', 'c', etc.
         
         newAssignments.push({
-          physicalRingName: `PR${physicalRingNumber}${suffix}`,
+          physicalRingName: `Ring ${physicalRingNumber}${suffix}`,
           cohortRingName: pool.ringName,
           cohortRingId: pool.ringId,
           division: pool.division,
@@ -121,7 +121,7 @@ function PhysicalRingAssignment() {
     
     // Save mappings to store
     const mappings = newAssignments.map(a => ({
-      cohortRingName: a.cohortRingName,
+      categoryPoolName: a.cohortRingName,
       physicalRingName: a.physicalRingName,
     }));
     setPhysicalRingMappings(mappings);
@@ -132,8 +132,8 @@ function PhysicalRingAssignment() {
     const groups = new Map<number, PhysicalRingAssignment[]>();
     
     assignments.forEach((assignment) => {
-      // Extract the number from physical ring name (e.g., "PR1a" -> 1)
-      const match = assignment.physicalRingName.match(/PR(\d+)/);
+      // Extract the number from physical ring name (e.g., "Ring 1a" -> 1)
+      const match = assignment.physicalRingName.match(/(?:PR|Ring\s*)(\d+)/);
       if (match) {
         const ringNum = parseInt(match[1]);
         if (!groups.has(ringNum)) {

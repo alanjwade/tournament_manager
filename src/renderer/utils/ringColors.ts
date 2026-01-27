@@ -33,12 +33,13 @@ export function getRingColor(ringNumber: number): string | undefined {
 }
 
 /**
- * Get ring color from physical ring name (e.g., "PR1", "PR5a", "PR12b")
- * @param physicalRingName - Physical ring name like "PR1" or "PR5a"
+ * Get ring color from physical ring name (e.g., "PR1", "PR5a", "Ring 1", "Ring 5a", "PR12b")
+ * @param physicalRingName - Physical ring name like "PR1" or "Ring 1" or "PR5a" or "Ring 5a"
  * @returns Hex color string or undefined if not found
  */
 export function getRingColorFromName(physicalRingName: string): string | undefined {
-  const match = physicalRingName.match(/PR(\d+)/i);
+  // Match both "PR1" and "Ring 1" formats
+  const match = physicalRingName.match(/(?:PR|Ring\s*)(\d+)/i);
   if (!match) return undefined;
   const ringNumber = parseInt(match[1], 10);
   return getRingColor(ringNumber);
@@ -72,11 +73,12 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 /**
  * Get ring number from physical ring name
- * @param physicalRingName - Physical ring name like "PR1" or "PR5a"
+ * @param physicalRingName - Physical ring name like "PR1" or "Ring 1" or "PR5a" or "Ring 5a"
  * @returns Ring number or undefined
  */
 export function getRingNumber(physicalRingName: string): number | undefined {
-  const match = physicalRingName.match(/PR(\d+)/i);
+  // Match both "PR1" and "Ring 1" formats
+  const match = physicalRingName.match(/(?:PR|Ring\s*)(\d+)/i);
   if (!match) return undefined;
   return parseInt(match[1], 10);
 }

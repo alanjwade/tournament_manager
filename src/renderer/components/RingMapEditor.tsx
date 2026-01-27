@@ -91,8 +91,8 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
       // Extract unique physical ring names and determine count
       const uniqueRings = new Set<string>();
       physicalRingMappings.forEach(m => {
-        // Extract base ring number from PR1a, PR1b, PR2a, etc.
-        const match = m.physicalRingName.match(/^PR(\d+)/);
+        // Extract base ring number from Ring 1a, Ring 1b, Ring 2a, etc. (or PR1a, PR1b for legacy)
+        const match = m.physicalRingName.match(/(?:PR|Ring\s*)(\d+)/i);
         if (match) {
           uniqueRings.add(match[1]);
         }
@@ -157,7 +157,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
 
     // Generate physical ring names based on numPhysicalRings
     for (let i = 1; i <= numPhysicalRings; i++) {
-      physicalRingNames.push(`PR${i}`);
+      physicalRingNames.push(`Ring ${i}`);
     }
 
     // Assign all pools sequentially
@@ -166,7 +166,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
       let physicalRingName: string;
       
       if (needsSuffixes) {
-        // Use pairs with suffixes: PR1a, PR1b, PR2a, PR2b, etc.
+        // Use pairs with suffixes: Ring 1a, Ring 1b, Ring 2a, Ring 2b, etc.
         const pairIndex = Math.floor(index / 2);
         const withinPair = index % 2;
         const ringIndex = pairIndex % numPhysicalRings;
@@ -174,7 +174,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
         const suffixes = 'abcdefghijklmnopqrstuvwxyz';
         physicalRingName = `${basePhysicalRing}${suffixes[withinPair]}`;
       } else {
-        // Enough rings - assign sequentially: PR1, PR2, PR3, etc.
+        // Enough rings - assign sequentially: Ring 1, Ring 2, Ring 3, etc.
         physicalRingName = physicalRingNames[index];
       }
       
@@ -220,7 +220,6 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
         cohortRingName: ring.ringName,
         division: ring.division,
         minAge: ring.minAge,
-        type: ring.type,
         participantCount: ring.participantCount,
         physicalRingName: mapping?.physicalRingName || '',
       };
@@ -365,7 +364,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
                       onChange={(e) =>
                         handlePhysicalRingChange(assignment.cohortRingName, e.target.value)
                       }
-                      placeholder="e.g., PR1, PR1a"
+                      placeholder="e.g., Ring 1, Ring 1a"
                       style={{
                         width: '120px',
                         padding: '5px',

@@ -154,12 +154,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     if (visibleColumns.formsDivision) headers.push('Forms Division');
     if (visibleColumns.formsCategory) headers.push('Forms Category');
     if (visibleColumns.formsRing) headers.push('Forms Ring');
-    if (visibleColumns.formsPhysicalRing) headers.push('Forms Physical Ring');
+    if (visibleColumns.formsPhysicalRing) headers.push('Forms Ring');
     if (visibleColumns.formsOrder) headers.push('Forms Order');
     if (visibleColumns.sparringDivision) headers.push('Sparring Division');
     if (visibleColumns.sparringCategory) headers.push('Sparring Category');
     if (visibleColumns.sparringRing) headers.push('Sparring Ring');
-    if (visibleColumns.sparringPhysicalRing) headers.push('Sparring Physical Ring');
+    if (visibleColumns.sparringPhysicalRing) headers.push('Sparring Ring');
     if (visibleColumns.sparringAltRing) headers.push('Sparring Alt');
     if (visibleColumns.sparringOrder) headers.push('Sparring Order');
 
@@ -228,7 +228,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       }
     });
     const sorted = Array.from(ringNames).sort((a, b) => {
-      // Sort by ring number, then suffix (PR1, PR1a, PR1b, PR2, PR2a, etc.)
+      // Sort by ring number, then suffix (Ring 1, Ring 1a, Ring 1b, Ring 2, Ring 2a, etc.)
       const aMatch = a.match(/^PR(\d+)([a-z]*)$/);
       const bMatch = b.match(/^PR(\d+)([a-z]*)$/);
       if (aMatch && bMatch) {
@@ -695,7 +695,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
               <input type="checkbox" checked={visibleColumns.formsPhysicalRing} onChange={(e) => setVisibleColumns({...visibleColumns, formsPhysicalRing: e.target.checked})} />
-              Forms Physical Ring
+              Forms Ring
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
               <input type="checkbox" checked={visibleColumns.formsOrder} onChange={(e) => setVisibleColumns({...visibleColumns, formsOrder: e.target.checked})} />
@@ -715,7 +715,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
               <input type="checkbox" checked={visibleColumns.sparringPhysicalRing} onChange={(e) => setVisibleColumns({...visibleColumns, sparringPhysicalRing: e.target.checked})} />
-              Sparring Physical Ring
+              Sparring Ring
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
               <input type="checkbox" checked={visibleColumns.sparringAltRing} onChange={(e) => setVisibleColumns({...visibleColumns, sparringAltRing: e.target.checked})} />
@@ -884,7 +884,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 />
               </th>
               <th className="forms-physical-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '120px' }}>
-                Forms Physical Ring
+                Forms Ring
                 <input
                   type="text"
                   placeholder="Filter..."
@@ -949,7 +949,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 />
               </th>
               <th className="sparring-physical-column" style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '120px' }}>
-                Sparring Physical Ring
+                Sparring Ring
                 <input
                   type="text"
                   placeholder="Filter..."

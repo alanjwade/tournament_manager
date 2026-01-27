@@ -118,7 +118,7 @@ export function generateCheckInSheet(
           
           // Extract ring number from physicalRingName (e.g., "PR6a" -> "6")
           // The base number is what we use to find the physical ring
-          const ringNumberMatch = physicalRingName.match(/PR(\d+)/i);
+          const ringNumberMatch = physicalRingName.match(/(?:PR|Ring\s*)(\d+)/i);
           
           if (ringNumberMatch) {
             const baseRingNumber = ringNumberMatch[1];
@@ -127,7 +127,7 @@ export function generateCheckInSheet(
             const ring = physicalRings.find((r) => r.id === `ring-${baseRingNumber}`);
             
             // Extract full ring identifier (e.g., "6a" from "PR6a")
-            const fullRingMatch = physicalRingName.match(/PR(\d+)([a-z]?)/i);
+            const fullRingMatch = physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/i);
             if (fullRingMatch) {
               const num = fullRingMatch[1];
               const suffix = fullRingMatch[2]?.toLowerCase() || '';

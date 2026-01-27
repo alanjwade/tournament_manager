@@ -79,9 +79,9 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
     // Sort by physical ring name if available, otherwise by pool name
     return pairs.sort((a, b) => {
       if (a.physicalRingName && b.physicalRingName) {
-        // Custom sort for physical ring names (PR1, PR1a, PR1b, PR2, etc.)
-        const aMatch = a.physicalRingName.match(/PR(\d+)([a-z])?/i);
-        const bMatch = b.physicalRingName.match(/PR(\d+)([a-z])?/i);
+        // Custom sort for physical ring names (Ring 1, Ring 1a, Ring 1b, Ring 2, etc.)
+        const aMatch = a.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
+        const bMatch = b.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
         
         if (aMatch && bMatch) {
           const aNum = parseInt(aMatch[1]);

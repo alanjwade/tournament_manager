@@ -98,8 +98,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
 
       // Then sort by physical ring name
       if (a.physicalRingName && b.physicalRingName) {
-        const aMatch = a.physicalRingName.match(/PR(\d+)([a-z])?/i);
-        const bMatch = b.physicalRingName.match(/PR(\d+)([a-z])?/i);
+        const aMatch = a.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
+        const bMatch = b.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
         
         if (aMatch && bMatch) {
           const aNum = parseInt(aMatch[1]);

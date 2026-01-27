@@ -86,8 +86,8 @@ export function getExpandedRingName(
 ): string {
   if (!physicalRingId) return 'Unknown Ring';
   
-  // Extract the number from the physical ring ID (e.g., "PR4b" -> "4b")
-  const match = physicalRingId.match(/PR(\d+[a-z]?)/i);
+  // Extract the number from the physical ring ID (e.g., "PR4b" or "Ring 4b" -> "4b")
+  const match = physicalRingId.match(/(?:PR|Ring\s*)(\d+[a-z]?)/i);
   if (!match) return physicalRingId;
   
   const ringNumber = match[1];
@@ -105,8 +105,8 @@ export function getFullyQualifiedRingName(
 ): string {
   if (!physicalRingId) return `${division} Unknown Ring`;
   
-  // Extract the number from the physical ring ID (e.g., "PR4b" -> "4b")
-  const match = physicalRingId.match(/PR(\d+[a-z]?)/i);
+  // Extract the number from the physical ring ID (e.g., "PR4b" or "Ring 4b" -> "4b")
+  const match = physicalRingId.match(/(?:PR|Ring\s*)(\d+[a-z]?)/i);
   if (!match) return `${division} ${physicalRingId}`;
   
   const ringNumber = match[1];

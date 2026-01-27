@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { formatPdfTimestamp } from '../ringNameFormatter';
+import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
 interface RingPair {
   cohortRingName: string;
@@ -175,14 +176,32 @@ export function generateRingOverviewPDF(
         doc.setTextColor(0, 0, 0);
       }
 
-      // Ring Header
+      // Ring Header with colored background if physical ring is assigned
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       let ringHeader = pair.cohortRingName;
       if (pair.physicalRingName) {
         ringHeader += ` (${pair.physicalRingName})`;
+        
+        // Apply ring color styling
+        const ringColor = getRingColorFromName(pair.physicalRingName);
+        if (ringColor) {
+          const bgColor = hexToRgb(ringColor);
+          const fgColor = getForegroundColor(ringColor);
+          const fgRgb = hexToRgb(fgColor);
+          const headerWidth = doc.getTextWidth(ringHeader);
+          
+          // Draw colored background rectangle (centered on text)
+          // Using points unit: add small padding around text
+          doc.setFillColor(bgColor.r, bgColor.g, bgColor.b);
+          doc.rect(margin - 2, yPos - 10, headerWidth + 4, 12, 'F');
+          
+          // Set text color based on background
+          doc.setTextColor(fgRgb.r, fgRgb.g, fgRgb.b);
+        }
       }
       doc.text(ringHeader, margin, yPos);
+      doc.setTextColor(0, 0, 0); // Reset to black
       yPos += 15;
 
       const columnWidth = (pageWidth - 2 * margin - 20) / 2;
