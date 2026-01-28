@@ -119,10 +119,10 @@ export function formatPdfTimestamp(date: Date = new Date()): string {
  * Returns the physical ring identifier (e.g., "PR4b", "PR1a", "PR9")
  */
 export function getPhysicalRingId(
-  cohortRingName: string,
+  categoryPoolName: string,
   physicalRingMappings: { categoryPoolName: string; physicalRingName: string }[]
 ): string | null {
-  const mapping = physicalRingMappings.find(m => m.categoryPoolName === cohortRingName);
+  const mapping = physicalRingMappings.find(m => m.categoryPoolName === categoryPoolName);
   return mapping?.physicalRingName || null;
 }
 

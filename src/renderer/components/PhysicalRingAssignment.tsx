@@ -4,8 +4,8 @@ import { computeCompetitionRings } from '../utils/computeRings';
 
 interface PhysicalRingAssignment {
   physicalRingName: string;
-  cohortRingName: string;
-  cohortRingId: string;
+  categoryPoolName: string;
+  categoryPoolId: string;
   division: string;
   minAge: number;
   participantCount: number;
@@ -29,7 +29,7 @@ function PhysicalRingAssignment() {
   // Get all individual pools (e.g., Mixed 8-10_R1, Mixed 8-10_R2, etc.)
   // Sort by age (youngest first)
   // Deduplicate by ring name since Forms and Sparring share the same pool name
-  const sortedCohortRings = useMemo(() => {
+  const sortedPools = useMemo(() => {
     // Use a Map to deduplicate by ring name
     const ringMap = new Map<string, {
       ringId: string;
@@ -74,21 +74,21 @@ function PhysicalRingAssignment() {
       return;
     }
 
-    if (sortedCohortRings.length === 0) {
+    if (sortedPools.length === 0) {
       alert('No pools to assign. Please assign rings in Ring Assignment first.');
       return;
     }
 
     const newAssignments: PhysicalRingAssignment[] = [];
-    const totalRings = sortedCohortRings.length;
+    const totalRings = sortedPools.length;
 
     // If we have fewer pools than physical rings, use Ring 1, Ring 2, etc.
     if (totalRings <= numPhysicalRings) {
-      sortedCohortRings.forEach((pool, index) => {
+      sortedPools.forEach((pool, index) => {
         newAssignments.push({
           physicalRingName: `Ring ${index + 1}`,
-          cohortRingName: pool.ringName,
-          cohortRingId: pool.ringId,
+          categoryPoolName: pool.ringName,
+          categoryPoolId: pool.ringId,
           division: pool.division,
           minAge: pool.minAge,
           participantCount: pool.participantCount,
@@ -99,7 +99,7 @@ function PhysicalRingAssignment() {
       // Calculate sessions per ring
       const sessionsPerRing = Math.ceil(totalRings / numPhysicalRings);
       
-      sortedCohortRings.forEach((pool, index) => {
+      sortedPools.forEach((pool, index) => {
         // Which physical ring number (1-based)
         const physicalRingNumber = Math.floor(index / sessionsPerRing) + 1;
         // Which session on this physical ring (0-based)
@@ -108,8 +108,8 @@ function PhysicalRingAssignment() {
         
         newAssignments.push({
           physicalRingName: `Ring ${physicalRingNumber}${suffix}`,
-          cohortRingName: pool.ringName,
-          cohortRingId: pool.ringId,
+          categoryPoolName: pool.ringName,
+          categoryPoolId: pool.ringId,
           division: pool.division,
           minAge: pool.minAge,
           participantCount: pool.participantCount,
@@ -121,7 +121,7 @@ function PhysicalRingAssignment() {
     
     // Save mappings to store
     const mappings = newAssignments.map(a => ({
-      categoryPoolName: a.cohortRingName,
+      categoryPoolName: a.categoryPoolName,
       physicalRingName: a.physicalRingName,
     }));
     setPhysicalRingMappings(mappings);
@@ -157,14 +157,14 @@ function PhysicalRingAssignment() {
             Younger categories are assigned to lower-numbered rings so judges can stay with similar age groups.
           </p>
           <p style={{ marginTop: '8px' }}>
-            <strong>Total pools:</strong> {sortedCohortRings.length}
+            <strong>Total pools:</strong> {sortedPools.length}
           </p>
         </div>
 
         <button
           className="btn btn-primary"
           onClick={handleAssignPhysicalRings}
-          disabled={sortedCohortRings.length === 0}
+          disabled={sortedPools.length === 0}
         >
           Assign to Physical Rings
         </button>
@@ -208,11 +208,11 @@ function PhysicalRingAssignment() {
                 </thead>
                 <tbody>
                   {ringAssignments.map((assignment, idx) => (
-                    <tr key={`${assignment.cohortRingId}-${idx}`} style={{ borderBottom: '1px solid #dee2e6' }}>
+                    <tr key={`${assignment.categoryPoolId}-${idx}`} style={{ borderBottom: '1px solid #dee2e6' }}>
                       <td style={{ padding: '10px', fontWeight: 'bold', fontSize: '16px' }}>
                         {assignment.physicalRingName}
                       </td>
-                      <td style={{ padding: '10px' }}>{assignment.cohortRingName}</td>
+                      <td style={{ padding: '10px' }}>{assignment.categoryPoolName}</td>
                       <td style={{ padding: '10px' }}>{assignment.division}</td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>{assignment.minAge}</td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>{assignment.participantCount}</td>
@@ -225,7 +225,7 @@ function PhysicalRingAssignment() {
         </div>
       )}
 
-      {assignments.length === 0 && sortedCohortRings.length === 0 && (
+      {assignments.length === 0 && sortedPools.length === 0 && (
         <div className="info">
           <p>No pools available. Please assign rings in the Ring Assignment tab first.</p>
         </div>

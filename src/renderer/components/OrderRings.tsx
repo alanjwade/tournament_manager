@@ -5,7 +5,7 @@ import { computeCompetitionRings } from '../utils/computeRings';
 import { extractPoolId } from '../utils/ringNameFormatter';
 
 interface RingPair {
-  cohortRingName: string;
+  categoryPoolName: string;
   formsRing?: any;
   sparringRing?: any;
   physicalRingName?: string;
@@ -55,7 +55,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
       if (!pairMap.has(key)) {
         const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
         pairMap.set(key, { 
-          cohortRingName: ringName,
+          categoryPoolName: ringName,
           physicalRingName: mapping?.physicalRingName,
           division: ring.division,
         });
@@ -104,7 +104,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
       if (a.physicalRingName) return -1;
       if (b.physicalRingName) return 1;
       
-      return a.cohortRingName.localeCompare(b.cohortRingName);
+      return a.categoryPoolName.localeCompare(b.categoryPoolName);
     });
   }, [competitionRings, physicalRingMappings, selectedDivision]);
 
@@ -359,7 +359,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', paddingRight: '10px' }}>
         {ringPairs.map((pair) => (
           <div
-            key={pair.cohortRingName}
+            key={pair.categoryPoolName}
             style={{
               border: '2px solid var(--border-color)',
               borderRadius: '8px',
@@ -377,7 +377,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
                 fontWeight: '600',
               }}
             >
-              {pair.cohortRingName}
+              {pair.categoryPoolName}
               {pair.physicalRingName && (
                 <span style={{ marginLeft: '10px', color: 'var(--accent-primary)', fontSize: '14px' }}>
                   ({pair.physicalRingName})

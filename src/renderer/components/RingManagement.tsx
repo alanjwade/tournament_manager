@@ -104,9 +104,9 @@ function RingManagement({ globalDivision }: RingManagementProps) {
 
     // Check if participants competing in sparring have sparring category assignments
     const sparringParticipants = participants.filter(p => p.competingSparring);
-    const sparringWithCohorts = participants.filter(p => p.competingSparring && p.sparringCategoryId);
+    const sparringWithCategories = participants.filter(p => p.competingSparring && p.sparringCategoryId);
     
-    if (sparringParticipants.length > 0 && sparringWithCohorts.length === 0) {
+    if (sparringParticipants.length > 0 && sparringWithCategories.length === 0) {
       alert(
         `⚠️ Warning: ${sparringParticipants.length} participants are marked as competing in sparring, but NONE are assigned to sparring categories!\n\n` +
         `Sparring rings will NOT be created.\n\n` +
@@ -118,8 +118,8 @@ function RingManagement({ globalDivision }: RingManagementProps) {
         `Do you want to continue with Forms ring assignment only?`
       );
       // Don't return - let them continue with forms if they want
-    } else if (sparringParticipants.length > 0 && sparringWithCohorts.length < sparringParticipants.length) {
-      const unassigned = sparringParticipants.length - sparringWithCohorts.length;
+    } else if (sparringParticipants.length > 0 && sparringWithCategories.length < sparringParticipants.length) {
+      const unassigned = sparringParticipants.length - sparringWithCategories.length;
       alert(
         `⚠️ Warning: ${unassigned} of ${sparringParticipants.length} sparring participants are NOT assigned to sparring categories.\n\n` +
         `These participants will not be included in sparring rings.\n\n` +

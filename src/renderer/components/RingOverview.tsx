@@ -14,7 +14,7 @@ import CheckpointSidebar from './CheckpointSidebar';
 import GrandChampionSection from './GrandChampionSection';
 
 interface RingPair {
-  cohortRingName: string;
+  categoryPoolName: string;
   formsRing?: any;
   sparringRing?: any;
   physicalRingName?: string;
@@ -324,7 +324,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       if (!pairMap.has(key)) {
         const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
         pairMap.set(key, { 
-          cohortRingName: ringName,
+          categoryPoolName: ringName,
           physicalRingName: mapping?.physicalRingName,
           division: ring.division,
         });
@@ -367,7 +367,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       
       if (a.physicalRingName) return -1;
       if (b.physicalRingName) return 1;
-      return a.cohortRingName.localeCompare(b.cohortRingName);
+      return a.categoryPoolName.localeCompare(b.categoryPoolName);
     });
   }, [competitionRings, physicalRingMappings, config.divisions]);
 
@@ -443,14 +443,14 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     if (!currentDivision) return [];
     
     // Get all pools for this division and type
-    const divisionCohorts = categories.filter(c => 
+    const divisionCategories = categories.filter(c => 
       c.division === currentDivision && 
       c.type === ringType
     );
     
     // Get all unique physical rings used in this division
     const physicalRingSet = new Set<string>();
-    divisionCohorts.forEach(category => {
+    divisionCategories.forEach(category => {
       // Find mappings for this category (new format: "Division - CategoryName Pool N")
       const categoryMappings = physicalRingMappings.filter(m => 
         m.categoryPoolName?.startsWith(`${category.division} - ${category.name} Pool`)
@@ -521,19 +521,19 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     
     // Get category info based on current values
     const formsCategory = currentFormsCategoryId ? categories.find(c => c.id === currentFormsCategoryId) : null;
-    const formsCohortRingName = formsCategory && currentFormsPool 
+    const formsPoolName = formsCategory && currentFormsPool 
       ? buildCategoryPoolName(formsCategory.division, formsCategory.name, currentFormsPool)
       : null;
-    const formsPhysicalMapping = formsCohortRingName 
-      ? physicalRingMappings.find(m => m.categoryPoolName === formsCohortRingName)
+    const formsPhysicalMapping = formsPoolName 
+      ? physicalRingMappings.find(m => m.categoryPoolName === formsPoolName)
       : undefined;
     
     const sparringCategory = currentSparringCategoryId ? categories.find(c => c.id === currentSparringCategoryId) : null;
-    const sparringCohortRingName = sparringCategory && currentSparringPool 
+    const sparringPoolName = sparringCategory && currentSparringPool 
       ? buildCategoryPoolName(sparringCategory.division, sparringCategory.name, currentSparringPool)
       : null;
-    const sparringPhysicalMapping = sparringCohortRingName 
-      ? physicalRingMappings.find(m => m.categoryPoolName === sparringCohortRingName)
+    const sparringPhysicalMapping = sparringPoolName 
+      ? physicalRingMappings.find(m => m.categoryPoolName === sparringPoolName)
       : undefined;
     
     // Update pending changes
@@ -772,7 +772,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         .filter(m => m.physicalRingName)
         .map(m => ({
           physicalRingName: m.physicalRingName,
-          cohortRingName: m.categoryPoolName || '',
+          categoryPoolName: m.categoryPoolName || '',
           label: `${m.physicalRingName} (${m.categoryPoolName || ''})`
         }))
         .sort((a, b) => {
@@ -790,11 +790,11 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     };
 
     const handlePhysicalRingChange = (type: 'forms' | 'sparring', newPhysicalRing: string) => {
-      if (type === 'forms' && formsCohortRingName && newPhysicalRing) {
-        const existingMapping = physicalRingMappings.find(m => m.categoryPoolName === formsCohortRingName);
+      if (type === 'forms' && formsPoolName && newPhysicalRing) {
+        const existingMapping = physicalRingMappings.find(m => m.categoryPoolName === formsPoolName);
         if (existingMapping) {
           const updatedMappings = physicalRingMappings.map(m => 
-            m.categoryPoolName === formsCohortRingName 
+            m.categoryPoolName === formsPoolName 
               ? { ...m, physicalRingName: newPhysicalRing }
               : m
           );
@@ -802,15 +802,15 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         } else {
           useTournamentStore.getState().setPhysicalRingMappings([
             ...physicalRingMappings,
-            { categoryPoolName: formsCohortRingName, physicalRingName: newPhysicalRing }
+            { categoryPoolName: formsPoolName, physicalRingName: newPhysicalRing }
           ]);
         }
         setQuickEdit({ ...quickEdit });
-      } else if (type === 'sparring' && sparringCohortRingName && newPhysicalRing) {
-        const existingMapping = physicalRingMappings.find(m => m.categoryPoolName === sparringCohortRingName);
+      } else if (type === 'sparring' && sparringPoolName && newPhysicalRing) {
+        const existingMapping = physicalRingMappings.find(m => m.categoryPoolName === sparringPoolName);
         if (existingMapping) {
           const updatedMappings = physicalRingMappings.map(m => 
-            m.categoryPoolName === sparringCohortRingName 
+            m.categoryPoolName === sparringPoolName 
               ? { ...m, physicalRingName: newPhysicalRing }
               : m
           );
@@ -818,7 +818,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         } else {
           useTournamentStore.getState().setPhysicalRingMappings([
             ...physicalRingMappings,
-            { categoryPoolName: sparringCohortRingName, physicalRingName: newPhysicalRing }
+            { categoryPoolName: sparringPoolName, physicalRingName: newPhysicalRing }
           ]);
         }
         setQuickEdit({ ...quickEdit });
@@ -1851,8 +1851,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       <div>
         {filteredRingPairs.map((pair) => {
           // Check if this ring pair has changed since checkpoint
-          const formsChanged = pair.formsRing && isRingAffectedSimple(pair.formsRing.name || pair.cohortRingName, 'forms', changedRings);
-          const sparringChanged = pair.sparringRing && isRingAffectedSimple(pair.sparringRing.name || pair.cohortRingName, 'sparring', changedRings);
+          const formsChanged = pair.formsRing && isRingAffectedSimple(pair.formsRing.name || pair.categoryPoolName, 'forms', changedRings);
+          const sparringChanged = pair.sparringRing && isRingAffectedSimple(pair.sparringRing.name || pair.categoryPoolName, 'sparring', changedRings);
           const hasChanged = formsChanged || sparringChanged;
 
           // Get participant counts for balance indicators
@@ -1863,7 +1863,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
           return (
           <div
-            key={pair.cohortRingName}
+            key={pair.categoryPoolName}
             style={{
               border: hasChanged ? '3px solid #dc3545' : '2px solid var(--border-color)',
               borderRadius: '8px',
@@ -1889,7 +1889,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 {pair.division}
               </span>
               <span>
-                {formatPoolNameForDisplay(pair.cohortRingName)}
+                {formatPoolNameForDisplay(pair.categoryPoolName)}
               </span>
               {pair.physicalRingName && (
                 <span style={{ color: '#28a745', fontSize: '16px', fontWeight: '600' }}>
@@ -1938,12 +1938,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
               {/* Forms Column */}
               <div>
-                {renderRingTable(pair.formsRing, 'forms', pair.physicalRingName || pair.cohortRingName)}
+                {renderRingTable(pair.formsRing, 'forms', pair.physicalRingName || pair.categoryPoolName)}
               </div>
 
               {/* Sparring Column */}
               <div>
-                {renderRingTable(pair.sparringRing, 'sparring', pair.physicalRingName || pair.cohortRingName)}
+                {renderRingTable(pair.sparringRing, 'sparring', pair.physicalRingName || pair.categoryPoolName)}
               </div>
             </div>
           </div>

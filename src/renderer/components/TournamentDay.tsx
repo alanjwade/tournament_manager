@@ -9,7 +9,7 @@ import { CompetitionRing } from '../types/tournament';
 import { DEFAULT_DIVISION_ORDER } from '../utils/constants';
 
 interface RingPair {
-  cohortRingName: string;
+  categoryPoolName: string;
   formsRing?: CompetitionRing;
   sparringRing?: CompetitionRing;
   physicalRingName?: string;
@@ -72,7 +72,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
       if (!pairMap.has(key)) {
         const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
         pairMap.set(key, { 
-          cohortRingName: ringName,
+          categoryPoolName: ringName,
           physicalRingName: mapping?.physicalRingName,
           division: ring.division,
         });
@@ -114,7 +114,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
       
       if (a.physicalRingName) return -1;
       if (b.physicalRingName) return 1;
-      return a.cohortRingName.localeCompare(b.cohortRingName);
+      return a.categoryPoolName.localeCompare(b.categoryPoolName);
     });
   }, [competitionRings, physicalRingMappings, config.divisions]);
 
@@ -141,8 +141,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
   // Count changed rings
   const changedRingsCount = useMemo(() => {
     return filteredRingPairs.filter(pair => {
-      const formsChanged = pair.formsRing && isRingAffectedSimple(pair.cohortRingName, 'forms', changedRings);
-      const sparringChanged = pair.sparringRing && isRingAffectedSimple(pair.cohortRingName, 'sparring', changedRings);
+      const formsChanged = pair.formsRing && isRingAffectedSimple(pair.categoryPoolName, 'forms', changedRings);
+      const sparringChanged = pair.sparringRing && isRingAffectedSimple(pair.categoryPoolName, 'sparring', changedRings);
       return formsChanged || sparringChanged;
     }).length;
   }, [filteredRingPairs, changedRings]);
@@ -450,8 +450,8 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
         gap: '15px' 
       }}>
         {filteredRingPairs.map((pair, idx) => {
-          const formsChanged = pair.formsRing && isRingAffectedSimple(pair.cohortRingName, 'forms', changedRings);
-          const sparringChanged = pair.sparringRing && isRingAffectedSimple(pair.cohortRingName, 'sparring', changedRings);
+          const formsChanged = pair.formsRing && isRingAffectedSimple(pair.categoryPoolName, 'forms', changedRings);
+          const sparringChanged = pair.sparringRing && isRingAffectedSimple(pair.categoryPoolName, 'sparring', changedRings);
           const isChanged = formsChanged || sparringChanged;
           const formsCount = pair.formsRing?.participantIds.length || 0;
           const sparringCount = pair.sparringRing?.participantIds.length || 0;
@@ -494,7 +494,7 @@ function TournamentDay({ globalDivision }: TournamentDayProps) {
                   {pair.physicalRingName || 'Unassigned'}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  {getDivisionAbbr(pair.division)} • {formatPoolNameForDisplay(pair.cohortRingName)}
+                  {getDivisionAbbr(pair.division)} • {formatPoolNameForDisplay(pair.categoryPoolName)}
                 </div>
               </div>
 

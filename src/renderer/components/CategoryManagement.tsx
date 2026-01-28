@@ -351,12 +351,12 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
     setParticipants(updatedParticipants);
   };
 
-  const handleRingsChange = (cohortId: string, rings: number) => {
-    const category = categories.find((c) => c.id === cohortId);
+  const handleRingsChange = (categoryId: string, rings: number) => {
+    const category = categories.find((c) => c.id === categoryId);
     if (!category) return;
 
     // Update the current category
-    updateCategory(cohortId, { numPools: rings });
+    updateCategory(categoryId, { numPools: rings });
 
     // Find the opposite type category with matching criteria
     // (Forms and Sparring use the same physical rings sequentially)

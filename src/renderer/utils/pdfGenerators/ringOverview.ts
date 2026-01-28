@@ -3,7 +3,7 @@ import { formatPdfTimestamp } from '../ringNameFormatter';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
 interface RingPair {
-  cohortRingName: string;
+  categoryPoolName: string;
   division: string;
   physicalRingName?: string;
   formsRing?: any;
@@ -179,7 +179,7 @@ export function generateRingOverviewPDF(
       // Ring Header with colored background if physical ring is assigned
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      let ringHeader = pair.cohortRingName;
+      let ringHeader = pair.categoryPoolName;
       if (pair.physicalRingName) {
         ringHeader += ` (${pair.physicalRingName})`;
         

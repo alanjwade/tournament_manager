@@ -6,7 +6,7 @@ import { formatPoolNameForDisplay } from '../utils/ringNameFormatter';
 import { PhysicalRing } from '../types/tournament';
 
 interface RingAssignmentRow {
-  cohortRingName: string;
+  categoryPoolName: string;
   division: string;
   minAge: number;
   participantCount: number;
@@ -105,7 +105,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
   }, []);
 
   // Get sorted pools for the selected division
-  const sortedCohortRings = useMemo(() => {
+  const sortedPools = useMemo(() => {
     const ringMap = new Map<string, {
       ringName: string;
       division: string;
@@ -154,14 +154,14 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
   // Load assignments when division changes - get from store
   useEffect(() => {
     console.log('[RingMapEditor] Loading assignments for division:', selectedDivision);
-    console.log('[RingMapEditor] sortedCohortRings:', sortedCohortRings.map(r => r.ringName));
+    console.log('[RingMapEditor] sortedPools:', sortedPools.map(r => r.ringName));
     console.log('[RingMapEditor] physicalRingMappings:', physicalRingMappings);
     
-    const newAssignments: RingAssignmentRow[] = sortedCohortRings.map(ring => {
+    const newAssignments: RingAssignmentRow[] = sortedPools.map(ring => {
       const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.ringName);
       console.log(`[RingMapEditor] Looking for "${ring.ringName}", found:`, mapping);
       return {
-        cohortRingName: ring.ringName,
+        categoryPoolName: ring.ringName,
         division: ring.division,
         minAge: ring.minAge,
         participantCount: ring.participantIds.size,
@@ -172,7 +172,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
     console.log('[RingMapEditor] New assignments:', newAssignments);
     setAssignments(newAssignments);
     setIsDirty(false); // Reset dirty flag when loading new division
-  }, [selectedDivision, sortedCohortRings, physicalRingMappings]);
+  }, [selectedDivision, sortedPools, physicalRingMappings]);
 
   // Auto-assign physical rings sequentially (updates local state only)
   const handleAutoAssign = () => {
@@ -184,8 +184,8 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
     }
 
     // Assign all pools sequentially
-    const needsSuffixes = sortedCohortRings.length > numPhysicalRings;
-    const newAssignments: RingAssignmentRow[] = sortedCohortRings.map((ring, index) => {
+    const needsSuffixes = sortedPools.length > numPhysicalRings;
+    const newAssignments: RingAssignmentRow[] = sortedPools.map((ring, index) => {
       let physicalRingName: string;
       
       if (needsSuffixes) {
@@ -202,7 +202,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
       }
       
       return {
-        cohortRingName: ring.ringName,
+        categoryPoolName: ring.ringName,
         division: ring.division,
         minAge: ring.minAge,
         participantCount: ring.participantCount,
@@ -215,9 +215,9 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
   };
 
   // Handle manual edit of physical ring assignment (updates local state only)
-  const handlePhysicalRingChange = (cohortRingName: string, newPhysicalRing: string) => {
+  const handlePhysicalRingChange = (categoryPoolName: string, newPhysicalRing: string) => {
     const updatedAssignments = assignments.map(a =>
-      a.cohortRingName === cohortRingName
+      a.categoryPoolName === categoryPoolName
         ? { ...a, physicalRingName: newPhysicalRing }
         : a
     );
@@ -231,13 +231,13 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
     const newMappings = assignments
       .filter(a => a.physicalRingName.trim() !== '')
       .map(a => ({
-        categoryPoolName: a.cohortRingName,
+        categoryPoolName: a.categoryPoolName,
         physicalRingName: a.physicalRingName,
       }));
     
     // Keep mappings from other divisions, replace only current division's mappings
     // Use the ring names from current assignments to identify what to replace
-    const currentDivisionRingNames = new Set(assignments.map(a => a.cohortRingName));
+    const currentDivisionRingNames = new Set(assignments.map(a => a.categoryPoolName));
     const otherDivisionMappings = physicalRingMappings.filter(
       m => !currentDivisionRingNames.has(m.categoryPoolName)
     );
@@ -295,7 +295,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
         <button
           onClick={handleAutoAssign}
           className="btn btn-secondary"
-          disabled={sortedCohortRings.length === 0}
+          disabled={sortedPools.length === 0}
           title="Automatically assign pools to physical rings"
         >
           🔄 Auto Assign
@@ -305,7 +305,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
       {/* Assignments Table */}
       {assignments.length === 0 ? (
         <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
-          {sortedCohortRings.length === 0 ? (
+          {sortedPools.length === 0 ? (
             <>No pools found for {selectedDivision}. Assign rings in the "Category Ring Assignment" tab first.</>
           ) : (
             <>View and edit assignments below, or click "Auto Assign" to automatically assign pools to physical rings</>
@@ -336,14 +336,14 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
             <tbody>
               {assignments.map((assignment, index) => (
                 <tr
-                  key={`${assignment.cohortRingName}`}
+                  key={`${assignment.categoryPoolName}`}
                   style={{
                     borderBottom: '1px solid var(--border-color)',
                     backgroundColor: index % 2 === 0 ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
                   }}
                 >
                   <td style={{ padding: '10px', color: 'var(--text-primary)' }}>
-                    {formatPoolNameForDisplay(assignment.cohortRingName)}
+                    {formatPoolNameForDisplay(assignment.categoryPoolName)}
                   </td>
                   <td style={{ padding: '10px', color: 'var(--text-primary)' }}>
                     {assignment.division}
@@ -359,7 +359,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
                       type="text"
                       value={assignment.physicalRingName}
                       onChange={(e) =>
-                        handlePhysicalRingChange(assignment.cohortRingName, e.target.value)
+                        handlePhysicalRingChange(assignment.categoryPoolName, e.target.value)
                       }
                       placeholder="e.g., Ring 1, Ring 1a"
                       style={{

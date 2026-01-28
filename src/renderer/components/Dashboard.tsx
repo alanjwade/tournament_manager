@@ -75,16 +75,25 @@ function Dashboard({ onNavigate }: DashboardProps) {
   const overallStats = useMemo(() => {
     const participatingParticipants = participants.filter(p => p.competingForms || p.competingSparring);
 
-    const withCohort = participatingParticipants.filter(p => p.formsCategoryId || p.sparringCategoryId);
+    const formsParticipants = participants.filter(p => p.competingForms);
+    const sparringParticipants = participants.filter(p => p.competingSparring);
+    const formsWithCategory = formsParticipants.filter(p => p.formsCategoryId);
+    const sparringWithCategory = sparringParticipants.filter(p => p.sparringCategoryId);
+
+    const withCategory = participatingParticipants.filter(p => p.formsCategoryId || p.sparringCategoryId);
     const withRing = participatingParticipants.filter(p => p.formsPool || p.sparringPool);
 
     return {
       totalParticipants: participants.length,
       participatingParticipants: participatingParticipants.length,
-      withCohort: withCohort.length,
+      formsParticipants: formsParticipants.length,
+      sparringParticipants: sparringParticipants.length,
+      formsWithCategory: formsWithCategory.length,
+      sparringWithCategory: sparringWithCategory.length,
+      withCategory: withCategory.length,
       withRing: withRing.length,
-      cohortPercent: participatingParticipants.length > 0 
-        ? Math.round((withCohort.length / participatingParticipants.length) * 100) 
+      categoryPercent: participatingParticipants.length > 0 
+        ? Math.round((withCategory.length / participatingParticipants.length) * 100) 
         : 0,
       ringPercent: participatingParticipants.length > 0 
         ? Math.round((withRing.length / participatingParticipants.length) * 100) 
@@ -136,12 +145,12 @@ function Dashboard({ onNavigate }: DashboardProps) {
       },
       {
         name: 'Assign Categories',
-        status: overallStats.cohortPercent === 100 
+        status: overallStats.categoryPercent === 100 
           ? 'complete' 
-          : overallStats.cohortPercent > 0 
+          : overallStats.categoryPercent > 0 
             ? 'in-progress' 
             : 'pending',
-        detail: `${overallStats.cohortPercent}% assigned (auto-assigned to pools)`,
+        detail: `${overallStats.categoryPercent}% assigned (auto-assigned to pools)`,
         tab: 'categories',
       },
       {
@@ -187,7 +196,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
 
   // Count all warnings
   const warningCount = ringAnalysis.length + mappingAnalysis.length + 
-    (overallStats.participatingParticipants - overallStats.withCohort);
+    (overallStats.participatingParticipants - overallStats.withCategory);
 
   return (
     <div style={{ padding: '20px', width: 'fit-content', minWidth: 0 }}>
@@ -353,8 +362,8 @@ function Dashboard({ onNavigate }: DashboardProps) {
 
       {/* Warnings & Issues */}
       {(ringAnalysis.length > 0 || mappingAnalysis.length > 0 || 
-        overallStats.formsWithCohort < overallStats.formsParticipants ||
-        overallStats.sparringWithCohort < overallStats.sparringParticipants) && (
+        overallStats.formsWithCategory < overallStats.formsParticipants ||
+        overallStats.sparringWithCategory < overallStats.sparringParticipants) && (
         <div style={{
           backgroundColor: 'var(--warning-bg)',
           border: '1px solid var(--warning-border)',
@@ -365,7 +374,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
           <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--warning-text)' }}>⚠️ Warnings & Issues</h3>
           
           {/* Unassigned participants */}
-          {overallStats.formsWithCohort < overallStats.formsParticipants && (
+          {overallStats.formsWithCategory < overallStats.formsParticipants && (
             <div 
               onClick={() => onNavigate('categories')}
               style={{ 
@@ -377,12 +386,12 @@ function Dashboard({ onNavigate }: DashboardProps) {
                 color: 'var(--text-primary)',
               }}
             >
-              <strong>{overallStats.formsParticipants - overallStats.formsWithCohort}</strong> forms participants not assigned to categories
+              <strong>{overallStats.formsParticipants - overallStats.formsWithCategory}</strong> forms participants not assigned to categories
               <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Categories →</span>
             </div>
           )}
           
-          {overallStats.sparringWithCohort < overallStats.sparringParticipants && (
+          {overallStats.sparringWithCategory < overallStats.sparringParticipants && (
             <div 
               onClick={() => onNavigate('categories')}
               style={{ 
@@ -394,8 +403,8 @@ function Dashboard({ onNavigate }: DashboardProps) {
                 color: 'var(--text-primary)',
               }}
             >
-              <strong>{overallStats.sparringParticipants - overallStats.sparringWithCohort}</strong> sparring participants not assigned to categories
-              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Cohorts →</span>
+              <strong>{overallStats.sparringParticipants - overallStats.sparringWithCategory}</strong> sparring participants not assigned to categories
+              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Categories →</span>
             </div>
           )}
 

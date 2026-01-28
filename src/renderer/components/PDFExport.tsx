@@ -429,7 +429,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       if (!pairMap.has(key)) {
         const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
         pairMap.set(key, { 
-          cohortRingName: ringName,
+          categoryPoolName: ringName,
           physicalRingName: mapping?.physicalRingName,
           division: ring.division,
         });
@@ -468,7 +468,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       if (a.physicalRingName) return -1;
       if (b.physicalRingName) return 1;
       
-      return a.cohortRingName.localeCompare(b.cohortRingName);
+      return a.categoryPoolName.localeCompare(b.categoryPoolName);
     });
 
     const divisionFilter = selectedDivision || 'all';
@@ -563,7 +563,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       if (!pairMap.has(key)) {
         const mapping = physicalRingMappings.find(m => m.categoryPoolName === ringName);
         pairMap.set(key, { 
-          cohortRingName: ringName,
+          categoryPoolName: ringName,
           physicalRingName: mapping?.physicalRingName,
           division: ring.division,
         });
