@@ -40,6 +40,19 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     };
     img.src = logoImage;
   }, []);
+
+  // Load file locations
+  useEffect(() => {
+    const loadFileLocations = async () => {
+      try {
+        const result = await window.electronAPI.getFileLocations();
+        setFileLocations(result);
+      } catch (error) {
+        console.error('Failed to load file locations:', error);
+      }
+    };
+    loadFileLocations();
+  }, []);
   
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -51,6 +64,13 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt'
   );
   const [exporting, setExporting] = useState(false);
+  const [fileLocations, setFileLocations] = useState<{
+    dataPath: string;
+    backupDir: string;
+    autosavePath: string;
+    defaultPdfOutputDir: string;
+    exePath: string;
+  } | null>(null);
   
   // State for forms/sparring advanced options
   const [formsExpanded, setFormsExpanded] = useState(false);
@@ -221,7 +241,6 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       const result = await window.electronAPI.savePDF({
         fileName: filename,
         data: new Uint8Array(pdfBlob),
-        outputDirectory: config.pdfOutputDirectory,
       });
 
       if (!result.success && result.error) {
@@ -604,12 +623,12 @@ function PDFExport({ globalDivision }: PDFExportProps) {
   };
 
   const handleOpenPDFFolder = async () => {
-    if (!config.pdfOutputDirectory) {
-      alert('PDF output directory is not configured');
-      return;
-    }
     try {
-      const result = await window.electronAPI.openPDFFolder(config.pdfOutputDirectory);
+      if (!fileLocations) {
+        alert('File locations not available');
+        return;
+      }
+      const result = await window.electronAPI.openPDFFolder(fileLocations.defaultPdfOutputDir);
       if (!result.success) {
         alert(`Error opening folder: ${result.error}`);
       }

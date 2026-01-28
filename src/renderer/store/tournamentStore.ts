@@ -25,7 +25,6 @@ interface TournamentState {
   setDivisions: (divisions: Division[]) => void;
   setPhysicalRings: (rings: PhysicalRing[]) => void;
   setWatermark: (image: string) => void;
-  setPdfOutputDirectory: (directory: string) => void;
   setSchoolAbbreviations: (abbreviations: { [schoolName: string]: string }) => void;
   saveState: () => Promise<void>;
   loadState: () => Promise<void>;
@@ -60,7 +59,6 @@ const initialConfig: TournamentConfig = {
   ],
   physicalRings: [],
   watermarkImage: undefined,
-  pdfOutputDirectory: 'pdf_outputs',
   schoolAbbreviations: {
     // Branch-based abbreviations (exact matches from GAS code)
     'Longmont': 'REMA LM',
@@ -226,13 +224,6 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   setWatermark: (image) => {
     set((state) => ({
       config: { ...state.config, watermarkImage: image },
-    }));
-    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
-  },
-
-  setPdfOutputDirectory: (directory) => {
-    set((state) => ({
-      config: { ...state.config, pdfOutputDirectory: directory },
     }));
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },

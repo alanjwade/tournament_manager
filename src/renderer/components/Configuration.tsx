@@ -43,7 +43,6 @@ function Configuration() {
   const setDivisions = useTournamentStore((state) => state.setDivisions);
   const setPhysicalRings = useTournamentStore((state) => state.setPhysicalRings);
   const setWatermark = useTournamentStore((state) => state.setWatermark);
-  const setPdfOutputDirectory = useTournamentStore((state) => state.setPdfOutputDirectory);
   const setSchoolAbbreviations = useTournamentStore((state) => state.setSchoolAbbreviations);
   const saveState = useTournamentStore((state) => state.saveState);
   const loadState = useTournamentStore((state) => state.loadState);
@@ -128,19 +127,6 @@ function Configuration() {
       );
       setWatermark(`data:image/png;base64,${base64}`);
     }
-  };
-
-  const handlePdfDirectorySelect = async () => {
-    const directory = await window.electronAPI.selectDirectory();
-    if (directory) {
-      setPdfOutputDirectory(directory);
-    }
-  };
-
-  const handleOpenPdfDirectory = async () => {
-    if (!fileLocations) return;
-    const dirToOpen = config.pdfOutputDirectory || fileLocations.defaultPdfOutputDir;
-    await window.electronAPI.openDirectory(dirToOpen);
   };
 
   const handleLoadBackup = async () => {
@@ -308,29 +294,6 @@ function Configuration() {
 
       <div style={{ marginTop: '30px' }}>
         <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
-          PDF Output Directory (Optional)
-        </h3>
-        <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '14px' }}>
-          Select a default directory where all PDFs will be saved. If not set,
-          PDFs will be saved to the default pdf_outputs directory.
-        </p>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={handlePdfDirectorySelect}>
-            Select PDF Directory
-          </button>
-          <button className="btn btn-secondary" onClick={handleOpenPdfDirectory}>
-            📁 Open PDF Folder
-          </button>
-        </div>
-        {config.pdfOutputDirectory && (
-          <p style={{ marginTop: '10px', color: 'var(--success-text)', fontSize: '14px' }}>
-            ✓ PDFs will be saved to: <code style={{ backgroundColor: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '3px' }}>{config.pdfOutputDirectory}</code>
-          </p>
-        )}
-      </div>
-
-      <div style={{ marginTop: '30px' }}>
-        <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
           File Locations
         </h3>
         <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
@@ -353,10 +316,6 @@ function Configuration() {
             <div style={{ marginBottom: '10px' }}>
               <strong>Default PDF Output:</strong><br />
               <code>{fileLocations.defaultPdfOutputDir}</code>
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <strong>PDF Output (Configured):</strong><br />
-              <code>{config.pdfOutputDirectory || '(not set - will use default)'}</code>
             </div>
             <div>
               <strong>Application Executable:</strong><br />

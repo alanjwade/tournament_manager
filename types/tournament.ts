@@ -90,7 +90,6 @@ export interface TournamentConfig {
   divisions: Division[];
   physicalRings: PhysicalRing[];
   watermarkImage?: string;
-  pdfOutputDirectory?: string; // Directory where PDFs will be saved
   schoolAbbreviations?: { [schoolName: string]: string }; // Map of school names to abbreviations
 }
 

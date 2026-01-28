@@ -840,8 +840,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             backgroundColor: 'var(--bg-primary)',
             borderRadius: '8px',
             padding: '20px',
-            minWidth: '500px',
-            maxWidth: '600px',
+            minWidth: '900px',
+            maxWidth: '1000px',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
             maxHeight: '90vh',
             overflowY: 'auto',
@@ -859,12 +859,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             )}
           </div>
 
-          {/* Forms Section */}
-          <div style={{ 
-            marginBottom: '25px', 
-            paddingBottom: '20px', 
-            borderBottom: '1px solid var(--border-color)'
-          }}>
+          {/* Two-column layout: Forms on left, Sparring on right */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            {/* Forms Section */}
+            <div style={{ 
+              paddingRight: '20px', 
+              borderRight: '1px solid var(--border-color)'
+            }}>
             <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#007bff', fontSize: '14px' }}>
               Forms
             </h4>
@@ -1015,13 +1016,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 Use decimals like 1.5 to insert between 1 and 2.
               </div>
             </div>
-          </div>
+            </div>
 
-          {/* Sparring Section */}
-          <div style={{ marginBottom: '25px' }}>
-            <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#dc3545', fontSize: '14px' }}>
-              Sparring
-            </h4>
+            {/* Sparring Section */}
+            <div style={{ paddingLeft: '0px' }}>
+              <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#dc3545', fontSize: '14px' }}>
+                Sparring
+              </h4>
             
             {/* Current Ring Assignment Info */}
             {sparringCategory && currentSparringPool && (
@@ -1230,6 +1231,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 <option value="a">Alt Ring A</option>
                 <option value="b">Alt Ring B</option>
               </select>
+            </div>
             </div>
           </div>
 
