@@ -79,9 +79,10 @@ describe('User Workflow Integration Tests', () => {
       expect(p1.formsRankOrder).toBe(1);
 
       // Verify: Rings are computed correctly
+      // New format uses "Pool 1" instead of "P1"
       const rings = computeCompetitionRings(participants, [category], []);
-      const pool1Ring = rings.find(r => r.name?.includes('P1'));
-      const pool2Ring = rings.find(r => r.name?.includes('P2'));
+      const pool1Ring = rings.find(r => r.name?.includes('Pool 1'));
+      const pool2Ring = rings.find(r => r.name?.includes('Pool 2'));
 
       expect(pool1Ring?.participantIds).toEqual(['p1']);
       expect(pool2Ring?.participantIds).toContain('p2');
@@ -300,9 +301,9 @@ describe('User Workflow Integration Tests', () => {
       // Step 3: Move p2 from P1 to P2
       participants = moveParticipantToPool(participants, 'p2', 'forms', 'cat1', 'P2');
 
-      // Verify P2 now has p2 and p3
+      // Verify P2 now has p2 and p3 (new format uses "Pool 2" instead of "P2")
       const rings1 = computeCompetitionRings(participants, [category], []);
-      const pool2Ring = rings1.find(r => r.name?.includes('P2'));
+      const pool2Ring = rings1.find(r => r.name?.includes('Pool 2'));
       expect(pool2Ring?.participantIds).toContain('p2');
       expect(pool2Ring?.participantIds).toContain('p3');
 

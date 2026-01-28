@@ -95,8 +95,9 @@ describe('computeRings', () => {
 
       expect(rings.length).toBe(2);
       
-      const pool1Ring = rings.find(r => r.name?.includes('P1'));
-      const pool2Ring = rings.find(r => r.name?.includes('P2'));
+      // New format uses "Pool 1" instead of "P1"
+      const pool1Ring = rings.find(r => r.name?.includes('Pool 1'));
+      const pool2Ring = rings.find(r => r.name?.includes('Pool 2'));
       
       expect(pool1Ring?.participantIds).toEqual(['p1']);
       expect(pool2Ring?.participantIds).toEqual(['p2']);

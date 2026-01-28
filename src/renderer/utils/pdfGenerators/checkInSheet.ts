@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing, PhysicalRingMapping, Category } from '../../types/tournament';
-import { getExpandedRingName, formatPdfTimestamp } from '../ringNameFormatter';
+import { getExpandedRingName, formatPdfTimestamp, buildCategoryPoolName } from '../ringNameFormatter';
 import { getSchoolAbbreviation } from '../schoolAbbreviations';
 import { getEffectiveFormsInfo } from '../computeRings';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
@@ -108,7 +108,7 @@ export function generateCheckInSheet(
       const formsCategory = categories.find(c => c.id === effectiveForms.categoryId);
       
       if (formsCategory) {
-        const categoryRingName = `${formsCategory.name}_${effectiveForms.pool}`;
+        const categoryRingName = buildCategoryPoolName(formsCategory.division, formsCategory.name, effectiveForms.pool);
         const mapping = physicalRingMappings.find(m => 
           m.categoryPoolName === categoryRingName
         );

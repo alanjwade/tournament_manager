@@ -110,9 +110,12 @@ export function computeCompetitionRings(
     
     const physicalRingId = mapping?.physicalRingId || 'unassigned';
     
-    // Create ring name: internal format is category_pool (e.g., "Mixed 8-10_P1")
-    // Display formatting happens in UI components
-    const ringName = `${category.name}_${group.pool}`;
+    // Create ring name: include division to ensure global uniqueness
+    // Format: "Division - Category Pool N" (e.g., "Beginner - Mixed 8-10 Pool 1")
+    // This prevents collisions when multiple divisions have same category names
+    // Pool format: convert "P1" to "Pool 1"
+    const poolDisplay = group.pool.replace(/^P(\d+)$/, 'Pool $1');
+    const ringName = `${category.division} - ${category.name} ${poolDisplay}`;
     
     const ring = {
       id: key,

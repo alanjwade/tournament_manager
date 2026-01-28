@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { orderFormsRing, orderSparringRing, checkSparringAltRingStatus } from '../utils/ringOrdering';
 import { computeCompetitionRings } from '../utils/computeRings';
+import { extractPoolId } from '../utils/ringNameFormatter';
 
 interface RingPair {
   cohortRingName: string;
@@ -236,7 +237,7 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
             <strong>Participants:</strong> {ringParticipants.length}
           </div>
           {type === 'sparring' && (() => {
-            const altStatus = checkSparringAltRingStatus(participants, ring.categoryId, ring.name?.split('_').pop() || '');
+            const altStatus = checkSparringAltRingStatus(participants, ring.categoryId, extractPoolId(ring.name) || '');
             if (altStatus.status === 'mixed') {
               return (
                 <div style={{ color: '#d9534f', fontWeight: 'bold', marginTop: '4px' }}>

@@ -465,6 +465,11 @@ function App() {
           className={`tab ${activeTab === 'categories' ? 'active' : ''}`}
           onClick={() => setActiveTab('categories')}
           disabled={participants.length === 0}
+          title={participants.length === 0 ? '⚠️ Import participants first before managing categories' : undefined}
+          style={{ 
+            opacity: participants.length === 0 ? 0.6 : 1,
+            cursor: participants.length === 0 ? 'not-allowed' : 'pointer',
+          }}
         >
           Categories
           <Badge count={tabStatus.categories} type="warning" />

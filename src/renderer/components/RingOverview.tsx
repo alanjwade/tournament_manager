@@ -3,12 +3,12 @@ import jsPDF from 'jspdf';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
 import { checkSparringAltRingStatus, orderFormsRing, orderSparringRing } from '../utils/ringOrdering';
-import { formatPoolNameForDisplay, formatPoolOnly, isRingAffected, isRingAffectedSimple } from '../utils/ringNameFormatter';
+import { formatPoolNameForDisplay, formatPoolOnly, isRingAffected, isRingAffectedSimple, buildCategoryPoolName, extractPoolId } from '../utils/ringNameFormatter';
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
 import { Participant, CompetitionRing } from '../types/tournament';
-import { RING_BALANCE } from '../utils/constants';
+import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 import CheckpointSidebar from './CheckpointSidebar';
 import GrandChampionSection from './GrandChampionSection';
@@ -341,8 +341,14 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
     const pairs = Array.from(pairMap.values());
 
-    // Sort by physical ring name if available, otherwise by pool name
+    // Sort by division order, then by physical ring name
     return pairs.sort((a, b) => {
+      // First sort by division order
+      const aDivOrder = config.divisions.find(d => d.name === a.division)?.order ?? DEFAULT_DIVISION_ORDER;
+      const bDivOrder = config.divisions.find(d => d.name === b.division)?.order ?? DEFAULT_DIVISION_ORDER;
+      if (aDivOrder !== bDivOrder) return aDivOrder - bDivOrder;
+
+      // Then sort by physical ring name
       if (a.physicalRingName && b.physicalRingName) {
         // Custom sort for physical ring names (Ring 1, Ring 1a, Ring 1b, Ring 2, etc.)
         const aMatch = a.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
@@ -351,26 +357,19 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         if (aMatch && bMatch) {
           const aNum = parseInt(aMatch[1]);
           const bNum = parseInt(bMatch[1]);
-          
-          if (aNum !== bNum) {
-            return aNum - bNum;
-          }
-          
-          // Same number, compare letter suffix
+          if (aNum !== bNum) return aNum - bNum;
           const aLetter = aMatch[2] || '';
           const bLetter = bMatch[2] || '';
           return aLetter.localeCompare(bLetter);
         }
-        
         return a.physicalRingName.localeCompare(b.physicalRingName);
       }
       
       if (a.physicalRingName) return -1;
       if (b.physicalRingName) return 1;
-      
       return a.cohortRingName.localeCompare(b.cohortRingName);
     });
-  }, [competitionRings, physicalRingMappings]);
+  }, [competitionRings, physicalRingMappings, config.divisions]);
 
   // Get unique divisions for the filter dropdown
   const divisions = useMemo(() => {
@@ -380,8 +379,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         divSet.add(pair.division);
       }
     });
-    return Array.from(divSet).sort();
-  }, [ringPairs]);
+    // Sort by division order from config
+    return Array.from(divSet).sort((a, b) => {
+      const aOrder = config.divisions.find(d => d.name === a)?.order ?? DEFAULT_DIVISION_ORDER;
+      const bOrder = config.divisions.find(d => d.name === b)?.order ?? DEFAULT_DIVISION_ORDER;
+      return aOrder - bOrder;
+    });
+  }, [ringPairs, config.divisions]);
 
   // Get latest checkpoint
   const latestCheckpoint = useMemo(() => {
@@ -447,9 +451,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     // Get all unique physical rings used in this division
     const physicalRingSet = new Set<string>();
     divisionCohorts.forEach(category => {
-      // Find mappings for this category
+      // Find mappings for this category (new format: "Division - CategoryName Pool N")
       const categoryMappings = physicalRingMappings.filter(m => 
-        m.categoryPoolName?.startsWith(`${category.name}_`)
+        m.categoryPoolName?.startsWith(`${category.division} - ${category.name} Pool`)
       );
       categoryMappings.forEach(mapping => {
         if (mapping.physicalRingName) {
@@ -518,7 +522,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     // Get category info based on current values
     const formsCategory = currentFormsCategoryId ? categories.find(c => c.id === currentFormsCategoryId) : null;
     const formsCohortRingName = formsCategory && currentFormsPool 
-      ? `${formsCategory.name}_${currentFormsPool}` 
+      ? buildCategoryPoolName(formsCategory.division, formsCategory.name, currentFormsPool)
       : null;
     const formsPhysicalMapping = formsCohortRingName 
       ? physicalRingMappings.find(m => m.categoryPoolName === formsCohortRingName)
@@ -526,7 +530,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     
     const sparringCategory = currentSparringCategoryId ? categories.find(c => c.id === currentSparringCategoryId) : null;
     const sparringCohortRingName = sparringCategory && currentSparringPool 
-      ? `${sparringCategory.name}_${currentSparringPool}` 
+      ? buildCategoryPoolName(sparringCategory.division, sparringCategory.name, currentSparringPool)
       : null;
     const sparringPhysicalMapping = sparringCohortRingName 
       ? physicalRingMappings.find(m => m.categoryPoolName === sparringCohortRingName)
@@ -756,10 +760,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       
       if (categoriesForDivision.length === 0) return [];
       
-      // Get all mappings for these categories
+      // Get all mappings for these categories (new format: "Division - CategoryName Pool N")
       const mappingsForDivision = physicalRingMappings.filter(m => {
-        const categoryName = m.categoryPoolName?.split('_')[0];
-        return categoriesForDivision.some(c => c.name === categoryName);
+        // Check if mapping belongs to this division
+        return categoriesForDivision.some(c => 
+          m.categoryPoolName?.startsWith(`${c.division} - ${c.name} Pool`)
+        );
       });
 
       return mappingsForDivision
@@ -767,7 +773,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         .map(m => ({
           physicalRingName: m.physicalRingName,
           cohortRingName: m.categoryPoolName || '',
-          label: `${m.physicalRingName} (${formatPoolNameForDisplay(m.categoryPoolName || '')})`
+          label: `${m.physicalRingName} (${m.categoryPoolName || ''})`
         }))
         .sort((a, b) => {
           // Sort by ring number (Ring 1, Ring 1a, Ring 2, etc.)
@@ -1306,8 +1312,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     // Check for alt ring status in sparring rings
     let altStatus = null;
     if (type === 'sparring' && category) {
-      // Extract pool from ring name (e.g., "P1" from "Mixed 8-10_P1")
-      const pool = ring.name?.match(/_P(\d+)$/)?.[0]?.substring(1); // Get "_P1" then remove "_" to get "P1"
+      // Extract pool ID from ring name using helper function
+      const pool = extractPoolId(ring.name);
       console.log('[RingOverview] Checking alt ring status for', ring.name, 'pool:', pool);
       if (pool) {
         altStatus = checkSparringAltRingStatus(participants, category.id, pool);
@@ -1384,7 +1390,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   Alt Ring A ({participantsA.length} participants)
                 </h6>
                 <button
-                  onClick={() => handleAutoOrderPool(ring.categoryId, ring.name?.split('_').pop() || '', 'sparring')}
+                  onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), 'sparring')}
                   style={{
                     padding: '4px 12px',
                     fontSize: '12px',
@@ -1491,7 +1497,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   Alt Ring B ({participantsB.length} participants)
                 </h6>
                 <button
-                  onClick={() => handleAutoOrderPool(ring.categoryId, ring.name?.split('_').pop() || '', 'sparring')}
+                  onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), 'sparring')}
                   style={{
                     padding: '4px 12px',
                     fontSize: '12px',
@@ -1611,7 +1617,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             </div>
           </div>
           <button
-            onClick={() => handleAutoOrderPool(ring.categoryId, ring.name?.split('_').pop() || '', type)}
+            onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), type)}
             style={{
               padding: '4px 12px',
               fontSize: '12px',

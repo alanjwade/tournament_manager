@@ -3,6 +3,7 @@ import { Participant, PhysicalRing, PhysicalRingMapping, Category } from '../../
 import { getSchoolAbbreviation } from '../schoolAbbreviations';
 import { getEffectiveFormsInfo } from '../computeRings';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
+import { buildCategoryPoolName } from '../ringNameFormatter';
 
 // Helper function to fit text in a box by reducing font size if needed
 function fitTextInBox(
@@ -151,7 +152,7 @@ export function generateNameTags(
       const formsCategory = categories.find(c => c.id === effectiveForms.categoryId);
       
       if (formsCategory) {
-        const categoryRingName = `${formsCategory.name}_${effectiveForms.pool}`;
+        const categoryRingName = buildCategoryPoolName(formsCategory.division, formsCategory.name, effectiveForms.pool);
         
         const mapping = physicalRingMappings.find(m => 
           m.categoryPoolName === categoryRingName

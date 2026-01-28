@@ -296,6 +296,19 @@ function DataImport() {
               ✗ Cancel
             </button>
           </div>
+
+          <div style={{
+            marginTop: '15px',
+            padding: '12px',
+            backgroundColor: '#e7f3ff',
+            border: '1px solid #b3d9ff',
+            borderRadius: '4px',
+            color: '#004085',
+            fontSize: '13px',
+            fontWeight: 'bold'
+          }}>
+            💡 <strong>Reminder:</strong> You must confirm the import above to access the Categories tab and continue setting up your tournament.
+          </div>
         </div>
       )}
 

@@ -63,17 +63,18 @@ describe('PDF Page Management', () => {
       { id: 'PR2', name: 'PR2', color: '#00FF00' },
       { id: 'PR3', name: 'PR3', color: '#0000FF' },
     ];
+    // New format: "Division - CategoryName Pool N"
     physicalRingMappings = [
-      { categoryPoolName: 'Youth_P1', physicalRingName: 'PR1' },
-      { categoryPoolName: 'Youth_P2', physicalRingName: 'PR2' },
-      { categoryPoolName: 'Adult_P1', physicalRingName: 'PR3' },
+      { categoryPoolName: 'Youth - Youth Pool 1', physicalRingName: 'PR1' },
+      { categoryPoolName: 'Youth - Youth Pool 2', physicalRingName: 'PR2' },
+      { categoryPoolName: 'Adult - Adult Pool 1', physicalRingName: 'PR3' },
     ];
   });
 
   describe('Forms scoring sheet generation', () => {
     it('should use initial blank page for first ring', () => {
       const participants = [createParticipant('1'), createParticipant('2')];
-      const rings = [createFormsRing('Youth_P1', 'Youth', ['1', '2'])];
+      const rings = [createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2'])];
 
       const doc = generateFormsScoringSheets(
         participants,
@@ -96,8 +97,8 @@ describe('PDF Page Management', () => {
         createParticipant('4'),
       ];
       const rings = [
-        createFormsRing('Youth_P1', 'Youth', ['1', '2']),
-        createFormsRing('Youth_P2', 'Youth', ['3', '4']),
+        createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2']),
+        createFormsRing('Youth - Youth Pool 2', 'Youth', ['3', '4']),
       ];
 
       const doc = generateFormsScoringSheets(
@@ -115,7 +116,7 @@ describe('PDF Page Management', () => {
 
     it('should add trailing blank page when using masterPdf', () => {
       const participants = [createParticipant('1'), createParticipant('2')];
-      const rings = [createFormsRing('Youth_P1', 'Youth', ['1', '2'])];
+      const rings = [createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2'])];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
 
@@ -142,7 +143,7 @@ describe('PDF Page Management', () => {
         createParticipant('3'),
         createParticipant('4'),
       ];
-      const rings = [createSparringRing('Youth_P1', 'Youth', ['1', '2', '3', '4'])];
+      const rings = [createSparringRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3', '4'])];
 
       const doc = generateSparringBrackets(
         participants,
@@ -164,7 +165,7 @@ describe('PDF Page Management', () => {
         createParticipant('3'),
         createParticipant('4'),
       ];
-      const rings = [createSparringRing('Youth_P1', 'Youth', ['1', '2', '3', '4'])];
+      const rings = [createSparringRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3', '4'])];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
 
@@ -191,8 +192,8 @@ describe('PDF Page Management', () => {
         createParticipant('3'),
         createParticipant('4'),
       ];
-      const formsRings = [createFormsRing('Youth_P1', 'Youth', ['1', '2', '3', '4'])];
-      const sparringRings = [createSparringRing('Youth_P1', 'Youth', ['1', '2', '3', '4'])];
+      const formsRings = [createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3', '4'])];
+      const sparringRings = [createSparringRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3', '4'])];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
 
@@ -241,12 +242,12 @@ describe('PDF Page Management', () => {
         createParticipant('6'),
       ];
       const formsRings = [
-        createFormsRing('Youth_P1', 'Youth', ['1', '2', '3']),
-        createFormsRing('Youth_P2', 'Youth', ['4', '5', '6']),
+        createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3']),
+        createFormsRing('Youth - Youth Pool 2', 'Youth', ['4', '5', '6']),
       ];
       const sparringRings = [
-        createSparringRing('Youth_P1', 'Youth', ['1', '2', '3']),
-        createSparringRing('Youth_P2', 'Youth', ['4', '5', '6']),
+        createSparringRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3']),
+        createSparringRing('Youth - Youth Pool 2', 'Youth', ['4', '5', '6']),
       ];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
@@ -310,8 +311,8 @@ describe('PDF Page Management', () => {
         createParticipant('6'),
       ];
       const sparringRings = [
-        createSparringRing('Youth_P1', 'Youth', ['1', '2', '3']),
-        createSparringRing('Youth_P2', 'Youth', ['4', '5', '6']),
+        createSparringRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3']),
+        createSparringRing('Youth - Youth Pool 2', 'Youth', ['4', '5', '6']),
       ];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
@@ -353,7 +354,7 @@ describe('PDF Page Management', () => {
 
     it('forms only should have no trailing blank after cleanup', () => {
       const participants = [createParticipant('1'), createParticipant('2')];
-      const formsRings = [createFormsRing('Youth_P1', 'Youth', ['1', '2'])];
+      const formsRings = [createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2'])];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
 
@@ -383,13 +384,13 @@ describe('PDF Page Management', () => {
     it('forms + alt A + alt B should produce 3 separate pages', () => {
       // Create participants with proper sparring category info for alt ring detection
       const participants = [
-        createParticipant('1', { sparringAltRing: 'a', sparringCategoryId: 'cat-Youth_P1', sparringPool: 'P1' }),
-        createParticipant('2', { sparringAltRing: 'a', sparringCategoryId: 'cat-Youth_P1', sparringPool: 'P1' }),
-        createParticipant('3', { sparringAltRing: 'b', sparringCategoryId: 'cat-Youth_P1', sparringPool: 'P1' }),
-        createParticipant('4', { sparringAltRing: 'b', sparringCategoryId: 'cat-Youth_P1', sparringPool: 'P1' }),
+        createParticipant('1', { sparringAltRing: 'a', sparringCategoryId: 'cat-Youth - Youth Pool 1', sparringPool: 'P1' }),
+        createParticipant('2', { sparringAltRing: 'a', sparringCategoryId: 'cat-Youth - Youth Pool 1', sparringPool: 'P1' }),
+        createParticipant('3', { sparringAltRing: 'b', sparringCategoryId: 'cat-Youth - Youth Pool 1', sparringPool: 'P1' }),
+        createParticipant('4', { sparringAltRing: 'b', sparringCategoryId: 'cat-Youth - Youth Pool 1', sparringPool: 'P1' }),
       ];
-      const formsRings = [createFormsRing('Youth_P1', 'Youth', ['1', '2', '3', '4'])];
-      const sparringRings = [createSparringRing('Youth_P1', 'Youth', ['1', '2', '3', '4'])];
+      const formsRings = [createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3', '4'])];
+      const sparringRings = [createSparringRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3', '4'])];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
 
@@ -433,13 +434,13 @@ describe('PDF Page Management', () => {
 
     it('only alt A change should produce 2 pages (forms + alt A)', () => {
       const participants = [
-        createParticipant('1', { sparringAltRing: 'a', sparringCategoryId: 'cat-Youth_P1', sparringPool: 'P1' }),
-        createParticipant('2', { sparringAltRing: 'a', sparringCategoryId: 'cat-Youth_P1', sparringPool: 'P1' }),
-        createParticipant('3', { sparringAltRing: 'b', sparringCategoryId: 'cat-Youth_P1', sparringPool: 'P1' }),
-        createParticipant('4', { sparringAltRing: 'b', sparringCategoryId: 'cat-Youth_P1', sparringPool: 'P1' }),
+        createParticipant('1', { sparringAltRing: 'a', sparringCategoryId: 'cat-Youth - Youth Pool 1', sparringPool: 'P1' }),
+        createParticipant('2', { sparringAltRing: 'a', sparringCategoryId: 'cat-Youth - Youth Pool 1', sparringPool: 'P1' }),
+        createParticipant('3', { sparringAltRing: 'b', sparringCategoryId: 'cat-Youth - Youth Pool 1', sparringPool: 'P1' }),
+        createParticipant('4', { sparringAltRing: 'b', sparringCategoryId: 'cat-Youth - Youth Pool 1', sparringPool: 'P1' }),
       ];
-      const formsRings = [createFormsRing('Youth_P1', 'Youth', ['1', '2', '3', '4'])];
-      const sparringRings = [createSparringRing('Youth_P1', 'Youth', ['1', '2', '3', '4'])];
+      const formsRings = [createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3', '4'])];
+      const sparringRings = [createSparringRing('Youth - Youth Pool 1', 'Youth', ['1', '2', '3', '4'])];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
 
@@ -507,8 +508,8 @@ describe('PDF Page Management', () => {
         createParticipant('3'),
         createParticipant('4'),
       ];
-      const youthFormsRings = [createFormsRing('Youth_P1', 'Youth', ['1', '2'])];
-      const adultFormsRings = [createFormsRing('Adult_P1', 'Adult', ['3', '4'])];
+      const youthFormsRings = [createFormsRing('Youth - Youth Pool 1', 'Youth', ['1', '2'])];
+      const adultFormsRings = [createFormsRing('Adult - Adult Pool 1', 'Adult', ['3', '4'])];
 
       const masterPdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
 

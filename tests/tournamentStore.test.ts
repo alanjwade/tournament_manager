@@ -142,21 +142,22 @@ describe('Tournament Store', () => {
 
   describe('Physical Ring Mappings', () => {
     it('should update physical ring mapping', () => {
-      useTournamentStore.getState().updatePhysicalRingMapping('Male 8-10_P1', 'Ring 1');
+      // New format: "Division - CategoryName Pool N"
+      useTournamentStore.getState().updatePhysicalRingMapping('Beginner - Male 8-10 Pool 1', 'Ring 1');
       
       const state = useTournamentStore.getState();
-      const mapping = state.physicalRingMappings.find(m => m.categoryPoolName === 'Male 8-10_P1');
+      const mapping = state.physicalRingMappings.find(m => m.categoryPoolName === 'Beginner - Male 8-10 Pool 1');
       
       expect(mapping).toBeDefined();
       expect(mapping?.physicalRingName).toBe('Ring 1');
     });
 
     it('should replace existing mapping with same category pool name', () => {
-      useTournamentStore.getState().updatePhysicalRingMapping('Male 8-10_P1', 'Ring 1');
-      useTournamentStore.getState().updatePhysicalRingMapping('Male 8-10_P1', 'Ring 2');
+      useTournamentStore.getState().updatePhysicalRingMapping('Beginner - Male 8-10 Pool 1', 'Ring 1');
+      useTournamentStore.getState().updatePhysicalRingMapping('Beginner - Male 8-10 Pool 1', 'Ring 2');
       
       const state = useTournamentStore.getState();
-      const mappings = state.physicalRingMappings.filter(m => m.categoryPoolName === 'Male 8-10_P1');
+      const mappings = state.physicalRingMappings.filter(m => m.categoryPoolName === 'Beginner - Male 8-10 Pool 1');
       
       expect(mappings.length).toBe(1);
       expect(mappings[0].physicalRingName).toBe('Ring 2');
@@ -345,9 +346,10 @@ describe('Tournament Store', () => {
       
       expect(diff).not.toBeNull();
       // New format uses _sparring_a suffix
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring_a')).toBe(true);
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring_b')).toBe(false);
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring')).toBe(false);
+      // New format: Division - CategoryName Pool N_type[_altRing]
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring_a')).toBe(true);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring_b')).toBe(false);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring')).toBe(false);
     });
 
     it('should track forms and sparring separately when both exist with same category/pool', async () => {
@@ -388,10 +390,10 @@ describe('Tournament Store', () => {
       const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
       
       expect(diff).not.toBeNull();
-      // Should track forms ring as changed
-      expect(diff!.ringsAffected.has('Beginner_P1_forms')).toBe(true);
+      // Should track forms ring as changed (new format)
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_forms')).toBe(true);
       // Should NOT track sparring ring as changed (only forms changed)
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring')).toBe(false);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring')).toBe(false);
     });
 
     it('should track sparring with multiple alt rings separately', async () => {
@@ -435,11 +437,11 @@ describe('Tournament Store', () => {
       
       expect(diff).not.toBeNull();
       // Should track only alt ring a as changed (new format)
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring_a')).toBe(true);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring_a')).toBe(true);
       // Should NOT track alt ring b
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring_b')).toBe(false);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring_b')).toBe(false);
       // Should NOT track base sparring ring
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring')).toBe(false);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring')).toBe(false);
     });
 
     it('should match ring names correctly when filtering for PDF export', async () => {
@@ -492,14 +494,15 @@ describe('Tournament Store', () => {
       );
       
       expect(diff).not.toBeNull();
-      expect(diff!.ringsAffected.has('Beginner_P1_forms')).toBe(true);
+      // Ring IDs now use new format: "Division - CategoryName Pool N_type"
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_forms')).toBe(true);
       
-      // The ring in competitionRings has name "Beginner_P1" (without suffix)
+      // The ring in competitionRings has name "Youth - Beginner Pool 1" (without suffix)
       const formsRing = competitionRings.find(r => 
-        r.name === 'Beginner_P1' && r.type === 'forms'
+        r.name === 'Youth - Beginner Pool 1' && r.type === 'forms'
       );
       const sparringRing = competitionRings.find(r => 
-        r.name === 'Beginner_P1' && r.type === 'sparring'
+        r.name === 'Youth - Beginner Pool 1' && r.type === 'sparring'
       );
       
       expect(formsRing).toBeDefined();
@@ -570,13 +573,13 @@ describe('Tournament Store', () => {
       
       expect(diff).not.toBeNull();
       
-      // Should ONLY track forms
-      expect(diff!.ringsAffected.has('Beginner_P1_forms')).toBe(true);
+      // Should ONLY track forms (new format: Division - CategoryName Pool N_type)
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_forms')).toBe(true);
       
-      // Should NOT track any sparring rings (new format uses _sparring prefix)
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring')).toBe(false);
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring_a')).toBe(false);
-      expect(diff!.ringsAffected.has('Beginner_P1_sparring_b')).toBe(false);
+      // Should NOT track any sparring rings
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring')).toBe(false);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring_a')).toBe(false);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring_b')).toBe(false);
       
       // Verify only 1 ring is affected (forms)
       expect(diff!.ringsAffected.size).toBe(1);
@@ -590,10 +593,10 @@ describe('Tournament Store', () => {
       );
       
       const formsRing = competitionRings.find(r => 
-        r.name === 'Beginner_P1' && r.type === 'forms'
+        r.name === 'Youth - Beginner Pool 1' && r.type === 'forms'
       );
       const sparringRing = competitionRings.find(r => 
-        r.name === 'Beginner_P1' && r.type === 'sparring'
+        r.name === 'Youth - Beginner Pool 1' && r.type === 'sparring'
       );
       
       expect(formsRing).toBeDefined();

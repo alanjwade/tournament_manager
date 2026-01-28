@@ -178,22 +178,40 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   setPhysicalRingMappings: (mappings) => {
-    set({ physicalRingMappings: mappings });
+    // Migrate from old "PR1", "PR1a" format to new "Ring 1", "Ring 1a" format
+    const migratedMappings = mappings.map(m => {
+      const physicalRingName = m.physicalRingName;
+      // Check if it starts with "PR" (old format)
+      if (physicalRingName.match(/^PR\d/i)) {
+        // Convert "PR1" to "Ring 1", "PR1a" to "Ring 1a", etc.
+        const converted = physicalRingName.replace(/^PR(\d+)([a-z])?$/i, 'Ring $1$2');
+        return { ...m, physicalRingName: converted };
+      }
+      return m;
+    });
+    set({ physicalRingMappings: migratedMappings });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   updatePhysicalRingMapping: (categoryPoolName, physicalRingName) => {
+    // Migrate from old "PR1" format to new "Ring 1" format
+    let migratedRingName = physicalRingName;
+    if (physicalRingName.match(/^PR\d/i)) {
+      // Convert "PR1" to "Ring 1", "PR1a" to "Ring 1a", etc.
+      migratedRingName = physicalRingName.replace(/^PR(\d+)([a-z])?$/i, 'Ring $1$2');
+    }
+    
     set((state) => {
       const existing = state.physicalRingMappings.find(m => m.categoryPoolName === categoryPoolName);
       if (existing) {
         return {
           physicalRingMappings: state.physicalRingMappings.map(m =>
-            m.categoryPoolName === categoryPoolName ? { ...m, physicalRingName, categoryPoolName } : m
+            m.categoryPoolName === categoryPoolName ? { ...m, physicalRingName: migratedRingName, categoryPoolName } : m
           ),
         };
       } else {
         return {
-          physicalRingMappings: [...state.physicalRingMappings, { categoryPoolName, physicalRingName }],
+          physicalRingMappings: [...state.physicalRingMappings, { categoryPoolName, physicalRingName: migratedRingName }],
         };
       }
     });
@@ -276,6 +294,18 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       };
     });
 
+    // Migrate physical ring mappings from old "PR1" format to new "Ring 1" format
+    const migratedPhysicalRingMappings = (state.physicalRingMappings || []).map(m => {
+      const physicalRingName = m.physicalRingName;
+      // Check if it starts with "PR" (old format)
+      if (physicalRingName.match(/^PR\d/i)) {
+        // Convert "PR1" to "Ring 1", "PR1a" to "Ring 1a", etc.
+        const converted = physicalRingName.replace(/^PR(\d+)([a-z])?$/i, 'Ring $1$2');
+        return { ...m, physicalRingName: converted };
+      }
+      return m;
+    });
+
     set({
       participants: state.participants || [],
       categories: state.categories || [],
@@ -283,7 +313,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         ...(state.config || initialConfig),
         divisions: mergedDivisions
       },
-      physicalRingMappings: state.physicalRingMappings || [],
+      physicalRingMappings: migratedPhysicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings || [],
       customRings: state.customRings || [],
     });
@@ -414,21 +444,24 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
     /**
      * Build a ring identifier with all necessary context.
-     * Format: CategoryName_Pool_type[_altRing]
+     * Format: Division - CategoryName Pool N_type[_altRing]
      * 
      * Examples:
-     * - "Beginner_P1_forms" - Forms ring
-     * - "Beginner_P1_sparring" - Sparring ring (no alt rings)
-     * - "Beginner_P1_sparring_a" - Sparring alt ring A
-     * - "Beginner_P1_sparring_b" - Sparring alt ring B
+     * - "Beginner - Mixed 8-10 Pool 1_forms" - Forms ring
+     * - "Beginner - Mixed 8-10 Pool 1_sparring" - Sparring ring (no alt rings)
+     * - "Beginner - Mixed 8-10 Pool 1_sparring_a" - Sparring alt ring A
+     * - "Beginner - Mixed 8-10 Pool 1_sparring_b" - Sparring alt ring B
      */
     const buildRingId = (
+      division: string,
       categoryName: string,
       pool: string,
       type: 'forms' | 'sparring',
       altRing?: string
     ): string => {
-      let id = `${categoryName}_${pool}_${type}`;
+      // Convert pool format from P1 to Pool 1
+      const poolDisplay = pool.replace(/^P(\d+)$/, 'Pool $1');
+      let id = `${division} - ${categoryName} ${poolDisplay}_${type}`;
       if (type === 'sparring' && altRing) {
         id += `_${altRing}`;
       }
@@ -468,7 +501,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
               const category = state.categories.find(c => c.id === categoryId);
               if (category && currentP.competingForms) {
                 const pool = currentP.formsPool || 'P1';
-                ringsAffected.add(buildRingId(category.name, pool, 'forms'));
+                ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
               }
             } else {
               // For category, pool, or competing changes, track both old and new rings
@@ -476,14 +509,14 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
                 const category = checkpoint.state.categories.find(c => c.id === checkpointP.formsCategoryId);
                 if (category) {
                   const pool = checkpointP.formsPool || 'P1';
-                  ringsAffected.add(buildRingId(category.name, pool, 'forms'));
+                  ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
                 }
               }
               if (currentP.competingForms && currentP.formsCategoryId) {
                 const category = state.categories.find(c => c.id === currentP.formsCategoryId);
                 if (category) {
                   const pool = currentP.formsPool || 'P1';
-                  ringsAffected.add(buildRingId(category.name, pool, 'forms'));
+                  ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
                 }
               }
             }
@@ -497,7 +530,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
               const category = state.categories.find(c => c.id === categoryId);
               if (category && currentP.competingSparring) {
                 const pool = currentP.sparringPool || 'P1';
-                ringsAffected.add(buildRingId(category.name, pool, 'sparring', currentP.sparringAltRing || undefined));
+                ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', currentP.sparringAltRing || undefined));
               }
             } else {
               // For category, pool, alt ring, or competing changes, track both old and new rings
@@ -505,14 +538,14 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
                 const category = checkpoint.state.categories.find(c => c.id === checkpointP.sparringCategoryId);
                 if (category) {
                   const pool = checkpointP.sparringPool || 'P1';
-                  ringsAffected.add(buildRingId(category.name, pool, 'sparring', checkpointP.sparringAltRing || undefined));
+                  ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', checkpointP.sparringAltRing || undefined));
                 }
               }
               if (currentP.competingSparring && currentP.sparringCategoryId) {
                 const category = state.categories.find(c => c.id === currentP.sparringCategoryId);
                 if (category) {
                   const pool = currentP.sparringPool || 'P1';
-                  ringsAffected.add(buildRingId(category.name, pool, 'sparring', currentP.sparringAltRing || undefined));
+                  ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', currentP.sparringAltRing || undefined));
                 }
               }
             }

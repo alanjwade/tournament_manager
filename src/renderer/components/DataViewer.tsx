@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { getEffectiveDivision } from '../utils/excelParser';
-import { formatPoolOnly } from '../utils/ringNameFormatter';
+import { formatPoolOnly, buildCategoryPoolName } from '../utils/ringNameFormatter';
 import { Participant } from '../types/tournament';
 import { computeCompetitionRings } from '../utils/computeRings';
 import AddParticipantModal from './AddParticipantModal';
@@ -175,8 +175,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       if (visibleColumns.formsCategory) row.push(getCohortName(p.formsCategoryId));
       if (visibleColumns.formsRing) row.push(p.formsPool ? formatPoolOnly(p.formsPool) : '');
       if (visibleColumns.formsPhysicalRing) {
-        const formsPhysRing = p.formsCategoryId && p.formsPool
-          ? physicalRingMappings.find(m => m.categoryPoolName?.startsWith(`${categories.find(c => c.id === p.formsCategoryId)?.name}_${p.formsPool}`))
+        const formsCategory = categories.find(c => c.id === p.formsCategoryId);
+        const formsPhysRing = formsCategory && p.formsPool
+          ? physicalRingMappings.find(m => m.categoryPoolName === buildCategoryPoolName(formsCategory.division, formsCategory.name, p.formsPool!))
           : undefined;
         row.push(formsPhysRing?.physicalRingName || '');
       }
@@ -185,8 +186,9 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       if (visibleColumns.sparringCategory) row.push(getCohortName(p.sparringCategoryId));
       if (visibleColumns.sparringRing) row.push(p.sparringPool ? formatPoolOnly(p.sparringPool) : '');
       if (visibleColumns.sparringPhysicalRing) {
-        const sparringPhysRing = p.sparringCategoryId && p.sparringPool
-          ? physicalRingMappings.find(m => m.categoryPoolName?.startsWith(`${categories.find(c => c.id === p.sparringCategoryId)?.name}_${p.sparringPool}`))
+        const sparringCategory = categories.find(c => c.id === p.sparringCategoryId);
+        const sparringPhysRing = sparringCategory && p.sparringPool
+          ? physicalRingMappings.find(m => m.categoryPoolName === buildCategoryPoolName(sparringCategory.division, sparringCategory.name, p.sparringPool!))
           : undefined;
         row.push(sparringPhysRing?.physicalRingName || '');
       }
@@ -251,16 +253,15 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       const categoryPoolName = mapping.categoryPoolName;
       if (!categoryPoolName) return;
       
-      // Extract category name from categoryPoolName (e.g., "Mixed 8-10_P1" -> "Mixed 8-10")
-      const categoryName = categoryPoolName.split('_')[0];
+      // Extract division from categoryPoolName (new format: "Division - CategoryName Pool N")
+      const divisionMatch = categoryPoolName.match(/^(.+?) - /);
+      const division = divisionMatch ? divisionMatch[1] : null;
       
-      // Find category and its division
-      const category = categories.find(c => c.name === categoryName);
-      if (category && mapping.physicalRingName) {
+      if (division && mapping.physicalRingName) {
         if (!ringToDivisions.has(mapping.physicalRingName)) {
           ringToDivisions.set(mapping.physicalRingName, new Set());
         }
-        ringToDivisions.get(mapping.physicalRingName)!.add(category.division);
+        ringToDivisions.get(mapping.physicalRingName)!.add(division);
       }
     });
     
@@ -468,19 +469,28 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       return;
     }
 
-    // Parse category name and pool from categoryPoolName (e.g., "Mixed 8-10_P1")
-    const poolMatch = categoryPoolName.match(/_P(\d+)$/);
+    // Parse from new format: "Division - CategoryName Pool N"
+    const poolMatch = categoryPoolName.match(/Pool (\d+)$/);
     if (!poolMatch) {
       console.warn('Could not parse pool from categoryPoolName:', categoryPoolName);
       return;
     }
     
     const pool = `P${poolMatch[1]}`; // e.g., "P1"
-    const categoryName = categoryPoolName.replace(/_P\d+$/, ''); // e.g., "Mixed 8-10"
+    
+    // Extract division and category name from new format
+    const formatMatch = categoryPoolName.match(/^(.+?) - (.+?) Pool \d+$/);
+    if (!formatMatch) {
+      console.warn('Could not parse categoryPoolName format:', categoryPoolName);
+      return;
+    }
+    
+    const division = formatMatch[1];
+    const categoryName = formatMatch[2];
 
-    // Find the category by name and type
+    // Find the category by name, type, and division
     const category = categories.find(c => 
-      c.name === categoryName && c.type === type
+      c.name === categoryName && c.type === type && c.division === division
     );
     
     if (!category) {
@@ -526,12 +536,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       const formsPoolValue = p.formsPool || '';
       const sparringPoolValue = p.sparringPool || '';
       
-      // Get physical ring names from mappings
+      // Get physical ring names from mappings (using new format)
       const formsPhysicalMapping = physicalRingMappings.find(m => 
-        formsCategory && p.formsPool && m.categoryPoolName === `${formsCategory.name}_${p.formsPool}`
+        formsCategory && p.formsPool && m.categoryPoolName === buildCategoryPoolName(formsCategory.division, formsCategory.name, p.formsPool)
       );
       const sparringPhysicalMapping = physicalRingMappings.find(m => 
-        sparringCategory && p.sparringPool && m.categoryPoolName === `${sparringCategory.name}_${p.sparringPool}`
+        sparringCategory && p.sparringPool && m.categoryPoolName === buildCategoryPoolName(sparringCategory.division, sparringCategory.name, p.sparringPool)
       );
       const formsPhysicalRingName = formsPhysicalMapping?.physicalRingName || '';
       const sparringPhysicalRingName = sparringPhysicalMapping?.physicalRingName || '';
@@ -985,12 +995,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
               const formsCategory = categories.find(c => c.id === p.formsCategoryId);
               const sparringCategory = categories.find(c => c.id === p.sparringCategoryId);
               
-              // Get physical ring names from mappings
+              // Get physical ring names from mappings (using new format)
               const formsPhysicalMapping = physicalRingMappings.find(m => 
-                formsCategory && p.formsPool && m.categoryPoolName === `${formsCategory.name}_${p.formsPool}`
+                formsCategory && p.formsPool && m.categoryPoolName === buildCategoryPoolName(formsCategory.division, formsCategory.name, p.formsPool)
               );
               const sparringPhysicalMapping = physicalRingMappings.find(m => 
-                sparringCategory && p.sparringPool && m.categoryPoolName === `${sparringCategory.name}_${p.sparringPool}`
+                sparringCategory && p.sparringPool && m.categoryPoolName === buildCategoryPoolName(sparringCategory.division, sparringCategory.name, p.sparringPool)
               );
 
               const isHighlighted = p.id === highlightedId;

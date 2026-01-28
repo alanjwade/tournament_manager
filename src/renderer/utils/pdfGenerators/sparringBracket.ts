@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing } from '../../types/tournament';
-import { getPhysicalRingId, getFullyQualifiedRingName, formatPdfTimestamp, formatPoolNameForDisplay } from '../ringNameFormatter';
+import { getPhysicalRingId, getFullyQualifiedRingName, formatPdfTimestamp, formatPoolNameForDisplay, extractPoolId } from '../ringNameFormatter';
 import { checkSparringAltRingStatus } from '../ringOrdering';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
@@ -110,7 +110,8 @@ export function generateSparringBrackets(
       .sort((a, b) => (a.sparringRankOrder || 0) - (b.sparringRankOrder || 0));
 
     // Check for alt ring status
-    const pool = ring.name?.split('_').pop(); // Get the pool part like "P1", "P2" etc.
+    // Extract pool ID from the ring name (handles both old "Category_P1" and new "Division - Category Pool 1" formats)
+    const pool = extractPoolId(ring.name);
     console.log('[sparringBracket] Ring:', ring.name, 'pool:', pool);
     const altStatus = pool 
       ? checkSparringAltRingStatus(participants, ring.categoryId, pool)

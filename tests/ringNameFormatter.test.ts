@@ -86,23 +86,24 @@ describe('ringNameFormatter', () => {
   });
 
   describe('getPhysicalRingId', () => {
+    // New format: "Division - CategoryName Pool N"
     const mappings = [
-      { categoryPoolName: 'Male 8-10_P1', physicalRingName: 'PR1a' },
-      { categoryPoolName: 'Male 8-10_P2', physicalRingName: 'PR1b' },
-      { categoryPoolName: 'Female 11-13_P1', physicalRingName: 'PR2' },
+      { categoryPoolName: 'Beginner - Male 8-10 Pool 1', physicalRingName: 'PR1a' },
+      { categoryPoolName: 'Beginner - Male 8-10 Pool 2', physicalRingName: 'PR1b' },
+      { categoryPoolName: 'Beginner - Female 11-13 Pool 1', physicalRingName: 'PR2' },
     ];
 
     it('should return physical ring ID for matching pool', () => {
-      expect(getPhysicalRingId('Male 8-10_P1', mappings)).toBe('PR1a');
+      expect(getPhysicalRingId('Beginner - Male 8-10 Pool 1', mappings)).toBe('PR1a');
     });
 
     it('should return null for non-matching pool', () => {
-      expect(getPhysicalRingId('Unknown_P1', mappings)).toBeNull();
+      expect(getPhysicalRingId('Unknown - Unknown Pool 1', mappings)).toBeNull();
     });
 
     it('should return correct mapping for different pools', () => {
-      expect(getPhysicalRingId('Male 8-10_P2', mappings)).toBe('PR1b');
-      expect(getPhysicalRingId('Female 11-13_P1', mappings)).toBe('PR2');
+      expect(getPhysicalRingId('Beginner - Male 8-10 Pool 2', mappings)).toBe('PR1b');
+      expect(getPhysicalRingId('Beginner - Female 11-13 Pool 1', mappings)).toBe('PR2');
     });
   });
 

@@ -1,10 +1,31 @@
 import { PhysicalRing, CompetitionRing } from '../types/tournament';
 
 /**
+ * Build a category pool name in the standard format.
+ * Format: "Division - CategoryName Pool N"
+ * Example: "Beginner - Mixed 8-10 Pool 1"
+ * 
+ * @param division - The division name (e.g., "Beginner")
+ * @param categoryName - The category name (e.g., "Mixed 8-10")
+ * @param pool - The pool identifier (e.g., "P1" or "Pool 1")
+ * @returns Formatted category pool name
+ */
+export function buildCategoryPoolName(division: string, categoryName: string, pool: string): string {
+  // Convert pool format from P1 to Pool 1 if needed
+  const poolDisplay = pool.replace(/^P(\d+)$/, 'Pool $1');
+  return `${division} - ${categoryName} ${poolDisplay}`;
+}
+
+/**
  * Format a pool name for display (e.g., "Mixed 8-10_P1" -> "Mixed 8-10 Pool 1")
+ * Also handles the new format: "Beginner - Mixed 8-10 Pool 1" (returns as-is)
  * Converts internal pool naming to user-friendly display format
  */
 export function formatPoolNameForDisplay(poolName: string): string {
+  // If already in the new format with " Pool N", return as-is
+  if (/ Pool \d+$/.test(poolName)) {
+    return poolName;
+  }
   // Replace _P1, _P2, etc. with " Pool 1", " Pool 2", etc.
   return poolName.replace(/_P(\d+)$/, ' Pool $1');
 }
@@ -14,7 +35,36 @@ export function formatPoolNameForDisplay(poolName: string): string {
  */
 export function formatPoolOnly(pool: string): string {
   if (!pool) return '';
+  // If already in Pool format, return as-is
+  if (/^Pool \d+$/.test(pool)) {
+    return pool;
+  }
   return pool.replace(/^P(\d+)$/, 'Pool $1');
+}
+
+/**
+ * Extract the pool identifier (P1, P2, etc.) from a ring name.
+ * Handles both old format (CategoryName_P1) and new format (Division - CategoryName Pool 1).
+ * 
+ * @param ringName - The ring name (e.g., "Youth - Mixed 8-10 Pool 1" or "Mixed 8-10_P1")
+ * @returns The pool ID in P format (e.g., "P1", "P2") or null if not found
+ */
+export function extractPoolId(ringName: string | undefined): string | null {
+  if (!ringName) return null;
+  
+  // Try new format first: "Division - CategoryName Pool N"
+  const newFormatMatch = ringName.match(/Pool (\d+)$/);
+  if (newFormatMatch) {
+    return `P${newFormatMatch[1]}`;
+  }
+  
+  // Try old format: "CategoryName_PN"
+  const oldFormatMatch = ringName.match(/_P(\d+)$/);
+  if (oldFormatMatch) {
+    return `P${oldFormatMatch[1]}`;
+  }
+  
+  return null;
 }
 
 /**
@@ -158,14 +208,14 @@ export function getFullyQualifiedRingNameFromCompetitionRing(
 
 /**
  * Ring identifier parsing result.
- * Ring IDs have the format: CategoryName_Pool_type[_altRing]
+ * Ring IDs have the format: Division - CategoryName Pool N_type[_altRing]
  * Examples:
- * - "Beginner_P1_forms"
- * - "Beginner_P1_sparring"
- * - "Beginner_P1_sparring_a"
+ * - "Beginner - Mixed 8-10 Pool 1_forms"
+ * - "Beginner - Mixed 8-10 Pool 1_sparring"
+ * - "Beginner - Mixed 8-10 Pool 1_sparring_a"
  */
 export interface ParsedRingId {
-  categoryPool: string;  // "Beginner_P1"
+  categoryPool: string;  // "Beginner - Mixed 8-10 Pool 1"
   type: 'forms' | 'sparring';
   altRing?: string;  // 'a', 'b', etc.
 }
@@ -207,13 +257,13 @@ export function parseRingId(ringId: string): ParsedRingId | null {
 /**
  * Check if a ring is affected based on the changedRings set from checkpoint diff.
  * 
- * The new ring ID format is: CategoryName_Pool_type[_altRing]
+ * The ring ID format is: Division - CategoryName Pool N_type[_altRing]
  * Examples:
- * - "Beginner_P1_forms" - Forms ring
- * - "Beginner_P1_sparring" - Sparring ring (no alt rings)
- * - "Beginner_P1_sparring_a" - Sparring alt ring A
+ * - "Beginner - Mixed 8-10 Pool 1_forms" - Forms ring
+ * - "Beginner - Mixed 8-10 Pool 1_sparring" - Sparring ring (no alt rings)
+ * - "Beginner - Mixed 8-10 Pool 1_sparring_a" - Sparring alt ring A
  * 
- * @param ringName - The base ring name from CompetitionRing (e.g., "Beginner_P1")
+ * @param ringName - The base ring name from CompetitionRing (e.g., "Beginner - Mixed 8-10 Pool 1")
  * @param ringType - The type of ring ('forms' or 'sparring')
  * @param changedRings - The set of changed ring IDs from diffCheckpoint
  * @returns Object with isAffected flag and optional altRing filter

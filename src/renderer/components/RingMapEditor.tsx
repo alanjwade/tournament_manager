@@ -70,6 +70,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
   const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt');
   const [numPhysicalRings, setNumPhysicalRings] = useState<number>(14);
   const [assignments, setAssignments] = useState<RingAssignmentRow[]>([]);
+  const [isDirty, setIsDirty] = useState(false); // Track if user has made changes
 
   // Sync with global division when it changes
   useEffect(() => {
@@ -138,7 +139,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
         ringName: ring.ringName,
         division: ring.division,
         minAge: ring.minAge,
-        participantCount: ring.participantIds.size,
+        participantIds: ring.participantIds,
       }))
       .sort((a, b) => {
         // Sort by age
@@ -150,9 +151,31 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
       });
   }, [competitionRings, categories, selectedDivision]);
 
-  // Auto-assign physical rings sequentially
+  // Load assignments when division changes - get from store
+  useEffect(() => {
+    console.log('[RingMapEditor] Loading assignments for division:', selectedDivision);
+    console.log('[RingMapEditor] sortedCohortRings:', sortedCohortRings.map(r => r.ringName));
+    console.log('[RingMapEditor] physicalRingMappings:', physicalRingMappings);
+    
+    const newAssignments: RingAssignmentRow[] = sortedCohortRings.map(ring => {
+      const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.ringName);
+      console.log(`[RingMapEditor] Looking for "${ring.ringName}", found:`, mapping);
+      return {
+        cohortRingName: ring.ringName,
+        division: ring.division,
+        minAge: ring.minAge,
+        participantCount: ring.participantIds.size,
+        physicalRingName: mapping?.physicalRingName || '', // Empty string if not in store
+      };
+    });
+    
+    console.log('[RingMapEditor] New assignments:', newAssignments);
+    setAssignments(newAssignments);
+    setIsDirty(false); // Reset dirty flag when loading new division
+  }, [selectedDivision, sortedCohortRings, physicalRingMappings]);
+
+  // Auto-assign physical rings sequentially (updates local state only)
   const handleAutoAssign = () => {
-    const newAssignments: RingAssignmentRow[] = [];
     const physicalRingNames: string[] = [];
 
     // Generate physical ring names based on numPhysicalRings
@@ -162,7 +185,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
 
     // Assign all pools sequentially
     const needsSuffixes = sortedCohortRings.length > numPhysicalRings;
-    sortedCohortRings.forEach((ring, index) => {
+    const newAssignments: RingAssignmentRow[] = sortedCohortRings.map((ring, index) => {
       let physicalRingName: string;
       
       if (needsSuffixes) {
@@ -178,91 +201,64 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
         physicalRingName = physicalRingNames[index];
       }
       
-      newAssignments.push({
-        cohortRingName: ring.ringName,
-        division: ring.division,
-        minAge: ring.minAge,
-        participantCount: ring.participantCount,
-        physicalRingName,
-      });
-    });
-
-    setAssignments(newAssignments);
-
-    // Save to state - merge with existing mappings from other divisions
-    const newMappings = newAssignments.map(a => ({
-      categoryPoolName: a.cohortRingName,
-      physicalRingName: a.physicalRingName,
-    }));
-    
-    // Keep mappings from other divisions, replace only current division's mappings
-    const currentDivisionRingNames = new Set(sortedCohortRings.map(r => r.ringName));
-    const otherDivisionMappings = physicalRingMappings.filter(
-      m => !currentDivisionRingNames.has(m.categoryPoolName)
-    );
-    
-    const allMappings = [...otherDivisionMappings, ...newMappings];
-    console.log('[RingMapEditor] handleAutoAssign - Setting mappings:', allMappings);
-    setPhysicalRingMappings(allMappings);
-  };
-
-  // Initialize assignments from existing mappings when division changes or mappings update
-  useEffect(() => {
-    console.log('[RingMapEditor] useEffect triggered');
-    console.log('[RingMapEditor] selectedDivision:', selectedDivision);
-    console.log('[RingMapEditor] sortedCohortRings:', sortedCohortRings.map(r => r.ringName));
-    console.log('[RingMapEditor] physicalRingMappings:', physicalRingMappings);
-    
-    const newAssignments: RingAssignmentRow[] = sortedCohortRings.map(ring => {
-      const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.ringName);
-      console.log(`[RingMapEditor] Looking up ${ring.ringName}, found mapping:`, mapping);
       return {
         cohortRingName: ring.ringName,
         division: ring.division,
         minAge: ring.minAge,
         participantCount: ring.participantCount,
-        physicalRingName: mapping?.physicalRingName || '',
+        physicalRingName,
       };
     });
-    
-    console.log('[RingMapEditor] newAssignments:', newAssignments);
-    console.log('[RingMapEditor] current assignments:', assignments);
-    
-    // Only update if assignments actually changed to prevent infinite loops
-    const assignmentsChanged = JSON.stringify(newAssignments) !== JSON.stringify(assignments);
-    console.log('[RingMapEditor] assignmentsChanged:', assignmentsChanged);
-    if (assignmentsChanged) {
-      setAssignments(newAssignments);
-    }
-  }, [sortedCohortRings, selectedDivision, physicalRingMappings]);
 
-  // Handle manual edit of physical ring assignment
+    setAssignments(newAssignments);
+    setIsDirty(true); // Mark as dirty
+  };
+
+  // Handle manual edit of physical ring assignment (updates local state only)
   const handlePhysicalRingChange = (cohortRingName: string, newPhysicalRing: string) => {
-    console.log('[RingMapEditor] handlePhysicalRingChange called');
-    console.log('[RingMapEditor] cohortRingName:', cohortRingName);
-    console.log('[RingMapEditor] newPhysicalRing:', newPhysicalRing);
-    
-    // Update local state
     const updatedAssignments = assignments.map(a =>
       a.cohortRingName === cohortRingName
         ? { ...a, physicalRingName: newPhysicalRing }
         : a
     );
-    console.log('[RingMapEditor] updatedAssignments:', updatedAssignments);
     setAssignments(updatedAssignments);
+    setIsDirty(true); // Mark as dirty
+  };
 
-    // Save to store immediately
-    console.log('[RingMapEditor] Calling updatePhysicalRingMapping');
-    updatePhysicalRingMapping(cohortRingName, newPhysicalRing);
-    console.log('[RingMapEditor] After updatePhysicalRingMapping, store physicalRingMappings:', useTournamentStore.getState().physicalRingMappings);
+  // Confirm and save assignments to the store
+  const handleConfirm = () => {
+    // Only save assignments that have a physical ring assigned
+    const newMappings = assignments
+      .filter(a => a.physicalRingName.trim() !== '')
+      .map(a => ({
+        categoryPoolName: a.cohortRingName,
+        physicalRingName: a.physicalRingName,
+      }));
+    
+    // Keep mappings from other divisions, replace only current division's mappings
+    // Use the ring names from current assignments to identify what to replace
+    const currentDivisionRingNames = new Set(assignments.map(a => a.cohortRingName));
+    const otherDivisionMappings = physicalRingMappings.filter(
+      m => !currentDivisionRingNames.has(m.categoryPoolName)
+    );
+    
+    const allMappings = [...otherDivisionMappings, ...newMappings];
+    console.log('[RingMapEditor] handleConfirm - Division:', selectedDivision);
+    console.log('[RingMapEditor] handleConfirm - Current division ring names (count: ' + currentDivisionRingNames.size + '):', Array.from(currentDivisionRingNames));
+    console.log('[RingMapEditor] handleConfirm - Existing mappings in store (count: ' + physicalRingMappings.length + '):', physicalRingMappings);
+    console.log('[RingMapEditor] handleConfirm - Other division mappings (count: ' + otherDivisionMappings.length + '):', otherDivisionMappings);
+    console.log('[RingMapEditor] handleConfirm - New mappings for current division (count: ' + newMappings.length + '):', newMappings);
+    console.log('[RingMapEditor] handleConfirm - Final all mappings (count: ' + allMappings.length + '):', allMappings);
+    setPhysicalRingMappings(allMappings);
+    setIsDirty(false); // Clear dirty flag
   };
 
   return (
     <div style={{ width: 'fit-content', minWidth: 0 }}>
       <h2>Ring Map Editor</h2>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
-        Assign pools to physical rings. Select a division, specify the number of physical rings,
-        then click "Assign Physical Rings" to auto-assign. You can also manually edit assignments.
+        Assign pools to physical rings. Select a division, and you'll see any previously saved assignments. 
+        Use "Auto Assign" to automatically fill the form, edit manually as needed, then click "Confirm" to save.
       </p>
 
       {/* Division Selector */}
@@ -298,10 +294,11 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
         />
         <button
           onClick={handleAutoAssign}
-          className="btn btn-primary"
+          className="btn btn-secondary"
           disabled={sortedCohortRings.length === 0}
+          title="Automatically assign pools to physical rings"
         >
-          Assign Physical Rings
+          🔄 Auto Assign
         </button>
       </div>
 
@@ -311,7 +308,7 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
           {sortedCohortRings.length === 0 ? (
             <>No pools found for {selectedDivision}. Assign rings in the "Category Ring Assignment" tab first.</>
           ) : (
-            <>Click "Assign Physical Rings" to generate assignments</>
+            <>View and edit assignments below, or click "Auto Assign" to automatically assign pools to physical rings</>
           )}
         </div>
       ) : (
@@ -386,15 +383,28 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
       {/* Summary */}
       {assignments.length > 0 && (
         <div style={{ marginTop: '20px', padding: '15px', backgroundColor: 'var(--info-bg)', border: '1px solid var(--info-border)', borderRadius: '5px', color: 'var(--info-text)' }}>
-          <strong>Summary:</strong>
-          <div style={{ marginTop: '5px' }}>
-            Total pools for {selectedDivision}: {assignments.length}
-          </div>
-          <div>
-            Physical rings used: {new Set(assignments.map(a => a.physicalRingName).filter(Boolean)).size}
-          </div>
-          <div style={{ marginTop: '10px', fontSize: '12px' }}>
-            Changes are saved automatically as you edit.
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+            <div>
+              <strong>Summary:</strong>
+              <div style={{ marginTop: '5px' }}>
+                Total pools for {selectedDivision}: {assignments.length}
+              </div>
+              <div>
+                Physical rings used: {new Set(assignments.map(a => a.physicalRingName).filter(Boolean)).size}
+              </div>
+              <div style={{ marginTop: '10px', fontSize: '12px' }}>
+                {isDirty ? '✏️ You have unsaved changes.' : '✓ No unsaved changes.'}
+              </div>
+            </div>
+            <button
+              onClick={handleConfirm}
+              className="btn btn-success"
+              disabled={!isDirty}
+              title={isDirty ? 'Save the assignments to the store' : 'No changes to save'}
+              style={{ marginTop: 0 }}
+            >
+              ✓ Confirm
+            </button>
           </div>
         </div>
       )}
