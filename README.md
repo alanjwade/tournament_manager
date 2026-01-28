@@ -6,7 +6,7 @@ A desktop application for managing martial arts tournament participation, built 
 
 - **Data Import**: Import participant data from Excel spreadsheets (.xlsx, .xls, .csv)
 - **Division Management**: Configure tournament divisions and physical rings
-- **Cohort Assignment**: Automatically group participants by age, gender, and division
+- **Category Assignment**: Automatically group participants by age, gender, and division
 - **Ring Assignment**: Distribute participants across physical rings
 - **Forms Competition**: Automated ordering to prevent same-school clustering
 - **Sparring Competition**: Height-based ordering with automated bracket generation
@@ -70,9 +70,9 @@ The input Excel file should have the following columns (case-insensitive):
    - Add physical rings with names and colors
    - Optionally add a watermark image for PDFs
    - Optionally set a default PDF output directory (PDFs will be saved here by default)
-3. **Cohort Management**: 
-   - Auto-assign participants to cohorts based on division, gender, and age
-   - Adjust ring counts per cohort as needed
+3. **Category Management**: 
+   - Auto-assign participants to categories based on division, gender, and age
+   - Adjust ring counts per category as needed
 4. **Ring Assignment**:
    - Assign forms and sparring rings
    - Order participants within each ring
@@ -91,7 +91,7 @@ tournament-manager/
 │   │   ├── store/         # Zustand state management
 │   │   ├── utils/         # Utility functions
 │   │   │   ├── pdfGenerators/  # PDF generation
-│   │   │   ├── cohortAssignment.ts
+│   │   │   ├── categoryAssignment.ts
 │   │   │   ├── ringAssignment.ts
 │   │   │   ├── ringOrdering.ts
 │   │   │   └── excelParser.ts

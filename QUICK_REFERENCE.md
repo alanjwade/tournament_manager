@@ -27,7 +27,7 @@ Required columns (exact names):
 
 1. **Import** → Upload Excel file
 2. **Configure** → Set divisions & rings
-3. **Cohorts** → Assign participants to cohorts
+3. **Categories** → Assign participants to categories
 4. **Rings** → Distribute to physical rings
 5. **Order** → Run forms/sparring ordering
 6. **Overview** → Review assignments
@@ -37,12 +37,12 @@ Required columns (exact names):
 
 | Action | Warning | Impact |
 |--------|---------|--------|
-| Re-run Cohort Assignment | ⚠️ Destroys previous cohort assignments | All manual edits lost |
+| Re-run Category Assignment | ⚠️ Destroys previous category assignments | All manual edits lost |
 | Re-run Ring Assignment | ⚠️ Destroys previous ring assignments | Participant distribution reset |
 | Re-order Forms Ring | ✅ Safe - per ring only | No impact on other data |
 | Re-order Sparring Ring | ✅ Safe - per ring only | No impact on other data |
 
-## 📊 Cohort Guidelines
+## 📊 Category Guidelines
 
 ### Age Ranges
 - **Young Children**: 2-year ranges (5-6, 7-8, 9-10)
@@ -115,7 +115,7 @@ Default color support in PDFs:
 | Problem | Solution |
 |---------|----------|
 | Excel won't import | Check column names match exactly |
-| Participant missing cohort | Review age/gender criteria or assign manually |
+| Participant missing category | Review age/gender criteria or assign manually |
 | Unbalanced rings | Manually move participants in Ring Management |
 | First 3 same school in forms | Adjust rank_order numbers manually |
 | PDF won't open | Install PDF reader, try different filename |
@@ -168,9 +168,9 @@ Default configuration (in mm):
 ### Type Definitions
 - `Participant`: Individual competitor
 - `Division`: Tournament division (Black Belt, Level 1, etc.)
-- `Cohort`: Group of participants who compete together
+- `Category`: Group of participants who compete together
 - `PhysicalRing`: Actual ring at venue
-- `CompetitionRing`: Virtual ring assignment for cohort
+- `CompetitionRing`: Virtual ring assignment for category
 - `TournamentConfig`: Global settings
 
 ### State Management

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tournament Manager is a desktop application designed to simplify the organization and execution of martial arts tournaments. It handles participant registration, cohort grouping, ring assignments, competition ordering, and generates all necessary PDF documents for running a successful tournament.
+Tournament Manager is a desktop application designed to simplify the organization and execution of martial arts tournaments. It handles participant registration, category grouping, ring assignments, competition ordering, and generates all necessary PDF documents for running a successful tournament.
 
 ## Getting Started
 
@@ -12,7 +12,7 @@ Tournament Manager is a desktop application designed to simplify the organizatio
 2. You'll see six main tabs:
    - Import Data
    - Configuration
-   - Cohort Management
+   - Category Management
    - Ring Assignment
    - Overview
    - Export PDFs
@@ -75,50 +75,50 @@ Upload a watermark image to appear on forms scoring sheets and sparring brackets
 2. Choose a PNG, JPG, or other image file
 3. The watermark will appear faintly in the background of PDFs
 
-### Step 3: Cohort Assignment
+### Step 3: Category Assignment
 
-Cohorts group participants who will compete against each other. Typically, cohorts are divided by:
+Categories group participants who will compete against each other. Typically, categories are divided by:
 - Gender (male, female, or mixed)
 - Age range
 - Division
 
-#### Creating Cohorts
+#### Creating Categories
 
-1. Navigate to the **Cohort Management** tab
-2. For each cohort:
+1. Navigate to the **Category Management** tab
+2. For each category:
    - Select the division
    - Choose gender category (Male/Female/Mixed)
    - Set minimum age
    - Set maximum age (use 999 or high number for "18+")
-   - Specify number of rings this cohort will need
-3. Click "Add Cohort Criteria"
-4. Repeat for all cohorts needed
-5. Click "Assign Cohorts" to apply
+   - Specify number of rings this category will need
+3. Click "Add Category Criteria"
+4. Repeat for all categories needed
+5. Click "Assign Categories" to apply
 
 **Tips:**
 - Age 18 and up = Adults
-- Consider cohort sizes when deciding ring counts
-- Smaller cohorts may only need 1 ring
-- Larger cohorts may need multiple rings to avoid delays
+- Consider category sizes when deciding ring counts
+- Smaller categories may only need 1 ring
+- Larger categories may need multiple rings to avoid delays
 
 #### Manual Adjustments
 
-After initial cohort assignment:
-1. View the cohort list showing participants in each cohort
-2. Individual participants can be moved between cohorts using the edit functions
+After initial category assignment:
+1. View the category list showing participants in each category
+2. Individual participants can be moved between categories using the edit functions
 3. Check for unassigned participants
 
-⚠️ **Warning:** Re-running "Assign Cohorts" will overwrite all previous cohort assignments and manual edits!
+⚠️ **Warning:** Re-running "Assign Categories" will overwrite all previous category assignments and manual edits!
 
 ### Step 4: Ring Assignment
 
-This step assigns participants to specific physical rings within their cohort.
+This step assigns participants to specific physical rings within their category.
 
 1. Navigate to the **Ring Assignment** tab
 2. Choose assignment scope:
-   - Single cohort
-   - All cohorts in a division
-   - All cohorts
+   - Single category
+   - All categories in a division
+   - All categories
 3. Click "Assign Rings"
 
 **How It Works:**
@@ -170,7 +170,7 @@ Navigate to the **Overview** tab to see a comprehensive view of all rings.
 - Sparring rings on the right
 - Each ring shows:
   - Division
-  - Cohort
+  - Category
   - Ring color
   - Participant count
   - Participant details (name, age, height, gender)
@@ -276,7 +276,7 @@ Print on cardstock or adhesive label sheets.
 3. **Print Extras:** Print 10% extra name tags and scoring sheets
 4. **Watermark:** Use a light, semi-transparent watermark so text remains readable
 
-### Cohort Design
+### Category Design
 
 1. **Age Ranges:**
    - Young children: 2-year ranges (5-6, 7-8, 9-10)
@@ -309,8 +309,8 @@ Print on cardstock or adhesive label sheets.
 
 ### Common Issues
 
-**Problem:** Some participants don't have a cohort
-- **Solution:** Check age/gender criteria, manually assign them, or create a new cohort
+**Problem:** Some participants don't have a category
+- **Solution:** Check age/gender criteria, manually assign them, or create a new category
 
 **Problem:** Rings are very unbalanced in size
 - **Solution:** Manually move participants between rings in Ring Management
@@ -338,10 +338,10 @@ Currently, all data is held in memory. To preserve your work:
 
 ### Making Changes
 
-If you need to add/remove participants after cohort/ring assignment:
+If you need to add/remove participants after category/ring assignment:
 1. Re-import the updated Excel file
 2. This will reset all assignments
-3. You'll need to re-run cohort and ring assignments
+3. You'll need to re-run category and ring assignments
 
 ## Support
 
@@ -354,6 +354,6 @@ For issues or questions:
 
 - v1.0.0: Initial release
   - Excel import
-  - Cohort and ring assignment
+  - Category and ring assignment
   - Forms and sparring ordering
   - PDF generation (name tags, check-in, scoring, brackets)
