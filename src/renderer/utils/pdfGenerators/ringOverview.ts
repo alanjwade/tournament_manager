@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import { formatPdfTimestamp } from '../ringNameFormatter';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
+import { getSchoolAbbreviation } from '../schoolAbbreviations';
 
 interface RingPair {
   categoryPoolName: string;
@@ -78,7 +79,8 @@ export function generateRingOverviewPDF(
   participants: any[],
   ringPairs: RingPair[],
   categories: any[],
-  selectedDivision: string = 'all'
+  selectedDivision: string = 'all',
+  schoolAbbreviations?: { [schoolName: string]: string }
 ) {
   const doc = new jsPDF('portrait', 'pt', 'letter');
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -237,21 +239,23 @@ export function generateRingOverviewPDF(
         yPos += 15;
 
         // Forms table
-        const formsRows = formsParticipants.map(p => [
-          p.formsRankOrder ? String(p.formsRankOrder) : '-',
-          `${p.firstName} ${p.lastName}`,
-          p.schoolId ? p.schoolId.split(',')[0].substring(0, 12) : '',
-          String(p.age),
-          p.gender
-        ]);
+        const formsRows = formsParticipants.map(p => {
+          const schoolAbbr = getSchoolAbbreviation(p.branch || p.school, schoolAbbreviations);
+          return [
+            `${p.firstName} ${p.lastName}`,
+            schoolAbbr,
+            String(p.age),
+            p.gender ? p.gender.charAt(0).toUpperCase() : 'U'
+          ];
+        });
 
         formsEndY = drawTable(
           doc,
           leftX,
           yPos,
-          ['Pos', 'Name', 'School', 'Age', 'Gender'],
+          ['Name', 'School', 'Age', 'Gr'],
           formsRows,
-          [30, columnWidth - 170, 80, 30, 30],
+          [columnWidth - 165, 60, 30, 25],
           columnWidth
         );
       } else {
@@ -313,22 +317,24 @@ export function generateRingOverviewPDF(
             doc.text(`Alt Ring A (${participantsA.length})`, rightX, yPos);
             yPos += 12;
 
-            const rowsA = participantsA.map(p => [
-              p.sparringRankOrder ? String(p.sparringRankOrder * 10) : '-',
-              `${p.firstName} ${p.lastName}`,
-              p.schoolId ? p.schoolId.split(',')[0].substring(0, 12) : '',
-              String(p.age),
-              p.gender,
-              `${p.heightFeet}'${p.heightInches}"`
-            ]);
+            const rowsA = participantsA.map(p => {
+              const schoolAbbr = getSchoolAbbreviation(p.branch || p.school, schoolAbbreviations);
+              return [
+                `${p.firstName} ${p.lastName}`,
+                schoolAbbr,
+                String(p.age),
+                p.gender ? p.gender.charAt(0).toUpperCase() : 'U',
+                `${p.heightFeet}'${p.heightInches}"`
+              ];
+            });
 
             yPos = drawTable(
               doc,
               rightX,
               yPos,
-              ['Pos', 'Name', 'School', 'Age', 'Gender', 'Height'],
+              ['Name', 'School', 'Age', 'Gr', 'Ht'],
               rowsA,
-              [30, columnWidth - 210, 70, 30, 40, 40],
+              [columnWidth - 165, 55, 30, 25, 55],
               columnWidth
             ) + 10;
           }
@@ -340,22 +346,24 @@ export function generateRingOverviewPDF(
             doc.text(`Alt Ring B (${participantsB.length})`, rightX, yPos);
             yPos += 12;
 
-            const rowsB = participantsB.map(p => [
-              p.sparringRankOrder ? String(p.sparringRankOrder * 10) : '-',
-              `${p.firstName} ${p.lastName}`,
-              p.schoolId ? p.schoolId.split(',')[0].substring(0, 12) : '',
-              String(p.age),
-              p.gender,
-              `${p.heightFeet}'${p.heightInches}"`
-            ]);
+            const rowsB = participantsB.map(p => {
+              const schoolAbbr = getSchoolAbbreviation(p.branch || p.school, schoolAbbreviations);
+              return [
+                `${p.firstName} ${p.lastName}`,
+                schoolAbbr,
+                String(p.age),
+                p.gender ? p.gender.charAt(0).toUpperCase() : 'U',
+                `${p.heightFeet}'${p.heightInches}"`
+              ];
+            });
 
             sparringEndY = drawTable(
               doc,
               rightX,
               yPos,
-              ['Pos', 'Name', 'School', 'Age', 'Gender', 'Height'],
+              ['Name', 'School', 'Age', 'Gr', 'Ht'],
               rowsB,
-              [30, columnWidth - 210, 70, 30, 40, 40],
+              [columnWidth - 165, 55, 30, 25, 55],
               columnWidth
             );
           } else {
@@ -365,22 +373,24 @@ export function generateRingOverviewPDF(
           doc.text(`Participants: ${sparringParticipants.length}`, rightX, yPos);
           yPos += 15;
 
-          const sparringRows = sparringParticipants.map(p => [
-            p.sparringRankOrder ? String(p.sparringRankOrder * 10) : '-',
-            `${p.firstName} ${p.lastName}`,
-            p.schoolId ? p.schoolId.split(',')[0].substring(0, 12) : '',
-            String(p.age),
-            p.gender,
-            `${p.heightFeet}'${p.heightInches}"`
-          ]);
+          const sparringRows = sparringParticipants.map(p => {
+            const schoolAbbr = getSchoolAbbreviation(p.branch || p.school, schoolAbbreviations);
+            return [
+              `${p.firstName} ${p.lastName}`,
+              schoolAbbr,
+              String(p.age),
+              p.gender ? p.gender.charAt(0).toUpperCase() : 'U',
+              `${p.heightFeet}'${p.heightInches}"`
+            ];
+          });
 
           sparringEndY = drawTable(
             doc,
             rightX,
             yPos,
-            ['Pos', 'Name', 'School', 'Age', 'Gender', 'Height'],
+            ['Name', 'School', 'Age', 'Gr', 'Ht'],
             sparringRows,
-            [30, columnWidth - 200, 70, 30, 30, 40],
+            [columnWidth - 165, 55, 30, 25, 55],
             columnWidth
           );
         }

@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import { Participant, CompetitionRing, PhysicalRing } from '../../types/tournament';
 import { getFullyQualifiedRingName, getPhysicalRingId, formatPdfTimestamp, formatPoolNameForDisplay } from '../ringNameFormatter';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
+import { getSchoolAbbreviation } from '../schoolAbbreviations';
 
 export function generateFormsScoringSheets(
   participants: Participant[],
@@ -12,7 +13,8 @@ export function generateFormsScoringSheets(
   physicalRingMappings?: { categoryPoolName: string; physicalRingName: string }[],
   masterPdf?: jsPDF,
   titleOverride?: string,
-  isCustomRing?: boolean
+  isCustomRing?: boolean,
+  schoolAbbreviations?: { [schoolName: string]: string }
 ): jsPDF {
   const doc = masterPdf || new jsPDF({
     orientation: 'portrait',
@@ -171,7 +173,7 @@ export function generateFormsScoringSheets(
     let y = margin + 1.2; // Start below title and subtitle with extra spacing
     const colWidths = {
       name: 2.5,
-      school: 2.0,
+      school: 1.8,
       judge1: 0.8,
       judge2: 0.8,
       judge3: 0.8,
@@ -310,14 +312,20 @@ export function generateFormsScoringSheets(
       
       // Shade the Judge columns for this row (lighter gray)
       const judge1X = margin + colWidths.name + colWidths.school;
-      doc.setFillColor(250, 250, 250); // Very light gray for judges
+      doc.setFillColor(230, 230, 230); // Very light gray for judges
+      doc.saveGraphicsState();
+      (doc as any).setGState(new (doc as any).GState({ opacity: 0.7 })); // 70% opacity
       doc.rect(judge1X, rowY, colWidths.judge1 + colWidths.judge2 + colWidths.judge3, rowHeight, 'F');
-      
+      doc.restoreGraphicsState();
+
       // Shade the Final column for this row (slightly darker)
       const finalX = margin + colWidths.name + colWidths.school + colWidths.judge1 + 
                      colWidths.judge2 + colWidths.judge3;
-      doc.setFillColor(240, 240, 240); // Very light gray for data rows
+      doc.setFillColor(200, 200, 200); // Very light gray for data rows
+      doc.saveGraphicsState();
+      (doc as any).setGState(new (doc as any).GState({ opacity: 0.7 })); // 70% opacity
       doc.rect(finalX, rowY, colWidths.final, rowHeight, 'F');
+      doc.restoreGraphicsState();
       
       let x = margin;
       
@@ -325,7 +333,8 @@ export function generateFormsScoringSheets(
       const textY = rowY + rowHeight / 2 + 0.01; // Center text vertically
       if (participant) {
         doc.text(`${participant.firstName} ${participant.lastName}`, x + 0.05, textY);
-        doc.text(participant.school.substring(0, 25), x + colWidths.name + 0.05, textY);
+        const schoolAbbr = getSchoolAbbreviation(participant.branch || participant.school, schoolAbbreviations);
+        doc.text(schoolAbbr, x + colWidths.name + 0.05, textY);
       }
       
       // Draw top line for first row (continuation from header)

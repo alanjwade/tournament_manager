@@ -472,7 +472,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     });
 
     const divisionFilter = selectedDivision || 'all';
-    const pdf = generateRingOverviewPDF(participants, ringPairs, categories, divisionFilter);
+    const pdf = generateRingOverviewPDF(participants, ringPairs, categories, divisionFilter, config.schoolAbbreviations);
     const filename = divisionFilter === 'all' 
       ? 'ring-overview-all-divisions.pdf' 
       : `ring-overview-${divisionFilter}.pdf`;
@@ -596,7 +596,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       return a.physicalRingName.localeCompare(b.physicalRingName);
     });
 
-    const ringOverviewPdf = generateRingOverviewPDF(participants, ringPairs, categories, division);
+    const ringOverviewPdf = generateRingOverviewPDF(participants, ringPairs, categories, division, config.schoolAbbreviations);
     await savePDF(ringOverviewPdf, `ring-overview-${division}.pdf`);
 
     // Export forms scoring sheets
@@ -606,7 +606,11 @@ function PDFExport({ globalDivision }: PDFExportProps) {
       config.physicalRings,
       division,
       config.watermarkImage,
-      physicalRingMappings
+      physicalRingMappings,
+      undefined,
+      undefined,
+      false,
+      config.schoolAbbreviations
     );
     await savePDF(formsPdf, `forms-scoring-${division}.pdf`);
 
