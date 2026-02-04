@@ -70,6 +70,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const moveParticipantInCustomRing = useTournamentStore((state) => state.moveParticipantInCustomRing);
   const createCheckpoint = useTournamentStore((state) => state.createCheckpoint);
   const loadCheckpoint = useTournamentStore((state) => state.loadCheckpoint);
+  const renameCheckpoint = useTournamentStore((state) => state.renameCheckpoint);
+  const deleteCheckpoint = useTournamentStore((state) => state.deleteCheckpoint);
 
   // Reset copySparringFromForms and pendingChanges when quickEdit changes
   useEffect(() => {
@@ -1799,52 +1801,11 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             })}
           </select>
         </div>
-
-        {/* Print all changed button */}
-        {latestCheckpoint && (
-          <button
-            onClick={handlePrintAllChanged}
-            disabled={printing !== null || changedRingsCounts.total === 0}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: changedRingsCounts.total > 0 ? '#dc3545' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: changedRingsCounts.total > 0 ? 'pointer' : 'not-allowed',
-              fontWeight: 'bold',
-              fontSize: '14px',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            🖨️ Print All {selectedDivision !== 'all' ? `${selectedDivision} ` : ''}Changed ({changedRingsCounts.forms} forms, {changedRingsCounts.sparring} sparring)
-          </button>
-        )}
       </div>
       
       {unassignedCount > 0 && (
         <div className="warning" style={{ marginBottom: '15px' }}>
           <strong>⚠️ {unassignedCount} participants</strong> not assigned to any ring
-        </div>
-      )}
-
-      {/* Changed rings summary */}
-      {changedRings.size > 0 && (
-        <div style={{ 
-          marginBottom: '15px', 
-          padding: '10px 15px',
-          backgroundColor: 'var(--bg-secondary)',
-          border: '2px solid #dc3545',
-          borderRadius: '6px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          color: 'var(--text-primary)'
-        }}>
-          <span style={{ fontSize: '18px' }}>⚠️</span>
-          <span>
-            <strong>{changedRings.size} ring{changedRings.size > 1 ? 's' : ''} changed</strong> since last checkpoint
-          </span>
         </div>
       )}
 
@@ -1957,6 +1918,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       checkpoints={checkpoints}
       onCreateCheckpoint={createCheckpoint}
       onLoadCheckpoint={loadCheckpoint}
+      onRenameCheckpoint={renameCheckpoint}
+      onDeleteCheckpoint={deleteCheckpoint}
+      onPrintAllChanged={latestCheckpoint && changedRingsCounts.total > 0 ? handlePrintAllChanged : undefined}
+      changedRingsCounts={changedRingsCounts}
+      selectedDivision={selectedDivision}
+      printingAllChanged={printing === 'all-changed'}
     />
   </div>
   );
