@@ -5,6 +5,18 @@ import { getSchoolAbbreviation } from '../schoolAbbreviations';
 import { getEffectiveFormsInfo } from '../computeRings';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
+// Helper function to add timestamp footer to current page
+function addTimestampFooter(doc: jsPDF): void {
+  const timestamp = formatPdfTimestamp();
+  const margin = 10; // mm
+  const pageHeight = doc.internal.pageSize.getHeight();
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(128, 128, 128); // Gray text
+  doc.text(timestamp, margin + 50, pageHeight - 5);
+  doc.setTextColor(0, 0, 0); // Reset to black
+}
+
 export function generateCheckInSheet(
   participants: Participant[],
   division: string,
@@ -56,6 +68,9 @@ export function generateCheckInSheet(
   doc.setLineWidth(0.5);
   doc.line(15, y, 195, y);
 
+  // Add timestamp footer to first page
+  addTimestampFooter(doc);
+
   // Table rows
   y += 8;
   doc.setFont('helvetica', 'normal');
@@ -63,6 +78,9 @@ export function generateCheckInSheet(
 
   divisionParticipants.forEach((participant, index) => {
     if (y > 260) {
+      // Add timestamp to current page before adding new page
+      addTimestampFooter(doc);
+      
       doc.addPage();
       pageNumber++;
       y = 20;
@@ -87,6 +105,9 @@ export function generateCheckInSheet(
       y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
+      
+      // Add timestamp footer to new page
+      addTimestampFooter(doc);
     }
 
     // Get ring info - use effective forms pool
@@ -224,15 +245,8 @@ export function generateCheckInSheet(
     doc.setDrawColor(0, 0, 0); // Reset to black
   });
 
-  // Add timestamp to document
-  const timestamp = formatPdfTimestamp();
-  const margin = 10; // mm
-  const pageHeight = doc.internal.pageSize.getHeight();
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(128, 128, 128); // Gray text
-  doc.text(timestamp, margin + 50, pageHeight - 5);
-  doc.setTextColor(0, 0, 0); // Reset to black
+  // Add timestamp to the last page
+  addTimestampFooter(doc);
 
   return doc;
 }
