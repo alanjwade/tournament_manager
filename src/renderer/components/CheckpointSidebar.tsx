@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Checkpoint } from '../types/tournament';
+import { Checkpoint, CustomRing, TournamentConfig, Participant } from '../types/tournament';
+import GrandChampionSection from './GrandChampionSection';
 
 interface CheckpointItemProps {
   checkpoint: { id: string; name: string; timestamp: string };
@@ -171,6 +172,19 @@ interface CheckpointSidebarProps {
   changedRingsCounts?: { forms: number; sparring: number; total: number };
   selectedDivision?: string;
   printingAllChanged?: boolean;
+  // Grand Champion props
+  customRings: CustomRing[];
+  participants: Participant[];
+  config: TournamentConfig;
+  printing: string | null;
+  setPrinting: (value: string | null) => void;
+  onAddCustomRing: (name: string, type: 'forms' | 'sparring') => CustomRing;
+  onDeleteCustomRing: (id: string) => void;
+  onUpdateCustomRing: (id: string, updates: Partial<CustomRing>) => void;
+  onAddParticipantToRing: (ringId: string, participantId: string) => void;
+  onRemoveParticipantFromRing: (ringId: string, participantId: string) => void;
+  onMoveParticipantInRing: (ringId: string, participantId: string, direction: 'up' | 'down') => void;
+  onOpenParticipantSelectionModal: (ringId: string) => void;
 }
 
 function CheckpointSidebar({ 
@@ -183,6 +197,18 @@ function CheckpointSidebar({
   changedRingsCounts,
   selectedDivision = 'all',
   printingAllChanged = false,
+  customRings,
+  participants,
+  config,
+  printing,
+  setPrinting,
+  onAddCustomRing,
+  onDeleteCustomRing,
+  onUpdateCustomRing,
+  onAddParticipantToRing,
+  onRemoveParticipantFromRing,
+  onMoveParticipantInRing,
+  onOpenParticipantSelectionModal,
 }: CheckpointSidebarProps) {
   const [newCheckpointName, setNewCheckpointName] = useState('');
 
@@ -204,7 +230,7 @@ function CheckpointSidebar({
   return (
     <div
       style={{
-        minWidth: '250px',
+        width: '500px',
         height: '100vh',
         backgroundColor: 'var(--bg-primary)',
         border: '2px solid var(--border-color)',
@@ -213,117 +239,140 @@ function CheckpointSidebar({
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
+        overflow: 'hidden',
       }}
     >
-      <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--text-primary)' }}>
-        Checkpoints
-      </h3>
-      
-      {/* Create Checkpoint */}
-      <div>
-        <input
-          type="text"
-          placeholder="Checkpoint name (optional)"
-          value={newCheckpointName}
-          onChange={(e) => setNewCheckpointName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleCreateCheckpoint();
-            }
-          }}
-          style={{
-            width: '100%',
-            padding: '6px',
-            fontSize: '12px',
-            marginBottom: '6px',
-            border: '1px solid var(--input-border)',
-            borderRadius: '4px',
-            backgroundColor: 'var(--input-bg)',
-            color: 'var(--text-primary)',
-            boxSizing: 'border-box',
-          }}
+      {/* Grand Champion Section - NOT scrollable */}
+      <div style={{ flexShrink: 0 }}>
+        <GrandChampionSection
+          customRings={customRings}
+          participants={participants}
+          config={config}
+          printing={printing}
+          setPrinting={setPrinting}
+          onAddCustomRing={onAddCustomRing}
+          onDeleteCustomRing={onDeleteCustomRing}
+          onUpdateCustomRing={onUpdateCustomRing}
+          onAddParticipantToRing={onAddParticipantToRing}
+          onRemoveParticipantFromRing={onRemoveParticipantFromRing}
+          onMoveParticipantInRing={onMoveParticipantInRing}
+          onOpenParticipantSelectionModal={onOpenParticipantSelectionModal}
         />
-        <button
-          onClick={handleCreateCheckpoint}
-          style={{
-            width: '100%',
-            padding: '6px 12px',
-            fontSize: '12px',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: '600',
-          }}
-        >
-          Create Checkpoint
-        </button>
       </div>
 
-      {/* Print All Changed */}
-      {latestCheckpoint && onPrintAllChanged && changedRingsCounts && changedRingsCounts.total > 0 && (
-        <div>
-          <div style={{
-            marginBottom: '8px',
-            padding: '8px 10px',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '2px solid #dc3545',
-            borderRadius: '4px',
-            fontSize: '12px',
-            color: 'var(--text-primary)',
-          }}>
-            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>⚠️</span>
-            <span style={{ marginLeft: '6px', fontWeight: 'bold' }}>
-              {changedRingsCounts.total} ring{changedRingsCounts.total !== 1 ? 's' : ''} changed
-            </span>
-          </div>
-          <button
-            onClick={onPrintAllChanged}
-            disabled={printingAllChanged}
+      {/* Scrollable Checkpoint Section */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <h3 style={{ margin: 0, marginBottom: '12px', fontSize: '16px', color: 'var(--text-primary)', flexShrink: 0 }}>
+          Checkpoints
+        </h3>
+        
+        {/* Create Checkpoint */}
+        <div style={{ flexShrink: 0, marginBottom: '12px' }}>
+          <input
+            type="text"
+            placeholder="Checkpoint name (optional)"
+            value={newCheckpointName}
+            onChange={(e) => setNewCheckpointName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleCreateCheckpoint();
+              }
+            }}
             style={{
               width: '100%',
-              padding: '8px 12px',
+              padding: '6px',
               fontSize: '12px',
-              backgroundColor: '#dc3545',
+              marginBottom: '6px',
+              border: '1px solid var(--input-border)',
+              borderRadius: '4px',
+              backgroundColor: 'var(--input-bg)',
+              color: 'var(--text-primary)',
+              boxSizing: 'border-box',
+            }}
+          />
+          <button
+            onClick={handleCreateCheckpoint}
+            style={{
+              width: '100%',
+              padding: '6px 12px',
+              fontSize: '12px',
+              backgroundColor: '#28a745',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: printingAllChanged ? 'not-allowed' : 'pointer',
+              cursor: 'pointer',
               fontWeight: '600',
-              opacity: printingAllChanged ? 0.6 : 1,
             }}
           >
-            🖨️ Print All {selectedDivision !== 'all' ? `${selectedDivision} ` : ''}Changed
+            Create Checkpoint
           </button>
         </div>
-      )}
-      
-      {/* Checkpoint List */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          borderTop: '1px solid var(--border-color)',
-          paddingTop: '10px',
-        }}
-      >
-        {sortedCheckpoints.length === 0 ? (
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
-            No checkpoints saved
-          </p>
-        ) : (
-          sortedCheckpoints.map((checkpoint) => (
-            <CheckpointItem
-              key={checkpoint.id}
-              checkpoint={checkpoint}
-              isLatest={latestCheckpoint?.id === checkpoint.id}
-              onLoad={() => onLoadCheckpoint(checkpoint.id)}
-              onRename={(newName) => onRenameCheckpoint(checkpoint.id, newName)}
-              onDelete={() => onDeleteCheckpoint(checkpoint.id)}
-            />
-          ))
+
+        {/* Print All Changed */}
+        {latestCheckpoint && onPrintAllChanged && changedRingsCounts && changedRingsCounts.total > 0 && (
+          <div style={{ flexShrink: 0, marginBottom: '12px' }}>
+            <div style={{
+              marginBottom: '8px',
+              padding: '8px 10px',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '2px solid #dc3545',
+              borderRadius: '4px',
+              fontSize: '12px',
+              color: 'var(--text-primary)',
+            }}>
+              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>⚠️</span>
+              <span style={{ marginLeft: '6px', fontWeight: 'bold' }}>
+                {changedRingsCounts.total} ring{changedRingsCounts.total !== 1 ? 's' : ''} changed
+              </span>
+            </div>
+            <button
+              onClick={onPrintAllChanged}
+              disabled={printingAllChanged}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: '12px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: printingAllChanged ? 'not-allowed' : 'pointer',
+                fontWeight: '600',
+                opacity: printingAllChanged ? 0.6 : 1,
+              }}
+            >
+              🖨️ Print All {selectedDivision !== 'all' ? `${selectedDivision} ` : ''}Changed
+            </button>
+          </div>
         )}
+        
+        {/* Checkpoint List - Scrollable */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            borderTop: '1px solid var(--border-color)',
+            paddingTop: '10px',
+            minHeight: 0,
+          }}
+        >
+          {sortedCheckpoints.length === 0 ? (
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
+              No checkpoints saved
+            </p>
+          ) : (
+            sortedCheckpoints.map((checkpoint) => (
+              <CheckpointItem
+                key={checkpoint.id}
+                checkpoint={checkpoint}
+                isLatest={latestCheckpoint?.id === checkpoint.id}
+                onLoad={() => onLoadCheckpoint(checkpoint.id)}
+                onRename={(newName) => onRenameCheckpoint(checkpoint.id, newName)}
+                onDelete={() => onDeleteCheckpoint(checkpoint.id)}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

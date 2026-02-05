@@ -11,7 +11,6 @@ import { Participant, CompetitionRing } from '../types/tournament';
 import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 import CheckpointSidebar from './CheckpointSidebar';
-import GrandChampionSection from './GrandChampionSection';
 
 interface RingPair {
   categoryPoolName: string;
@@ -1734,9 +1733,15 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   }
 
   return (
-    <div style={{ display: 'flex', gap: '15px', height: '100vh' }}>
-      {/* Main Content */}
-      <div className="card" style={{ width: 'fit-content', minWidth: 0, maxHeight: '100vh', overflowY: 'auto' }}>
+    <div style={{ display: 'flex', gap: '15px', height: '100vh', overflow: 'hidden' }}>
+      {/* Main Content - Independent Scrollbar */}
+      <div className="card" style={{ 
+        width: 'auto', 
+        minWidth: 'min-content', 
+        maxHeight: '100vh', 
+        overflowY: 'auto',
+        overflowX: 'hidden',
+      }}>
       {/* Quick Edit Modal */}
       {renderQuickEditModal()}
       
@@ -1757,22 +1762,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       )}
       
       <h2 className="card-title">Ring Overview</h2>
-      
-      {/* Grand Champion Rings Section */}
-      <GrandChampionSection
-        customRings={customRings}
-        participants={participants}
-        config={config}
-        printing={printing}
-        setPrinting={setPrinting}
-        onAddCustomRing={addCustomRing}
-        onDeleteCustomRing={deleteCustomRing}
-        onUpdateCustomRing={updateCustomRing}
-        onAddParticipantToRing={addParticipantToCustomRing}
-        onRemoveParticipantFromRing={removeParticipantFromCustomRing}
-        onMoveParticipantInRing={moveParticipantInCustomRing}
-        onOpenParticipantSelectionModal={(ringId) => setParticipantSelectionModal({ ringId })}
-      />
       
       {/* Division Filter */}
       <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', alignItems: 'center' }}>
@@ -1913,7 +1902,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       </div>
     </div>
     
-    {/* Checkpoint Sidebar */}
+    {/* Checkpoint Sidebar - Independent Scrollbar */}
     <CheckpointSidebar
       checkpoints={checkpoints}
       onCreateCheckpoint={createCheckpoint}
@@ -1924,6 +1913,18 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       changedRingsCounts={changedRingsCounts}
       selectedDivision={selectedDivision}
       printingAllChanged={printing === 'all-changed'}
+      customRings={customRings}
+      participants={participants}
+      config={config}
+      printing={printing}
+      setPrinting={setPrinting}
+      onAddCustomRing={addCustomRing}
+      onDeleteCustomRing={deleteCustomRing}
+      onUpdateCustomRing={updateCustomRing}
+      onAddParticipantToRing={addParticipantToCustomRing}
+      onRemoveParticipantFromRing={removeParticipantFromCustomRing}
+      onMoveParticipantInRing={moveParticipantInCustomRing}
+      onOpenParticipantSelectionModal={(ringId) => setParticipantSelectionModal({ ringId })}
     />
   </div>
   );

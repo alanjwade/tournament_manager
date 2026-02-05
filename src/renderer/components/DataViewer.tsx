@@ -388,13 +388,22 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     setParticipants(updatedParticipants);
   };
 
-  // Update participant category assignment
+  // Update participant category assignment - clears dependent fields when category changes
   const updateParticipantCategory = (participantId: string, field: 'formsCategoryId' | 'sparringCategoryId', value: string) => {
     const updatedParticipants = participants.map(p => {
       if (p.id === participantId) {
         const updates: Partial<Participant> = {
           [field]: value || undefined
         };
+        
+        // When changing category, clear pool and rank order since old pool may not exist in new category
+        if (field === 'formsCategoryId') {
+          updates.formsPool = undefined;
+          updates.formsRankOrder = undefined;
+        } else if (field === 'sparringCategoryId') {
+          updates.sparringPool = undefined;
+          updates.sparringRankOrder = undefined;
+        }
         
         return { ...p, ...updates };
       }

@@ -2,15 +2,18 @@ import { PhysicalRing, CompetitionRing } from '../types/tournament';
 
 /**
  * Build a category pool name in the standard format.
- * Format: "Division - CategoryName Pool N"
+ * Format: "Division - CategoryName Pool N" (with pool) or "Division - CategoryName" (without)
  * Example: "Beginner - Mixed 8-10 Pool 1"
  * 
  * @param division - The division name (e.g., "Beginner")
  * @param categoryName - The category name (e.g., "Mixed 8-10")
- * @param pool - The pool identifier (e.g., "P1" or "Pool 1")
+ * @param pool - The pool identifier (e.g., "P1" or "Pool 1"), or undefined for no pool
  * @returns Formatted category pool name
  */
-export function buildCategoryPoolName(division: string, categoryName: string, pool: string): string {
+export function buildCategoryPoolName(division: string, categoryName: string, pool?: string): string {
+  if (!pool) {
+    return `${division} - ${categoryName}`;
+  }
   // Convert pool format from P1 to Pool 1 if needed
   const poolDisplay = pool.replace(/^P(\d+)$/, 'Pool $1');
   return `${division} - ${categoryName} ${poolDisplay}`;
@@ -47,24 +50,25 @@ export function formatPoolOnly(pool: string): string {
  * Handles both old format (CategoryName_P1) and new format (Division - CategoryName Pool 1).
  * 
  * @param ringName - The ring name (e.g., "Youth - Mixed 8-10 Pool 1" or "Mixed 8-10_P1")
- * @returns The pool ID in P format (e.g., "P1", "P2") or null if not found
+ * @returns The pool ID in P format (e.g., "P1", "P2") or empty string if not found
  */
-export function extractPoolId(ringName: string | undefined): string | null {
-  if (!ringName) return null;
+export function extractPoolId(ringName: string | undefined): string {
+  if (!ringName) return '';
   
   // Try new format first: "Division - CategoryName Pool N"
-  const newFormatMatch = ringName.match(/Pool (\d+)$/);
+  // This matches anywhere in the string, case-insensitive
+  const newFormatMatch = ringName.match(/Pool\s+(\d+)/i);
   if (newFormatMatch) {
     return `P${newFormatMatch[1]}`;
   }
   
   // Try old format: "CategoryName_PN"
-  const oldFormatMatch = ringName.match(/_P(\d+)$/);
+  const oldFormatMatch = ringName.match(/_P(\d+)$/i);
   if (oldFormatMatch) {
     return `P${oldFormatMatch[1]}`;
   }
   
-  return null;
+  return '';
 }
 
 /**

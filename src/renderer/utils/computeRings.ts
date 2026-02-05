@@ -53,6 +53,11 @@ export function computeCompetitionRings(
   }>();
   
   participants.forEach(participant => {
+    // Skip withdrawn participants
+    if (participant.withdrawn) {
+      return;
+    }
+    
     // Process Forms
     const effectiveForms = getEffectiveFormsInfo(participant);
     if (participant.competingForms && effectiveForms.categoryId && effectiveForms.pool) {

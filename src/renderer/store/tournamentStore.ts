@@ -17,6 +17,7 @@ interface TournamentState {
   // Actions
   setParticipants: (participants: Participant[]) => void;
   updateParticipant: (id: string, updates: Partial<Participant>) => void;
+  withdrawParticipant: (id: string) => void;
   setCategories: (categories: Category[]) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
   setPhysicalRingMappings: (mappings: PhysicalRingMapping[]) => void;
@@ -158,6 +159,23 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     set((state) => ({
       participants: state.participants.map((p) =>
         p.id === id ? { ...p, ...updates } : p
+      ),
+    }));
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+  },
+
+  withdrawParticipant: (id) => {
+    set((state) => ({
+      participants: state.participants.map((p) =>
+        p.id === id 
+          ? { 
+              ...p, 
+              withdrawn: true,
+              // Clear rank orders to avoid stale positions when un-withdrawn
+              formsRankOrder: undefined,
+              sparringRankOrder: undefined,
+            }
+          : p
       ),
     }));
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
