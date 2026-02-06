@@ -25,13 +25,13 @@ Required columns (exact names):
 
 ## 🎯 Workflow
 
-1. **Import** → Upload Excel file
-2. **Configure** → Set divisions & rings
-3. **Categories** → Assign participants to categories
-4. **Rings** → Distribute to physical rings
-5. **Order** → Run forms/sparring ordering
-6. **Overview** → Review assignments
-7. **Export** → Generate PDFs
+- **Import** → Upload Excel file
+- **Configure** → Set divisions & rings
+- **Categories** → Assign participants to categories
+- **Rings** → Distribute to physical rings
+- **Order** → Run forms/sparring ordering
+- **Overview** → Review assignments
+- **Export** → Generate PDFs
 
 ## ⚠️ Important Warnings
 
@@ -86,11 +86,10 @@ Required columns (exact names):
 
 ## 🔢 Rank Order Numbers
 
-- Forms/Sparring orders assign numbers in multiples of 10
-- Example: 10, 20, 30, 40, 50...
-- **Why 10s?** Easy manual reordering
-  - To move #40 between #20 and #30, change it to 25
-  - To swap #30 and #40, change 30→41 and 40→29
+- Forms/Sparring orders are adjusted using **Up/Down buttons**
+- Click the up arrow to move a participant higher in rank
+- Click the down arrow to move a participant lower in rank
+- Changes are saved automatically to the ring
 
 ## 🎨 Ring Color Codes
 

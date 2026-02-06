@@ -60,14 +60,14 @@ function Overview() {
       </ul>
 
       <h4>Typical Workflow</h4>
-      <ol>
+      <ul>
         <li>Import participant data</li>
         <li>Configure divisions and physical rings</li>
         <li>Create and assign categories</li>
         <li>Map pools to physical rings and order competitors</li>
         <li>Review in Overview</li>
         <li>Export PDFs</li>
-      </ol>
+      </ul>
     </div>
   );
 }
@@ -236,24 +236,24 @@ function QuickReference() {
       <p>Click <strong>+ Add Participant</strong> in the app header or use the Dashboard quick action.</p>
 
       <h4>Re-Ordering a Forms Ring</h4>
-      <ol>
+      <ul>
         <li>Go to <strong>Ring Map</strong>.</li>
         <li>Select the forms pool.</li>
         <li>Click <strong>Order Forms Ring</strong>.</li>
-      </ol>
+      </ul>
       <p>This is safe to re-run and won't affect other data.</p>
 
       <h4>Re-Ordering a Sparring Ring</h4>
-      <ol>
+      <ul>
         <li>Go to <strong>Ring Map</strong>.</li>
         <li>Select the sparring pool.</li>
         <li>Click <strong>Order Sparring Ring</strong>.</li>
-      </ol>
+      </ul>
 
       <h4>Manual Rank Ordering</h4>
       <p>
-        Rank orders are assigned in multiples of 10 (10, 20, 30, …). To move a
-        competitor between positions 20 and 30, change their rank order to 25.
+        Use the <strong>Up</strong> and <strong>Down</strong> arrow buttons to adjust a competitor's rank order position.
+        Click the up arrow to move them higher in rank, or the down arrow to move them lower. Changes are saved automatically.
       </p>
 
       <h4>Saving &amp; Restoring Data</h4>

@@ -61,6 +61,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [renamingCheckpointId, setRenamingCheckpointId] = useState<string | null>(null);
   const [renamingCheckpointValue, setRenamingCheckpointValue] = useState('');
   const [expandedRings, setExpandedRings] = useState<Set<string>>(new Set());
+  const [dismissedUnassignedWarning, setDismissedUnassignedWarning] = useState(false);
   
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
@@ -1958,15 +1959,16 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const shouldStack = contentWidth > 0 && contentWidth < 1000;
 
   return (
-    <div style={{ display: 'flex', gap: '15px', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ display: 'flex', gap: '15px', height: '100vh', overflow: 'hidden', position: 'relative', flexDirection: 'column' }}>
       {/* Main Content - Independent Scrollbar */}
       <div 
         ref={contentRef}
         className="card" 
         style={{ 
           flex: 1,
+          width: '100%',
           minWidth: 'min-content', 
-          maxHeight: '100vh', 
+          maxHeight: 'calc(100vh - 80px)',
           overflowY: 'auto',
           overflowX: 'hidden',
         }}>
@@ -2228,7 +2230,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
           {/* Collapse/Expand all buttons - only show in regular division view */}
           {selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && (
-            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', alignItems: 'center' }}>
               <button
                 onClick={handleCollapseAll}
                 disabled={expandedRings.size === 0}
@@ -2259,17 +2261,71 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               >
                 Expand All
               </button>
+              
+              {/* Print All Changed button - only show when there are changes */}
+              {checkpoints.length > 0 && changedRingsCounts.total > 0 && (
+                <button
+                  onClick={handlePrintAllChanged}
+                  disabled={printing === 'all-changed'}
+                  style={{
+                    padding: '6px 14px',
+                    backgroundColor: '#ffc107',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: printing === 'all-changed' ? 'not-allowed' : 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    whiteSpace: 'nowrap',
+                    opacity: printing === 'all-changed' ? 0.6 : 1,
+                  }}
+                  title={`Print all ${changedRingsCounts.total} changed ring(s)`}
+                >
+                  {printing === 'all-changed' ? '⏳ Printing...' : `🖨️ Print Changed (${changedRingsCounts.total})`}
+                </button>
+              )}
             </div>
           )}
         </div>
-        
-        {/* Unassigned Warning - moved to right of filter */}
-        {unassignedCount > 0 && selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && (
-          <div className="warning" style={{ padding: '6px 12px', marginBottom: '0' }}>
-            <strong>⚠️ {unassignedCount} participants</strong> not assigned to any ring
-          </div>
-        )}
       </div>
+
+      {/* Unassigned Participants Warning - Dismissable sticky pane */}
+      {unassignedCount > 0 && selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && !dismissedUnassignedWarning && (
+        <div style={{
+          position: 'sticky',
+          top: '69px',
+          zIndex: 99,
+          backgroundColor: '#fff3cd',
+          color: '#856404',
+          borderBottom: '1px solid #ffc107',
+          padding: '10px 15px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '15px',
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: '500' }}>
+            <strong>⚠️ {unassignedCount} participant{unassignedCount !== 1 ? 's' : ''}</strong> not assigned to any ring
+          </div>
+          <button
+            onClick={() => setDismissedUnassignedWarning(true)}
+            style={{
+              padding: '4px 10px',
+              backgroundColor: 'transparent',
+              color: '#856404',
+              border: '1px solid #856404',
+              borderRadius: '3px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: '600',
+              whiteSpace: 'nowrap',
+            }}
+            title="Dismiss this warning"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Grand Champion View */}
       {selectedDivision === 'grand-champion' ? (
@@ -3063,8 +3119,46 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         })}
         </div>
       )}
+      </div>
+
+      {/* Unassigned Participants Warning - Dismissable sticky pane */}
+      {unassignedCount > 0 && selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && !dismissedUnassignedWarning && (
+        <div style={{
+          position: 'sticky',
+          top: '69px',
+          zIndex: 99,
+          backgroundColor: '#fff3cd',
+          color: '#856404',
+          borderBottom: '1px solid #ffc107',
+          padding: '10px 15px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '15px',
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: '500' }}>
+            <strong>⚠️ {unassignedCount} participant{unassignedCount !== 1 ? 's' : ''}</strong> not assigned to any ring
+          </div>
+          <button
+            onClick={() => setDismissedUnassignedWarning(true)}
+            style={{
+              padding: '4px 10px',
+              backgroundColor: 'transparent',
+              color: '#856404',
+              border: '1px solid #856404',
+              borderRadius: '3px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: '600',
+              whiteSpace: 'nowrap',
+            }}
+            title="Dismiss this warning"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
     </div>
-  </div>
   );
 }
 
