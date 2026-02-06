@@ -252,4 +252,234 @@ describe('ringOrdering', () => {
       expect(result.countB).toBe(0);
     });
   });
+
+  describe('Advanced school distribution', () => {
+    /**
+     * Helper to get school-branch key from participant
+     */
+    function getSchoolBranchKey(p: any): string {
+      return p.branch ? `${p.school} ${p.branch}` : p.school;
+    }
+
+    /**
+     * Check if consecutive same school-branch combinations appear
+     */
+    function hasConsecutiveSameSchoolBranch(participants: any[]): boolean {
+      for (let i = 1; i < participants.length; i++) {
+        if (getSchoolBranchKey(participants[i]) === getSchoolBranchKey(participants[i - 1])) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * Check if first three participants are from different actual schools
+     */
+    function hasFirstThreeFromDifferentSchools(participants: any[]): boolean {
+      if (participants.length < 3) return true;
+      
+      const schools = new Set([
+        participants[0].school,
+        participants[1].school,
+        participants[2].school,
+      ]);
+      
+      return schools.size === 3;
+    }
+
+    /**
+     * Count max consecutive runs of same actual school
+     */
+    function getMaxConsecutiveSameSchool(participants: any[]): number {
+      let maxRun = 1;
+      let currentRun = 1;
+      
+      for (let i = 1; i < participants.length; i++) {
+        if (participants[i].school === participants[i - 1].school) {
+          currentRun++;
+          maxRun = Math.max(maxRun, currentRun);
+        } else {
+          currentRun = 1;
+        }
+      }
+      
+      return maxRun;
+    }
+
+    it('should minimize consecutive same school occurrences', () => {
+      // Use a more balanced distribution where avoiding 3 consecutive is actually possible
+      // 5 PAMA, 3 REMA fc, 2 SMA, 2 EMA lw
+      const participants = [
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p1', firstName: 'P1', lastName: 'A', age: 10, school: 'PAMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p2', firstName: 'P2', lastName: 'A', age: 10, school: 'PAMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p3', firstName: 'P3', lastName: 'A', age: 10, school: 'PAMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p4', firstName: 'P4', lastName: 'A', age: 10, school: 'PAMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p5', firstName: 'P5', lastName: 'A', age: 10, school: 'PAMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'r1', firstName: 'R1', lastName: 'A', age: 10, school: 'REMA', branch: 'fc' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'r2', firstName: 'R2', lastName: 'B', age: 10, school: 'REMA', branch: 'fc' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'r3', firstName: 'R3', lastName: 'C', age: 10, school: 'REMA', branch: 'fc' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 's1', firstName: 'S1', lastName: 'A', age: 10, school: 'SMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 's2', firstName: 'S2', lastName: 'B', age: 10, school: 'SMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'e1', firstName: 'E1', lastName: 'A', age: 10, school: 'EMA', branch: 'lw' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'e2', firstName: 'E2', lastName: 'B', age: 10, school: 'EMA', branch: 'lw' }),
+      ];
+      
+      const result = orderFormsRing(participants, 'cat1', 'P1');
+      const ordered = result
+        .filter(p => p.formsRankOrder !== undefined)
+        .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
+      
+      const maxRun = getMaxConsecutiveSameSchool(ordered);
+      
+      // Should avoid 3 consecutive same school - at worst 2 consecutive at very end
+      expect(maxRun).toBeLessThanOrEqual(2);
+    });
+
+    it('should ensure first three are from different actual schools, not just branches', () => {
+      // Recreate failing case where first three had two from REMA school
+      const participants = [
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p1', firstName: 'P1', lastName: 'A', age: 10, school: 'PAMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'rj', firstName: 'RJ', lastName: 'A', age: 10, school: 'REMA', branch: 'jt' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'rl', firstName: 'RL', lastName: 'A', age: 10, school: 'REMA', branch: 'lm' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p2', firstName: 'P2', lastName: 'A', age: 10, school: 'PAMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'e1', firstName: 'E1', lastName: 'A', age: 10, school: 'EMA', branch: 'lt' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 's1', firstName: 'S1', lastName: 'A', age: 10, school: 'SMA' }),
+      ];
+      
+      const result = orderFormsRing(participants, 'cat1', 'P1');
+      const ordered = result
+        .filter(p => p.formsRankOrder !== undefined)
+        .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
+      
+      // First three should be from different actual schools
+      expect(hasFirstThreeFromDifferentSchools(ordered)).toBe(true);
+    });
+
+    it('should prevent consecutive same school-branch combinations when possible', () => {
+      // Use 2 from each school-branch so distribution is possible
+      const participants = [
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'r1', firstName: 'R1', lastName: 'A', age: 10, school: 'REMA', branch: 'lm' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'r2', firstName: 'R2', lastName: 'B', age: 10, school: 'REMA', branch: 'lm' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 's1', firstName: 'S1', lastName: 'A', age: 10, school: 'SMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 's2', firstName: 'S2', lastName: 'B', age: 10, school: 'SMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p1', firstName: 'P1', lastName: 'A', age: 10, school: 'PAMA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'p2', firstName: 'P2', lastName: 'B', age: 10, school: 'PAMA' }),
+      ];
+      
+      const result = orderFormsRing(participants, 'cat1', 'P1');
+      const ordered = result
+        .filter(p => p.formsRankOrder !== undefined)
+        .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
+      
+      // No consecutive same school-branch combos
+      expect(hasConsecutiveSameSchoolBranch(ordered)).toBe(false);
+    });
+
+    it('should distribute branches within same school using urgency algorithm', () => {
+      // 4 from branch A, 1 from branch B - should spread to avoid AAAA...B
+      const participants = [
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'a1', firstName: 'A1', lastName: 'Smith', age: 10, school: 'REMA', branch: 'lm' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'a2', firstName: 'A2', lastName: 'Jones', age: 10, school: 'REMA', branch: 'lm' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'a3', firstName: 'A3', lastName: 'White', age: 10, school: 'REMA', branch: 'lm' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'a4', firstName: 'A4', lastName: 'Brown', age: 10, school: 'REMA', branch: 'lm' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: 'b1', firstName: 'B1', lastName: 'Davis', age: 10, school: 'REMA', branch: 'bf' }),
+      ];
+      
+      const result = orderFormsRing(participants, 'cat1', 'P1');
+      const ordered = result
+        .filter(p => p.formsRankOrder !== undefined)
+        .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
+      
+      // Find where the 'bf' participant is positioned
+      const bfIndex = ordered.findIndex(p => p.branch === 'bf');
+      
+      // Should not be at position 4 (the last position, index 4)
+      // The urgency algorithm should place it earlier
+      expect(bfIndex).toBeLessThan(4);
+    });
+
+    it('should handle highly imbalanced distribution (20-5-2)', () => {
+      const participants: any[] = [];
+      
+      // 20 from School A
+      for (let i = 0; i < 20; i++) {
+        participants.push(
+          createAssignedParticipant('cat1', 'P1', 'forms', 0, {
+            id: `a${i}`,
+            firstName: `A${i}`,
+            lastName: 'Last',
+            age: 10,
+            school: 'SchoolA',
+          })
+        );
+      }
+      
+      // 5 from School B
+      for (let i = 0; i < 5; i++) {
+        participants.push(
+          createAssignedParticipant('cat1', 'P1', 'forms', 0, {
+            id: `b${i}`,
+            firstName: `B${i}`,
+            lastName: 'Last',
+            age: 10,
+            school: 'SchoolB',
+          })
+        );
+      }
+      
+      // 2 from School C
+      for (let i = 0; i < 2; i++) {
+        participants.push(
+          createAssignedParticipant('cat1', 'P1', 'forms', 0, {
+            id: `c${i}`,
+            firstName: `C${i}`,
+            lastName: 'Last',
+            age: 10,
+            school: 'SchoolC',
+          })
+        );
+      }
+      
+      const result = orderFormsRing(participants, 'cat1', 'P1');
+      const ordered = result
+        .filter(p => p.formsRankOrder !== undefined)
+        .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0));
+      
+      // First 3 should be from different schools
+      expect(hasFirstThreeFromDifferentSchools(ordered)).toBe(true);
+      
+      // Minority schools should appear in first half to break up majority school
+      const firstHalf = ordered.slice(0, Math.ceil(ordered.length / 2));
+      const schoolBCount = firstHalf.filter(p => p.school === 'SchoolB').length;
+      const schoolCCount = firstHalf.filter(p => p.school === 'SchoolC').length;
+      
+      expect(schoolBCount).toBeGreaterThan(0);
+      expect(schoolCCount).toBeGreaterThan(0);
+    });
+
+    it('should produce deterministic ordering for same input', () => {
+      const participants = [
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: '1', firstName: 'Alice', lastName: 'Smith', age: 10, school: 'SchoolA' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: '2', firstName: 'Bob', lastName: 'Jones', age: 11, school: 'SchoolB' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: '3', firstName: 'Carol', lastName: 'White', age: 9, school: 'SchoolC' }),
+        createAssignedParticipant('cat1', 'P1', 'forms', 0, { id: '4', firstName: 'Dave', lastName: 'Brown', age: 10, school: 'SchoolA' }),
+      ];
+      
+      const result1 = orderFormsRing([...participants], 'cat1', 'P1');
+      const result2 = orderFormsRing([...participants], 'cat1', 'P1');
+      
+      const order1 = result1
+        .filter(p => p.formsRankOrder !== undefined)
+        .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0))
+        .map(p => p.id);
+      
+      const order2 = result2
+        .filter(p => p.formsRankOrder !== undefined)
+        .sort((a, b) => (a.formsRankOrder || 0) - (b.formsRankOrder || 0))
+        .map(p => p.id);
+      
+      expect(order1).toEqual(order2);
+    });
+  });
 });
