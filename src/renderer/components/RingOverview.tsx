@@ -7,10 +7,9 @@ import { formatPoolNameForDisplay, formatPoolOnly, isRingAffected, isRingAffecte
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
-import { Participant, CompetitionRing } from '../types/tournament';
+import { Participant, CompetitionRing, CustomRing } from '../types/tournament';
 import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
-import CheckpointSidebar from './CheckpointSidebar';
 
 interface RingPair {
   categoryPoolName: string;
@@ -43,6 +42,7 @@ const getRingBalanceStyle = (participantCount: number): { color: string; bg: str
 
 function RingOverview({ globalDivision }: RingOverviewProps) {
   const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision || 'all');
+  const [divisionFilter, setDivisionFilter] = useState<string>(globalDivision || 'all'); // Persists dropdown selection
   const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
   const [copySparringFromForms, setCopySparringFromForms] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Partial<Participant>>({});
@@ -50,9 +50,16 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [participantSelectionModal, setParticipantSelectionModal] = useState<{
     ringId: string;
   } | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [contentWidth, setContentWidth] = useState(0);
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const [editingRingName, setEditingRingName] = useState<string | null>(null);
+  const [editingRingNameValue, setEditingRingNameValue] = useState('');
+  const [showCreateRingModal, setShowCreateRingModal] = useState(false);
+  const [newRingName, setNewRingName] = useState('Black Belt Grand Champion');
+  const [newRingType, setNewRingType] = useState<'forms' | 'sparring'>('forms');
+  const [newCheckpointName, setNewCheckpointName] = useState('');
+  const [renamingCheckpointId, setRenamingCheckpointId] = useState<string | null>(null);
+  const [renamingCheckpointValue, setRenamingCheckpointValue] = useState('');
   
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
@@ -101,6 +108,128 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     observer.observe(contentRef.current);
     return () => observer.disconnect();
   }, []);
+
+  // Sort checkpoints by timestamp, newest first
+  const sortedCheckpoints = useMemo(() => {
+    return [...checkpoints].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [checkpoints]);
+
+  const handleCreateCheckpoint = async () => {
+    const name = newCheckpointName.trim() || `Checkpoint ${checkpoints.length + 1}`;
+    await createCheckpoint(name);
+    setNewCheckpointName('');
+  };
+
+  const handlePrintGCRing = async (ring: CustomRing, ringParticipants: Participant[]) => {
+    setPrinting(ring.id);
+    try {
+      // Create participants with rank order set based on position in ring
+      const participantsWithOrder = ringParticipants.map((p, index) => ({
+        ...p,
+        formsRankOrder: index + 1,
+        sparringRankOrder: index + 1
+      }));
+      
+      // Create a mock competition ring for PDF generation
+      const mockRing: CompetitionRing = {
+        id: ring.id,
+        physicalRingId: 'GC',
+        categoryId: 'custom',
+        division: ring.name,
+        type: ring.type,
+        participantIds: ring.participantIds,
+        name: ring.name,
+      };
+      
+      // Use appropriate PDF generator based on type
+      const pdf = ring.type === 'forms'
+        ? generateFormsScoringSheets(
+            participantsWithOrder,
+            [mockRing],
+            config.physicalRings,
+            ring.name,
+            config.watermarkImage,
+            [],
+            undefined,
+            undefined,
+            true // isCustomRing
+          )
+        : generateSparringBrackets(
+            participantsWithOrder,
+            [mockRing],
+            config.physicalRings,
+            ring.name,
+            config.watermarkImage,
+            [],
+            undefined,
+            undefined,
+            true // isCustomRing
+          );
+      
+      const pdfBlob = pdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(pdfUrl);
+      if (printWindow) {
+        await new Promise<void>(resolve => {
+          printWindow.addEventListener('load', () => {
+            printWindow.print();
+            setTimeout(() => {
+              URL.revokeObjectURL(pdfUrl);
+              resolve();
+            }, 500);
+          });
+        });
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setPrinting(null);
+    }
+  };
+
+  const handlePrintSingleRing = async (ring: CompetitionRing, type: 'forms' | 'sparring', division: string) => {
+    setPrinting(`${ring.id}-${type}`);
+    try {
+      const pdf = type === 'forms'
+        ? generateFormsScoringSheets(
+            participants,
+            [ring],
+            config.physicalRings,
+            division,
+            config.watermarkImage,
+            physicalRingMappings
+          )
+        : generateSparringBrackets(
+            participants,
+            [ring],
+            config.physicalRings,
+            division,
+            config.watermarkImage,
+            physicalRingMappings
+          );
+      
+      const pdfBlob = pdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(pdfUrl);
+      if (printWindow) {
+        await new Promise<void>(resolve => {
+          printWindow.addEventListener('load', () => {
+            printWindow.print();
+            setTimeout(() => {
+              URL.revokeObjectURL(pdfUrl);
+              resolve();
+            }, 500);
+          });
+        });
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setPrinting(null);
+    }
+  };
 
   // Move participant up or down in rank order
   const moveParticipant = (participantId: string, direction: 'up' | 'down', ringType: 'forms' | 'sparring') => {
@@ -172,13 +301,16 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       return;
     }
 
+    // Don't filter when viewing Grand Champion or Checkpoints
+    const divisionFilterForPrint = (selectedDivision === 'grand-champion' || selectedDivision === 'checkpoints') ? 'all' : selectedDivision;
+
     // Get all competition rings that have changed, filtered by selected division
     // For forms, we just need to know if the ring changed
     const changedFormsRings = competitionRings
       .filter(ring => 
         ring.type === 'forms' && 
         isRingAffected(ring.name || ring.division, 'forms', changedRings).isAffected &&
-        (selectedDivision === 'all' || ring.division === selectedDivision)
+        (divisionFilterForPrint === 'all' || ring.division === divisionFilterForPrint)
       );
     
     // For sparring, we need to track which specific alt rings changed
@@ -190,7 +322,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     
     competitionRings.forEach(ring => {
       if (ring.type !== 'sparring') return;
-      if (selectedDivision !== 'all' && ring.division !== selectedDivision) return;
+      if (divisionFilterForPrint !== 'all' && ring.division !== divisionFilterForPrint) return;
       
       const baseRingName = ring.name || ring.division;
       const result = isRingAffected(baseRingName, 'sparring', changedRings);
@@ -299,6 +431,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   useEffect(() => {
     if (globalDivision) {
       setSelectedDivision(globalDivision);
+      setDivisionFilter(globalDivision);
     }
   }, [globalDivision]);
 
@@ -415,15 +548,18 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
   // Count changed rings for display
   const changedRingsCounts = useMemo(() => {
+    // Don't filter when viewing Grand Champion or Checkpoints
+    const divisionFilter = (selectedDivision === 'grand-champion' || selectedDivision === 'checkpoints') ? 'all' : selectedDivision;
+    
     const changedFormsRings = competitionRings.filter(
       ring => ring.type === 'forms' && 
               isRingAffected(ring.name || ring.division, 'forms', changedRings).isAffected &&
-              (selectedDivision === 'all' || ring.division === selectedDivision)
+              (divisionFilter === 'all' || ring.division === divisionFilter)
     );
     const changedSparringRings = competitionRings.filter(
       ring => {
         if (ring.type !== 'sparring') return false;
-        if (selectedDivision !== 'all' && ring.division !== selectedDivision) return false;
+        if (divisionFilter !== 'all' && ring.division !== divisionFilter) return false;
         
         const baseRingName = ring.name || ring.division;
         return isRingAffected(baseRingName, 'sparring', changedRings).isAffected;
@@ -1407,21 +1543,40 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 }}>
                   Alt Ring A ({participantsA.length} participants)
                 </h6>
-                <button
-                  onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), 'sparring')}
-                  style={{
-                    padding: '4px 12px',
-                    fontSize: '12px',
-                    backgroundColor: '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Auto Order
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => handlePrintSingleRing(ring, 'sparring', category?.division || 'Unknown')}
+                    disabled={printing !== null}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      backgroundColor: '#17a2b8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: printing !== null ? 'not-allowed' : 'pointer',
+                      opacity: printing !== null ? 0.6 : 1,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    🖨️ Print
+                  </button>
+                  <button
+                    onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), 'sparring')}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Auto Order
+                  </button>
+                </div>
               </div>
               <table
                 style={{
@@ -1432,12 +1587,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               >
                 <thead>
                   <tr style={{ backgroundColor: 'var(--table-header-bg)' }}>
-                    <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>Position</th>
                     <th style={{ padding: '4px', textAlign: 'left', color: 'var(--text-primary)' }}>Name</th>
                     <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>School</th>
                     <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Age</th>
                     <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Gender</th>
                     <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Height</th>
+                    <th style={{ padding: '4px', textAlign: 'center', color: 'var(--text-primary)', width: '100px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1446,45 +1601,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     const isLast = index === participantsA.length - 1;
                     return (
                       <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '4px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                            <button
-                              onClick={() => moveParticipant(p.id, 'up', 'sparring')}
-                              disabled={isFirst}
-                              style={{
-                                padding: '2px 6px',
-                                fontSize: '10px',
-                                border: '1px solid var(--input-border)',
-                                borderRadius: '3px',
-                                backgroundColor: isFirst ? '#f0f0f0' : 'white',
-                                cursor: isFirst ? 'not-allowed' : 'pointer',
-                                opacity: isFirst ? 0.5 : 1,
-                              }}
-                              title="Move up"
-                            >
-                              ▲
-                            </button>
-                            <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
-                              {p.sparringRankOrder || '-'}
-                            </span>
-                            <button
-                              onClick={() => moveParticipant(p.id, 'down', 'sparring')}
-                              disabled={isLast}
-                              style={{
-                                padding: '2px 6px',
-                                fontSize: '10px',
-                                border: '1px solid var(--input-border)',
-                                borderRadius: '3px',
-                                backgroundColor: isLast ? 'var(--bg-secondary)' : 'var(--input-bg)', color: 'var(--text-primary)',
-                                cursor: isLast ? 'not-allowed' : 'pointer',
-                                opacity: isLast ? 0.5 : 1,
-                              }}
-                              title="Move down"
-                            >
-                              ▼
-                            </button>
-                          </div>
-                        </td>
                         <td style={{ padding: '4px' }}>
                           {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt A)')}
                         </td>
@@ -1493,6 +1609,42 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                         <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>
                           {p.heightFeet}'{p.heightInches}"
+                        </td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => moveParticipant(p.id, 'up', 'sparring')}
+                              disabled={isFirst}
+                              title="Move up"
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: isFirst ? '#6c757d' : '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: isFirst ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                              }}
+                            >
+                              ▲
+                            </button>
+                            <button
+                              onClick={() => moveParticipant(p.id, 'down', 'sparring')}
+                              disabled={isLast}
+                              title="Move down"
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: isLast ? '#6c757d' : '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: isLast ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                              }}
+                            >
+                              ▼
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1514,21 +1666,40 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 }}>
                   Alt Ring B ({participantsB.length} participants)
                 </h6>
-                <button
-                  onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), 'sparring')}
-                  style={{
-                    padding: '4px 12px',
-                    fontSize: '12px',
-                    backgroundColor: '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Auto Order
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => handlePrintSingleRing(ring, 'sparring', category?.division || 'Unknown')}
+                    disabled={printing !== null}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      backgroundColor: '#17a2b8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: printing !== null ? 'not-allowed' : 'pointer',
+                      opacity: printing !== null ? 0.6 : 1,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    🖨️ Print
+                  </button>
+                  <button
+                    onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), 'sparring')}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Auto Order
+                  </button>
+                </div>
               </div>
               <table
                 style={{
@@ -1539,12 +1710,12 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               >
                 <thead>
                   <tr style={{ backgroundColor: 'var(--table-header-bg)' }}>
-                    <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>Position</th>
                     <th style={{ padding: '4px', textAlign: 'left', color: 'var(--text-primary)' }}>Name</th>
                     <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>School</th>
                     <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Age</th>
                     <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Gender</th>
                     <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Height</th>
+                    <th style={{ padding: '4px', textAlign: 'center', color: 'var(--text-primary)', width: '100px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1553,45 +1724,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     const isLast = index === participantsB.length - 1;
                     return (
                       <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '4px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                            <button
-                              onClick={() => moveParticipant(p.id, 'up', 'sparring')}
-                              disabled={isFirst}
-                              style={{
-                                padding: '2px 6px',
-                                fontSize: '10px',
-                                border: '1px solid var(--input-border)',
-                                borderRadius: '3px',
-                                backgroundColor: isFirst ? '#f0f0f0' : 'white',
-                                cursor: isFirst ? 'not-allowed' : 'pointer',
-                                opacity: isFirst ? 0.5 : 1,
-                              }}
-                              title="Move up"
-                            >
-                              ▲
-                            </button>
-                            <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
-                              {p.sparringRankOrder || '-'}
-                            </span>
-                            <button
-                              onClick={() => moveParticipant(p.id, 'down', 'sparring')}
-                              disabled={isLast}
-                              style={{
-                                padding: '2px 6px',
-                                fontSize: '10px',
-                                border: '1px solid var(--input-border)',
-                                borderRadius: '3px',
-                                backgroundColor: isLast ? 'var(--bg-secondary)' : 'var(--input-bg)', color: 'var(--text-primary)',
-                                cursor: isLast ? 'not-allowed' : 'pointer',
-                                opacity: isLast ? 0.5 : 1,
-                              }}
-                              title="Move down"
-                            >
-                              ▼
-                            </button>
-                          </div>
-                        </td>
                         <td style={{ padding: '4px' }}>
                           {renderParticipantName(p, 'sparring', ringDisplayName + ' (Alt B)')}
                         </td>
@@ -1600,6 +1732,42 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                         <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>
                           {p.heightFeet}'{p.heightInches}"
+                        </td>
+                        <td style={{ padding: '4px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => moveParticipant(p.id, 'up', 'sparring')}
+                              disabled={isFirst}
+                              title="Move up"
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: isFirst ? '#6c757d' : '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: isFirst ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                              }}
+                            >
+                              ▲
+                            </button>
+                            <button
+                              onClick={() => moveParticipant(p.id, 'down', 'sparring')}
+                              disabled={isLast}
+                              title="Move down"
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: isLast ? '#6c757d' : '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: isLast ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                              }}
+                            >
+                              ▼
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1634,21 +1802,40 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               <strong>Participants:</strong> {ringParticipants.length}
             </div>
           </div>
-          <button
-            onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), type)}
-            style={{
-              padding: '4px 12px',
-              fontSize: '12px',
-              backgroundColor: type === 'forms' ? '#007bff' : '#dc3545',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Auto Order
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => handlePrintSingleRing(ring, type, category?.division || 'Unknown')}
+              disabled={printing !== null}
+              style={{
+                padding: '4px 12px',
+                fontSize: '12px',
+                backgroundColor: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: printing !== null ? 'not-allowed' : 'pointer',
+                opacity: printing !== null ? 0.6 : 1,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              🖨️ Print
+            </button>
+            <button
+              onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), type)}
+              style={{
+                padding: '4px 12px',
+                fontSize: '12px',
+                backgroundColor: type === 'forms' ? '#007bff' : '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Auto Order
+            </button>
+          </div>
         </div>
 
         <table
@@ -1660,61 +1847,20 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         >
           <thead>
             <tr style={{ backgroundColor: 'var(--table-header-bg)' }}>
-              <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>Position</th>
               <th style={{ padding: '4px', textAlign: 'left', color: 'var(--text-primary)' }}>Name</th>
               <th style={{ padding: '4px', width: '80px', color: 'var(--text-primary)' }}>School</th>
               <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Age</th>
               <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Gender</th>
               {type === 'sparring' && <th style={{ padding: '4px', color: 'var(--text-primary)' }}>Height</th>}
+              <th style={{ padding: '4px', textAlign: 'center', color: 'var(--text-primary)', width: '100px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {ringParticipants.map((p, index) => {
-              const position = type === 'forms' ? p.formsRankOrder : p.sparringRankOrder;
               const isFirst = index === 0;
               const isLast = index === ringParticipants.length - 1;
               return (
                 <tr key={p.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '4px', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
-                      <button
-                        onClick={() => moveParticipant(p.id, 'up', type)}
-                        disabled={isFirst}
-                        style={{
-                          padding: '2px 6px',
-                          fontSize: '10px',
-                          border: '1px solid var(--input-border)',
-                          borderRadius: '3px',
-                          backgroundColor: isFirst ? 'var(--bg-secondary)' : 'var(--input-bg)',
-                          color: 'var(--text-primary)',
-                          cursor: isFirst ? 'not-allowed' : 'pointer',
-                          opacity: isFirst ? 0.5 : 1,
-                        }}
-                        title="Move up"
-                      >
-                        ▲
-                      </button>
-                      <span style={{ fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>
-                        {position || '-'}
-                      </span>
-                      <button
-                        onClick={() => moveParticipant(p.id, 'down', type)}
-                        disabled={isLast}
-                        style={{
-                          padding: '2px 6px',
-                          fontSize: '10px',
-                          border: '1px solid var(--input-border)',
-                          borderRadius: '3px',
-                          backgroundColor: isLast ? 'var(--bg-secondary)' : 'var(--input-bg)', color: 'var(--text-primary)',
-                          cursor: isLast ? 'not-allowed' : 'pointer',
-                          opacity: isLast ? 0.5 : 1,
-                        }}
-                        title="Move down"
-                      >
-                        ▼
-                      </button>
-                    </div>
-                  </td>
                   <td style={{ padding: '4px' }}>
                     {renderParticipantName(p, type, ringDisplayName)}
                   </td>
@@ -1728,6 +1874,42 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                       {p.heightFeet}'{p.heightInches}"
                     </td>
                   )}
+                  <td style={{ padding: '4px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                      <button
+                        onClick={() => moveParticipant(p.id, 'up', type)}
+                        disabled={isFirst}
+                        title="Move up"
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: isFirst ? '#6c757d' : (type === 'forms' ? '#007bff' : '#dc3545'),
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: isFirst ? 'not-allowed' : 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => moveParticipant(p.id, 'down', type)}
+                        disabled={isLast}
+                        title="Move down"
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: isLast ? '#6c757d' : (type === 'forms' ? '#007bff' : '#dc3545'),
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: isLast ? 'not-allowed' : 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -1784,17 +1966,168 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         />
       )}
       
-      <h2 className="card-title">Ring Overview</h2>
+      {/* Create Ring Modal */}
+      {showCreateRingModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowCreateRingModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-primary)',
+              borderRadius: '8px',
+              padding: '20px',
+              minWidth: '400px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>
+              Create New Grand Champion Ring
+            </h3>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '5px', 
+                fontSize: '13px',
+                color: 'var(--text-secondary)',
+                fontWeight: '600'
+              }}>
+                Ring Name
+              </label>
+              <input
+                type="text"
+                value={newRingName}
+                onChange={(e) => setNewRingName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newRingName.trim()) {
+                    addCustomRing(newRingName, newRingType);
+                    setShowCreateRingModal(false);
+                  } else if (e.key === 'Escape') {
+                    setShowCreateRingModal(false);
+                  }
+                }}
+                placeholder="e.g., Black Belt Grand Champion"
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--input-border)',
+                  fontSize: '14px',
+                  backgroundColor: 'var(--input-bg)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '5px', 
+                fontSize: '13px',
+                color: 'var(--text-secondary)',
+                fontWeight: '600'
+              }}>
+                Type
+              </label>
+              <select
+                value={newRingType}
+                onChange={(e) => setNewRingType(e.target.value as 'forms' | 'sparring')}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--input-border)',
+                  fontSize: '14px',
+                  backgroundColor: 'var(--input-bg)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option value="forms">Forms</option>
+                <option value="sparring">Sparring</option>
+              </select>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowCreateRingModal(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (newRingName.trim()) {
+                    addCustomRing(newRingName, newRingType);
+                    setShowCreateRingModal(false);
+                  }
+                }}
+                disabled={!newRingName.trim()}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: newRingName.trim() ? '#28a745' : '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: newRingName.trim() ? 'pointer' : 'not-allowed',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                }}
+              >
+                Create Ring
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
-      {/* Division Filter and Sidebar Toggle */}
-      <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      {/* Division Filter and Quick Toggle Buttons */}
+      <div style={{ 
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backgroundColor: 'var(--bg-primary)',
+        paddingTop: '10px',
+        paddingBottom: '10px',
+        marginBottom: '15px', 
+        display: 'flex', 
+        gap: '15px', 
+        alignItems: 'center', 
+        flexWrap: 'wrap',
+        borderBottom: '2px solid var(--border-color)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <label style={{ marginRight: '0px', fontWeight: 'bold' }}>
             Filter by Division:
           </label>
           <select
-            value={selectedDivision}
-            onChange={(e) => setSelectedDivision(e.target.value)}
+            value={divisionFilter}
+            onChange={(e) => {
+              setDivisionFilter(e.target.value);
+              setSelectedDivision(e.target.value);
+            }}
             style={{
               padding: '5px 10px',
               fontSize: '14px',
@@ -1812,37 +2145,734 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               );
             })}
           </select>
+          
+          {/* Quick Overview button */}
+          <button
+            onClick={() => {
+              // Return to division overview (using persisted divisionFilter)
+              setSelectedDivision(divisionFilter);
+            }}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              backgroundColor: (selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints') ? '#28a745' : 'var(--bg-secondary)',
+              color: (selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints') ? 'white' : 'var(--text-primary)',
+              border: `2px solid ${(selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints') ? '#28a745' : 'var(--border-color)'}`,
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Show all divisions overview"
+          >
+            OV
+          </button>
+          
+          {/* Quick Grand Champion button */}
+          <button
+            onClick={() => setSelectedDivision(selectedDivision === 'grand-champion' ? divisionFilter : 'grand-champion')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              backgroundColor: selectedDivision === 'grand-champion' ? '#ffc107' : 'var(--bg-secondary)',
+              color: selectedDivision === 'grand-champion' ? '#000' : 'var(--text-primary)',
+              border: `2px solid ${selectedDivision === 'grand-champion' ? '#ffc107' : 'var(--border-color)'}`,
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Toggle Grand Champion view"
+          >
+            ⭐ GC
+          </button>
+          
+          {/* Quick Checkpoints button */}
+          <button
+            onClick={() => setSelectedDivision(selectedDivision === 'checkpoints' ? divisionFilter : 'checkpoints')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              backgroundColor: selectedDivision === 'checkpoints' ? '#007bff' : 'var(--bg-secondary)',
+              color: selectedDivision === 'checkpoints' ? 'white' : 'var(--text-primary)',
+              border: `2px solid ${selectedDivision === 'checkpoints' ? '#007bff' : 'var(--border-color)'}`,
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Toggle Checkpoints view"
+          >
+            📋 CP
+          </button>
         </div>
         
-        {/* Sidebar Toggle Button */}
-        <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          style={{
-            padding: '6px 12px',
-            fontSize: '13px',
-            backgroundColor: sidebarCollapsed ? '#28a745' : '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: '600',
+        {/* Unassigned Warning - moved to right of filter */}
+        {unassignedCount > 0 && selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && (
+          <div className="warning" style={{ padding: '6px 12px', marginBottom: '0' }}>
+            <strong>⚠️ {unassignedCount} participants</strong> not assigned to any ring
+          </div>
+        )}
+      </div>
+
+      {/* Grand Champion View */}
+      {selectedDivision === 'grand-champion' ? (
+        <div>
+          {/* Header with Add Ring button */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            marginBottom: '20px'
+          }}>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ color: '#ffc107', fontSize: '24px' }}>⭐</span>
+              Grand Champion Rings
+            </h3>
+            <button
+              onClick={() => {
+                setNewRingName('');
+                setNewRingType('forms');
+                setShowCreateRingModal(true);
+              }}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span style={{ fontSize: '16px' }}>+</span>
+              Add Ring
+            </button>
+          </div>
+
+          {/* Rings List */}
+          {customRings.length === 0 ? (
+            <div className="info" style={{ textAlign: 'center', padding: '40px' }}>
+              <p>No Grand Champion rings created yet.</p>
+              <p>Click "Add Ring" above to create your first Grand Champion ring.</p>
+            </div>
+          ) : (
+            customRings.map((ring) => {
+              const ringParticipants = ring.participantIds
+                .map(id => participants.find(p => p.id === id))
+                .filter((p): p is Participant => p !== undefined);
+              
+              const isEditing = editingRingName === ring.id;
+              
+              return (
+                <div
+                  key={ring.id}
+                  style={{
+                    border: '3px solid #ffc107',
+                    borderRadius: '8px',
+                    padding: '15px',
+                    marginBottom: '20px',
+                    backgroundColor: 'var(--bg-primary)',
+                  }}
+                >
+                  {/* Ring Header */}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'flex-start',
+                    marginBottom: '15px',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                  }}>
+                    <div style={{ 
+                      flex: '1 1 auto',
+                      minWidth: '200px',
+                    }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            value={editingRingNameValue}
+                            onChange={(e) => setEditingRingNameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && editingRingNameValue.trim()) {
+                                updateCustomRing(ring.id, { name: editingRingNameValue });
+                                setEditingRingName(null);
+                              } else if (e.key === 'Escape') {
+                                setEditingRingName(null);
+                              }
+                            }}
+                            autoFocus
+                            style={{
+                              fontSize: '18px',
+                              fontWeight: 'bold',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--input-border)',
+                              backgroundColor: 'var(--input-bg)',
+                              color: 'var(--text-primary)',
+                              flex: 1,
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              if (editingRingNameValue.trim()) {
+                                updateCustomRing(ring.id, { name: editingRingNameValue });
+                                setEditingRingName(null);
+                              }
+                            }}
+                            style={{
+                              padding: '4px 12px',
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingRingName(null)}
+                            style={{
+                              padding: '4px 12px',
+                              backgroundColor: '#6c757d',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <h4 style={{
+                          margin: 0,
+                          color: 'var(--text-primary)',
+                          fontSize: '18px',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: '10px',
+                        }}>
+                          <span style={{ color: '#ffc107' }}>⭐</span>
+                          <span>{ring.name}</span>
+                          <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>({ring.type})</span>
+                          <span style={{
+                            backgroundColor: '#ffc107',
+                            color: '#000',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                          }}>
+                            {ringParticipants.length} participants
+                          </span>
+                        </h4>
+                      )}
+                    </div>
+                    
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      {!isEditing && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingRingName(ring.id);
+                              setEditingRingNameValue(ring.name);
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#007bff',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            onClick={() => handlePrintGCRing(ring, ringParticipants)}
+                            style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#17a2b8',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            🖨️ Print
+                          </button>
+                          <button
+                            onClick={() => setParticipantSelectionModal({ ringId: ring.id })}
+                            style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            + Add Participant
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete "${ring.name}"? This cannot be undone.`)) {
+                                deleteCustomRing(ring.id);
+                              }
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Participants Table */}
+                  {ringParticipants.length === 0 ? (
+                    <div style={{ 
+                      padding: '20px', 
+                      textAlign: 'center', 
+                      color: 'var(--text-muted)', 
+                      fontStyle: 'italic',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '4px',
+                    }}>
+                      No participants in this ring yet. Click "Add Participant" to add competitors.
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                            <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid var(--border-color)', width: '60px' }}>Rank</th>
+                            <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid var(--border-color)' }}>Name</th>
+                            <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid var(--border-color)' }}>School</th>
+                            <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid var(--border-color)' }}>Age</th>
+                            <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid var(--border-color)' }}>Gender</th>
+                            {ring.type === 'sparring' && (
+                              <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid var(--border-color)' }}>Height</th>
+                            )}
+                            <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid var(--border-color)', width: '120px' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ringParticipants.map((p, index) => (
+                            <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px' }}>
+                                {index + 1}
+                              </td>
+                              <td style={{ padding: '8px' }}>
+                                {p.firstName} {p.lastName}
+                              </td>
+                              <td style={{ padding: '8px', textAlign: 'center' }}>{getParticipantSchool(p)}</td>
+                              <td style={{ padding: '8px', textAlign: 'center' }}>{p.age}</td>
+                              <td style={{ padding: '8px', textAlign: 'center' }}>{p.gender}</td>
+                              {ring.type === 'sparring' && (
+                                <td style={{ padding: '8px', textAlign: 'center' }}>
+                                  {p.heightFeet}'{p.heightInches}"
+                                </td>
+                              )}
+                              <td style={{ padding: '8px', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                  <button
+                                    onClick={() => moveParticipantInCustomRing(ring.id, p.id, 'up')}
+                                    disabled={index === 0}
+                                    title="Move up"
+                                    style={{
+                                      padding: '4px 8px',
+                                      backgroundColor: index === 0 ? '#6c757d' : '#007bff',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: index === 0 ? 'not-allowed' : 'pointer',
+                                      fontSize: '12px',
+                                    }}
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    onClick={() => moveParticipantInCustomRing(ring.id, p.id, 'down')}
+                                    disabled={index === ringParticipants.length - 1}
+                                    title="Move down"
+                                    style={{
+                                      padding: '4px 8px',
+                                      backgroundColor: index === ringParticipants.length - 1 ? '#6c757d' : '#007bff',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: index === ringParticipants.length - 1 ? 'not-allowed' : 'pointer',
+                                      fontSize: '12px',
+                                    }}
+                                  >
+                                    ▼
+                                  </button>
+                                  <button
+                                    onClick={() => removeParticipantFromCustomRing(ring.id, p.id)}
+                                    title="Remove from ring"
+                                    style={{
+                                      padding: '4px 8px',
+                                      backgroundColor: '#dc3545',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : selectedDivision === 'checkpoints' ? (
+        <div>
+          {/* Header */}
+          <h3 style={{ 
+            marginBottom: '20px', 
+            color: 'var(--text-primary)',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-          }}
-          title={sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
-        >
-          {sidebarCollapsed ? '◀' : '▶'} {sidebarCollapsed ? 'Show' : 'Hide'} Sidebar
-        </button>
-      </div>
-      
-      {unassignedCount > 0 && (
-        <div className="warning" style={{ marginBottom: '15px' }}>
-          <strong>⚠️ {unassignedCount} participants</strong> not assigned to any ring
-        </div>
-      )}
+            gap: '10px',
+          }}>
+            <span style={{ fontSize: '24px' }}>📋</span>
+            Checkpoints
+          </h3>
 
-      <div>
+          {/* Create Checkpoint Section */}
+          <div style={{
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '8px',
+            padding: '20px',
+            marginBottom: '25px',
+            border: '2px solid var(--border-color)',
+          }}>
+            <h4 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>
+              Create New Checkpoint
+            </h4>
+            
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '1 1 300px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '5px', 
+                  fontSize: '13px',
+                  color: 'var(--text-secondary)',
+                  fontWeight: '600'
+                }}>
+                  Checkpoint Name (optional)
+                </label>
+                <input
+                  type="text"
+                  value={newCheckpointName}
+                  onChange={(e) => setNewCheckpointName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCreateCheckpoint();
+                    }
+                  }}
+                  placeholder="Leave blank for auto-generated name"
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--input-border)',
+                    fontSize: '14px',
+                    backgroundColor: 'var(--input-bg)',
+                    color: 'var(--text-primary)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleCreateCheckpoint}
+                style={{
+                  padding: '8px 20px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                💾 Create Checkpoint
+              </button>
+            </div>
+            
+            <p style={{ 
+              marginTop: '10px', 
+              marginBottom: 0, 
+              fontSize: '12px', 
+              color: 'var(--text-muted)',
+              fontStyle: 'italic',
+            }}>
+              A checkpoint saves the current state of all ring assignments, allowing you to track changes made after this point.
+            </p>
+          </div>
+
+          {/* Print All Changed Section */}
+          {checkpoints.length > 0 && changedRings.size > 0 && (
+            <div style={{
+              backgroundColor: '#fff3cd',
+              color: '#856404',
+              borderRadius: '8px',
+              padding: '15px',
+              marginBottom: '25px',
+              border: '2px solid #ffc107',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '10px',
+            }}>
+              <div>
+                <strong style={{ fontSize: '15px' }}>⚠️ {changedRings.size} ring(s) changed since checkpoint</strong>
+                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>
+                  Print updated PDFs for rings that have been modified.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (changedRings.size > 0) {
+                    handlePrintAllChanged();
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#ffc107',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                }}
+              >
+                🖨️ Print All Changed Rings
+              </button>
+            </div>
+          )}
+
+          {/* Checkpoints List */}
+          {sortedCheckpoints.length === 0 ? (
+            <div className="info" style={{ textAlign: 'center', padding: '40px' }}>
+              <p>No checkpoints created yet.</p>
+              <p>Create a checkpoint above to save the current state of ring assignments.</p>
+            </div>
+          ) : (
+            <div>
+              <h4 style={{ marginBottom: '15px', color: 'var(--text-primary)' }}>
+                Saved Checkpoints ({sortedCheckpoints.length})
+              </h4>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {sortedCheckpoints.map((checkpoint) => {
+                  const isActive = latestCheckpoint?.id === checkpoint.id;
+                  const isRenaming = renamingCheckpointId === checkpoint.id;
+                  
+                  return (
+                    <div
+                      key={checkpoint.id}
+                      style={{
+                        backgroundColor: isActive ? '#d4edda' : 'var(--bg-secondary)',
+                        border: isActive ? '2px solid #28a745' : '2px solid var(--border-color)',
+                        borderRadius: '8px',
+                        padding: '15px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                      }}
+                    >
+                      <div style={{ flex: '1 1 300px' }}>
+                        {isRenaming ? (
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              value={renamingCheckpointValue}
+                              onChange={(e) => setRenamingCheckpointValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && renamingCheckpointValue.trim()) {
+                                  renameCheckpoint(checkpoint.id, renamingCheckpointValue);
+                                  setRenamingCheckpointId(null);
+                                } else if (e.key === 'Escape') {
+                                  setRenamingCheckpointId(null);
+                                }
+                              }}
+                              autoFocus
+                              style={{
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                padding: '6px 10px',
+                                borderRadius: '4px',
+                                border: '1px solid var(--input-border)',
+                                backgroundColor: 'var(--input-bg)',
+                                color: 'var(--text-primary)',
+                                flex: 1,
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                if (renamingCheckpointValue.trim()) {
+                                  renameCheckpoint(checkpoint.id, renamingCheckpointValue);
+                                  setRenamingCheckpointId(null);
+                                }
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#28a745',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setRenamingCheckpointId(null)}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#6c757d',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ 
+                              fontWeight: 'bold', 
+                              fontSize: '16px', 
+                              marginBottom: '4px',
+                              color: isActive ? '#155724' : 'var(--text-primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                            }}>
+                              {isActive && <span style={{ color: '#28a745' }}>✓</span>}
+                              {checkpoint.name}
+                            </div>
+                            <div style={{ 
+                              fontSize: '13px', 
+                              color: isActive ? '#155724' : 'var(--text-secondary)',
+                            }}>
+                              {new Date(checkpoint.timestamp).toLocaleString()}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      
+                      {!isRenaming && (
+                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                          {!isActive && (
+                            <button
+                              onClick={() => loadCheckpoint(checkpoint.id)}
+                              style={{
+                                padding: '6px 14px',
+                                backgroundColor: '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                              }}
+                            >
+                              📂 Load
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setRenamingCheckpointId(checkpoint.id);
+                              setRenamingCheckpointValue(checkpoint.name);
+                            }}
+                            style={{
+                              padding: '6px 14px',
+                              backgroundColor: '#6c757d',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            ✏️ Rename
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete checkpoint "${checkpoint.name}"? This cannot be undone.`)) {
+                                deleteCheckpoint(checkpoint.id);
+                                if (renamingCheckpointId === checkpoint.id) {
+                                  setRenamingCheckpointId(null);
+                                }
+                              }
+                            }}
+                            style={{
+                              padding: '6px 14px',
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Regular Ring Pairs View */
+        <div>
         {filteredRingPairs.map((pair) => {
           // Check if this ring pair has changed since checkpoint
           const formsChanged = pair.formsRing && isRingAffectedSimple(pair.formsRing.name || pair.categoryPoolName, 'forms', changedRings);
@@ -1949,35 +2979,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           </div>
         );
         })}
-      </div>
+        </div>
+      )}
     </div>
-    
-    {/* Checkpoint Sidebar - Independent Scrollbar */}
-    {!sidebarCollapsed && (
-      <CheckpointSidebar
-        checkpoints={checkpoints}
-        onCreateCheckpoint={createCheckpoint}
-        onLoadCheckpoint={loadCheckpoint}
-        onRenameCheckpoint={renameCheckpoint}
-        onDeleteCheckpoint={deleteCheckpoint}
-        onPrintAllChanged={latestCheckpoint && changedRingsCounts.total > 0 ? handlePrintAllChanged : undefined}
-        changedRingsCounts={changedRingsCounts}
-        selectedDivision={selectedDivision}
-        printingAllChanged={printing === 'all-changed'}
-        customRings={customRings}
-        participants={participants}
-        config={config}
-        printing={printing}
-        setPrinting={setPrinting}
-        onAddCustomRing={addCustomRing}
-        onDeleteCustomRing={deleteCustomRing}
-        onUpdateCustomRing={updateCustomRing}
-        onAddParticipantToRing={addParticipantToCustomRing}
-        onRemoveParticipantFromRing={removeParticipantFromCustomRing}
-        onMoveParticipantInRing={moveParticipantInCustomRing}
-        onOpenParticipantSelectionModal={(ringId) => setParticipantSelectionModal({ ringId })}
-      />
-    )}
   </div>
   );
 }

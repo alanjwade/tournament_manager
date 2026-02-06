@@ -11,12 +11,11 @@ import DataViewer from './components/DataViewer';
 import RingMapEditor from './components/RingMapEditor';
 import Configuration from './components/Configuration';
 import CheckpointManager from './components/CheckpointManager';
-import TournamentDay from './components/TournamentDay';
 import AddParticipantModal from './components/AddParticipantModal';
 import AboutDialog from './components/AboutDialog';
 import UpdateChecker from './components/UpdateChecker';
 
-type Tab = 'dashboard' | 'import' | 'configuration' | 'categories' | 'editor' | 'overview' | 'ringmap' | 'export' | 'checkpoints' | 'tournament-day';
+type Tab = 'dashboard' | 'import' | 'configuration' | 'categories' | 'editor' | 'tournament' | 'ringmap' | 'export' | 'checkpoints';
 type Theme = 'light' | 'dark';
 
 function App() {
@@ -490,11 +489,12 @@ function App() {
           Editor
         </button>
         <button
-          className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
+          className={`tab ${activeTab === 'tournament' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tournament')}
           disabled={participants.length === 0}
+          style={{ backgroundColor: activeTab === 'tournament' ? '#dc3545' : undefined, color: activeTab === 'tournament' ? 'white' : undefined }}
         >
-          Overview
+          🏆 Tournament
         </button>
         <button
           className={`tab ${activeTab === 'export' ? 'active' : ''}`}
@@ -502,15 +502,6 @@ function App() {
           disabled={participants.length === 0}
         >
           Export
-        </button>
-        <button
-          className={`tab ${activeTab === 'tournament-day' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tournament-day')}
-          disabled={participants.length === 0}
-          style={{ backgroundColor: activeTab === 'tournament-day' ? '#dc3545' : undefined, color: activeTab === 'tournament-day' ? 'white' : undefined }}
-        >
-          🏆 Tournament
-          <Badge count={tabStatus.tournamentDay} type="info" />
         </button>
         <button
           className={`tab ${activeTab === 'checkpoints' ? 'active' : ''}`}
@@ -528,9 +519,8 @@ function App() {
         {activeTab === 'categories' && <CategoryManagement globalDivision={globalDivision} />}
         {activeTab === 'ringmap' && <RingMapEditor globalDivision={globalDivision} />}
         {activeTab === 'editor' && <DataViewer globalDivision={globalDivision} />}
-        {activeTab === 'overview' && <RingOverview globalDivision={globalDivision} />}
+        {activeTab === 'tournament' && <RingOverview globalDivision={globalDivision} />}
         {activeTab === 'export' && <PDFExport globalDivision={globalDivision} />}
-        {activeTab === 'tournament-day' && <TournamentDay globalDivision={globalDivision} />}
         {activeTab === 'checkpoints' && <CheckpointManager />}
       </div>
 

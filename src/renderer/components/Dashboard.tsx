@@ -412,7 +412,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
           {ringAnalysis.map((issue, idx) => (
             <div 
               key={idx}
-              onClick={() => onNavigate('overview')}
+              onClick={() => onNavigate('tournament')}
               style={{ 
                 padding: '10px', 
                 backgroundColor: issue.severity === 'error' ? 'rgba(220,53,69,0.2)' : 'var(--bg-secondary)', 
@@ -423,7 +423,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
               }}
             >
               <strong>{issue.ring}:</strong> {issue.issue}
-              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Overview →</span>
+              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Tournament →</span>
             </div>
           ))}
 
