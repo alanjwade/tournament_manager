@@ -14,6 +14,7 @@ import CheckpointManager from './components/CheckpointManager';
 import AddParticipantModal from './components/AddParticipantModal';
 import AboutDialog from './components/AboutDialog';
 import UpdateChecker from './components/UpdateChecker';
+import HelpDialog, { HelpTopic } from './components/HelpDialog';
 
 type Tab = 'dashboard' | 'import' | 'configuration' | 'categories' | 'editor' | 'tournament' | 'ringmap' | 'export' | 'checkpoints';
 type Theme = 'light' | 'dark';
@@ -26,6 +27,7 @@ function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isUpdateCheckerOpen, setIsUpdateCheckerOpen] = useState(false);
+  const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
   const [theme, setTheme] = useState<Theme>(() => {
     // Default to dark theme, but check localStorage for user preference
     const savedTheme = localStorage.getItem('tournament-theme') as Theme;
@@ -53,6 +55,10 @@ function App() {
 
     window.electronAPI.onCheckForUpdates(() => {
       setIsUpdateCheckerOpen(true);
+    });
+
+    window.electronAPI.onShowHelp((topic: string) => {
+      setHelpTopic(topic as HelpTopic);
     });
   }, []);
 
@@ -540,6 +546,13 @@ function App() {
       <UpdateChecker 
         isOpen={isUpdateCheckerOpen} 
         onClose={() => setIsUpdateCheckerOpen(false)} 
+      />
+
+      {/* Help Dialog */}
+      <HelpDialog
+        isOpen={helpTopic !== null}
+        initialTopic={helpTopic ?? undefined}
+        onClose={() => setHelpTopic(null)}
       />
     </div>
   );

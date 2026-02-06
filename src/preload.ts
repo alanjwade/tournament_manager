@@ -22,4 +22,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openDownloadPage: () => ipcRenderer.invoke('open-download-page'),
   onShowAboutDialog: (callback: () => void) => ipcRenderer.on('show-about-dialog', callback),
   onCheckForUpdates: (callback: () => void) => ipcRenderer.on('check-for-updates', callback),
+  onShowHelp: (callback: (topic: string) => void) => ipcRenderer.on('show-help', (_event, topic: string) => callback(topic)),
 });

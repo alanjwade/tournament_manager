@@ -597,6 +597,39 @@ function createMenu() {
       label: 'Help',
       submenu: [
         {
+          label: 'Overview',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('show-help', 'overview');
+            }
+          }
+        },
+        {
+          label: 'Pre-Tournament Guide',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('show-help', 'pre-tournament');
+            }
+          }
+        },
+        {
+          label: 'Tournament Day Guide',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('show-help', 'tournament-day');
+            }
+          }
+        },
+        {
+          label: 'Quick Reference',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('show-help', 'quick-reference');
+            }
+          }
+        },
+        { type: 'separator' },
+        {
           label: 'About TournamentManager',
           click: () => {
             if (mainWindow) {

@@ -20,6 +20,7 @@ export interface ElectronAPI {
   openDownloadPage: () => Promise<{ success: boolean }>;
   onShowAboutDialog: (callback: () => void) => void;
   onCheckForUpdates: (callback: () => void) => void;
+  onShowHelp: (callback: (topic: string) => void) => void;
 }
 
 declare global {
