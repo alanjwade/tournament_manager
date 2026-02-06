@@ -50,6 +50,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [participantSelectionModal, setParticipantSelectionModal] = useState<{
     ringId: string;
   } | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [contentWidth, setContentWidth] = useState(0);
+  const contentRef = React.useRef<HTMLDivElement>(null);
   
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
@@ -84,6 +87,20 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       setPendingChanges({});
     }
   }, [quickEdit]);
+
+  // Track content width for responsive layout
+  useEffect(() => {
+    if (!contentRef.current) return;
+    
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContentWidth(entry.contentRect.width);
+      }
+    });
+    
+    observer.observe(contentRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Move participant up or down in rank order
   const moveParticipant = (participantId: string, direction: 'up' | 'down', ringType: 'forms' | 'sparring') => {
@@ -1732,16 +1749,22 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     );
   }
 
+  // Determine if we should stack Forms/Sparring based on available width
+  const shouldStack = contentWidth > 0 && contentWidth < 1000;
+
   return (
-    <div style={{ display: 'flex', gap: '15px', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', gap: '15px', height: '100vh', overflow: 'hidden', position: 'relative' }}>
       {/* Main Content - Independent Scrollbar */}
-      <div className="card" style={{ 
-        width: 'auto', 
-        minWidth: 'min-content', 
-        maxHeight: '100vh', 
-        overflowY: 'auto',
-        overflowX: 'hidden',
-      }}>
+      <div 
+        ref={contentRef}
+        className="card" 
+        style={{ 
+          flex: 1,
+          minWidth: 'min-content', 
+          maxHeight: '100vh', 
+          overflowY: 'auto',
+          overflowX: 'hidden',
+        }}>
       {/* Quick Edit Modal */}
       {renderQuickEditModal()}
       
@@ -1763,8 +1786,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       
       <h2 className="card-title">Ring Overview</h2>
       
-      {/* Division Filter */}
-      <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', alignItems: 'center' }}>
+      {/* Division Filter and Sidebar Toggle */}
+      <div style={{ marginBottom: '15px', display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <label style={{ marginRight: '0px', fontWeight: 'bold' }}>
             Filter by Division:
@@ -1790,6 +1813,27 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             })}
           </select>
         </div>
+        
+        {/* Sidebar Toggle Button */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          style={{
+            padding: '6px 12px',
+            fontSize: '13px',
+            backgroundColor: sidebarCollapsed ? '#28a745' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+          title={sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
+        >
+          {sidebarCollapsed ? '◀' : '▶'} {sidebarCollapsed ? 'Show' : 'Hide'} Sidebar
+        </button>
       </div>
       
       {unassignedCount > 0 && (
@@ -1885,7 +1929,13 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               )}
             </h4>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: shouldStack ? '1fr' : '1fr 1fr', 
+              gap: '20px', 
+              alignItems: 'start',
+              transition: 'grid-template-columns 0.2s ease'
+            }}>
               {/* Forms Column */}
               <div>
                 {renderRingTable(pair.formsRing, 'forms', pair.physicalRingName || pair.categoryPoolName)}
@@ -1903,29 +1953,31 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     </div>
     
     {/* Checkpoint Sidebar - Independent Scrollbar */}
-    <CheckpointSidebar
-      checkpoints={checkpoints}
-      onCreateCheckpoint={createCheckpoint}
-      onLoadCheckpoint={loadCheckpoint}
-      onRenameCheckpoint={renameCheckpoint}
-      onDeleteCheckpoint={deleteCheckpoint}
-      onPrintAllChanged={latestCheckpoint && changedRingsCounts.total > 0 ? handlePrintAllChanged : undefined}
-      changedRingsCounts={changedRingsCounts}
-      selectedDivision={selectedDivision}
-      printingAllChanged={printing === 'all-changed'}
-      customRings={customRings}
-      participants={participants}
-      config={config}
-      printing={printing}
-      setPrinting={setPrinting}
-      onAddCustomRing={addCustomRing}
-      onDeleteCustomRing={deleteCustomRing}
-      onUpdateCustomRing={updateCustomRing}
-      onAddParticipantToRing={addParticipantToCustomRing}
-      onRemoveParticipantFromRing={removeParticipantFromCustomRing}
-      onMoveParticipantInRing={moveParticipantInCustomRing}
-      onOpenParticipantSelectionModal={(ringId) => setParticipantSelectionModal({ ringId })}
-    />
+    {!sidebarCollapsed && (
+      <CheckpointSidebar
+        checkpoints={checkpoints}
+        onCreateCheckpoint={createCheckpoint}
+        onLoadCheckpoint={loadCheckpoint}
+        onRenameCheckpoint={renameCheckpoint}
+        onDeleteCheckpoint={deleteCheckpoint}
+        onPrintAllChanged={latestCheckpoint && changedRingsCounts.total > 0 ? handlePrintAllChanged : undefined}
+        changedRingsCounts={changedRingsCounts}
+        selectedDivision={selectedDivision}
+        printingAllChanged={printing === 'all-changed'}
+        customRings={customRings}
+        participants={participants}
+        config={config}
+        printing={printing}
+        setPrinting={setPrinting}
+        onAddCustomRing={addCustomRing}
+        onDeleteCustomRing={deleteCustomRing}
+        onUpdateCustomRing={updateCustomRing}
+        onAddParticipantToRing={addParticipantToCustomRing}
+        onRemoveParticipantFromRing={removeParticipantFromCustomRing}
+        onMoveParticipantInRing={moveParticipantInCustomRing}
+        onOpenParticipantSelectionModal={(ringId) => setParticipantSelectionModal({ ringId })}
+      />
+    )}
   </div>
   );
 }
