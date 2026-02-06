@@ -60,6 +60,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [newCheckpointName, setNewCheckpointName] = useState('');
   const [renamingCheckpointId, setRenamingCheckpointId] = useState<string | null>(null);
   const [renamingCheckpointValue, setRenamingCheckpointValue] = useState('');
+  const [expandedRings, setExpandedRings] = useState<Set<string>>(new Set());
   
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
@@ -425,6 +426,28 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     } finally {
       setPrinting(null);
     }
+  };
+
+  // Toggle ring expansion
+  const toggleRingExpanded = (poolName: string) => {
+    const newExpanded = new Set(expandedRings);
+    if (newExpanded.has(poolName)) {
+      newExpanded.delete(poolName);
+    } else {
+      newExpanded.add(poolName);
+    }
+    setExpandedRings(newExpanded);
+  };
+
+  // Collapse all rings
+  const handleCollapseAll = () => {
+    setExpandedRings(new Set());
+  };
+
+  // Expand all rings
+  const handleExpandAll = () => {
+    const allPoolNames = new Set(filteredRingPairs.map(p => p.categoryPoolName));
+    setExpandedRings(allPoolNames);
   };
 
   // Sync with global division when it changes
@@ -2202,6 +2225,42 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           >
             📋 CP
           </button>
+
+          {/* Collapse/Expand all buttons - only show in regular division view */}
+          {selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && (
+            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+              <button
+                onClick={handleCollapseAll}
+                disabled={expandedRings.size === 0}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: expandedRings.size > 0 ? '#6c757d' : '#e0e0e0',
+                  color: expandedRings.size > 0 ? 'white' : '#999',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: expandedRings.size > 0 ? 'pointer' : 'not-allowed',
+                  fontSize: '13px',
+                }}
+              >
+                Collapse All
+              </button>
+              <button
+                onClick={handleExpandAll}
+                disabled={expandedRings.size === filteredRingPairs.length}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: expandedRings.size < filteredRingPairs.length ? '#6c757d' : '#e0e0e0',
+                  color: expandedRings.size < filteredRingPairs.length ? 'white' : '#999',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: expandedRings.size < filteredRingPairs.length ? 'pointer' : 'not-allowed',
+                  fontSize: '13px',
+                }}
+              >
+                Expand All
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Unassigned Warning - moved to right of filter */}
@@ -2884,6 +2943,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           const sparringCount = pair.sparringRing?.participantIds?.length || 0;
           const formsBalance = getRingBalanceStyle(formsCount);
           const sparringBalance = getRingBalanceStyle(sparringCount);
+          const isExpanded = expandedRings.has(pair.categoryPoolName);
 
           return (
           <div
@@ -2891,15 +2951,19 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             style={{
               border: hasChanged ? '3px solid #dc3545' : '2px solid var(--border-color)',
               borderRadius: '8px',
-              padding: '15px',
               marginBottom: '20px',
               backgroundColor: hasChanged ? 'var(--bg-secondary)' : 'var(--bg-primary)',
               boxShadow: hasChanged ? '0 0 8px rgba(220, 53, 69, 0.3)' : undefined,
+              overflow: 'hidden',
             }}
           >
+            {/* Header - clickable to expand/collapse */}
             <h4
+              onClick={() => toggleRingExpanded(pair.categoryPoolName)}
               style={{
-                marginBottom: '15px',
+                marginBottom: 0,
+                marginTop: 0,
+                padding: '15px',
                 color: 'var(--text-primary)',
                 fontSize: '18px',
                 fontWeight: 'bold',
@@ -2907,75 +2971,93 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                 alignItems: 'center',
                 flexWrap: 'wrap',
                 gap: '10px',
+                cursor: 'pointer',
+                backgroundColor: isExpanded ? 'var(--bg-hover)' : 'transparent',
+                transition: 'background-color 0.15s',
               }}
             >
-              <span style={{ color: '#007bff' }}>
-                {pair.division}
-              </span>
-              <span>
-                {formatPoolNameForDisplay(pair.categoryPoolName)}
-              </span>
-              {pair.physicalRingName && (
-                <span style={{ color: '#28a745', fontSize: '16px', fontWeight: '600' }}>
-                  ({pair.physicalRingName})
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ color: '#007bff' }}>
+                  {pair.division}
                 </span>
-              )}
-              {hasChanged && (
-                <span style={{
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                }}>
-                  CHANGED
+                <span>
+                  {formatPoolNameForDisplay(pair.categoryPoolName)}
                 </span>
-              )}
-              {/* Balance indicators */}
-              {formsCount > 0 && (
-                <span style={{
-                  backgroundColor: formsBalance.bg,
-                  color: formsBalance.color,
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                }} title={`Forms: ${formsCount} participants (${formsBalance.label})`}>
-                  F:{formsCount}
-                </span>
-              )}
-              {sparringCount > 0 && (
-                <span style={{
-                  backgroundColor: sparringBalance.bg,
-                  color: sparringBalance.color,
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                }} title={`Sparring: ${sparringCount} participants (${sparringBalance.label})`}>
-                  S:{sparringCount}
-                </span>
-              )}
+                {pair.physicalRingName && (
+                  <span style={{ color: '#28a745', fontSize: '16px', fontWeight: '600' }}>
+                    ({pair.physicalRingName})
+                  </span>
+                )}
+                {hasChanged && (
+                  <span style={{
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                  }}>
+                    CHANGED
+                  </span>
+                )}
+                {/* Balance indicators */}
+                {formsCount > 0 && (
+                  <span style={{
+                    backgroundColor: formsBalance.bg,
+                    color: formsBalance.color,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                  }} title={`Forms: ${formsCount} participants (${formsBalance.label})`}>
+                    F:{formsCount}
+                  </span>
+                )}
+                {sparringCount > 0 && (
+                  <span style={{
+                    backgroundColor: sparringBalance.bg,
+                    color: sparringBalance.color,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                  }} title={`Sparring: ${sparringCount} participants (${sparringBalance.label})`}>
+                    S:{sparringCount}
+                  </span>
+                )}
+              </div>
+              <div style={{
+                fontSize: '18px',
+                transition: 'transform 0.2s',
+                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                flexShrink: 0,
+              }}>
+                ▼
+              </div>
             </h4>
 
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: shouldStack ? '1fr' : '1fr 1fr', 
-              gap: '20px', 
-              alignItems: 'start',
-              transition: 'grid-template-columns 0.2s ease'
-            }}>
-              {/* Forms Column */}
-              <div>
-                {renderRingTable(pair.formsRing, 'forms', pair.physicalRingName || pair.categoryPoolName)}
-              </div>
+            {/* Content - only show when expanded */}
+            {isExpanded && (
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: shouldStack ? '1fr' : '1fr 1fr', 
+                gap: '20px', 
+                alignItems: 'start',
+                transition: 'grid-template-columns 0.2s ease',
+                padding: '0 15px 15px 15px',
+                borderTop: '1px solid var(--border-color)',
+              }}>
+                {/* Forms Column */}
+                <div>
+                  {renderRingTable(pair.formsRing, 'forms', pair.physicalRingName || pair.categoryPoolName)}
+                </div>
 
-              {/* Sparring Column */}
-              <div>
-                {renderRingTable(pair.sparringRing, 'sparring', pair.physicalRingName || pair.categoryPoolName)}
+                {/* Sparring Column */}
+                <div>
+                  {renderRingTable(pair.sparringRing, 'sparring', pair.physicalRingName || pair.categoryPoolName)}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         );
         })}
