@@ -21,7 +21,10 @@ type Theme = 'light' | 'dark';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const [globalDivision, setGlobalDivision] = useState<string>('all');
+  const [globalDivision, setGlobalDivision] = useState<string>(() => {
+    const saved = localStorage.getItem('tournament-division');
+    return saved || 'Black Belt';
+  });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchFocused, setSearchFocused] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -381,7 +384,10 @@ function App() {
             <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Division:</label>
             <select
               value={globalDivision}
-              onChange={(e) => setGlobalDivision(e.target.value)}
+              onChange={(e) => {
+                setGlobalDivision(e.target.value);
+                localStorage.setItem('tournament-division', e.target.value);
+              }}
               style={{
                 padding: '8px 12px',
                 fontSize: '14px',
@@ -389,11 +395,10 @@ function App() {
                 border: '2px solid var(--accent-primary)',
                 backgroundColor: 'var(--input-bg)',
                 color: 'var(--text-primary)',
-                fontWeight: globalDivision === 'all' ? 'normal' : 'bold',
+                fontWeight: 'bold',
                 minWidth: '150px',
               }}
             >
-              <option value="all">All Divisions</option>
               {config.divisions.sort((a, b) => a.order - b.order).map(div => (
                 <option key={div.name} value={div.name}>
                   {div.abbreviation || div.name.substring(0, 4).toUpperCase()} - {div.name}

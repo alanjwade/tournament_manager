@@ -41,8 +41,12 @@ const getRingBalanceStyle = (participantCount: number): { color: string; bg: str
 };
 
 function RingOverview({ globalDivision }: RingOverviewProps) {
-  const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision || 'all');
-  const [divisionFilter, setDivisionFilter] = useState<string>(globalDivision || 'all'); // Persists dropdown selection
+  const [selectedDivision, setSelectedDivision] = useState<string>(
+    globalDivision || localStorage.getItem('tournament-division') || 'Black Belt'
+  );
+  const [divisionFilter, setDivisionFilter] = useState<string>(
+    globalDivision || localStorage.getItem('tournament-division') || 'Black Belt'
+  ); // Persists dropdown selection
   const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
   const [copySparringFromForms, setCopySparringFromForms] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Partial<Participant>>({});
@@ -2221,6 +2225,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             onChange={(e) => {
               setDivisionFilter(e.target.value);
               setSelectedDivision(e.target.value);
+              localStorage.setItem('tournament-division', e.target.value);
             }}
             style={{
               padding: '5px 10px',
@@ -2229,7 +2234,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               border: '1px solid var(--input-border)',
             }}
           >
-            <option value="all">All Divisions ({ringPairs.length} rings)</option>
             {divisions.map((division) => {
               const count = ringPairs.filter(p => p.division === division).length;
               return (

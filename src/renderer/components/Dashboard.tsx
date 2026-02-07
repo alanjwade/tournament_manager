@@ -26,45 +26,43 @@ function Dashboard({ onNavigate }: DashboardProps) {
   const divisionStats = useMemo(() => {
     const stats = new Map<string, {
       total: number;
-      formsAssigned: number;
-      sparringAssigned: number;
-      formsRingAssigned: number;
-      sparringRingAssigned: number;
+      formsParticipation: number;
+      sparringParticipation: number;
     }>();
 
     // Initialize stats for each division
     config.divisions.forEach(div => {
       stats.set(div.name, {
         total: 0,
-        formsAssigned: 0,
-        sparringAssigned: 0,
-        formsRingAssigned: 0,
-        sparringRingAssigned: 0,
+        formsParticipation: 0,
+        sparringParticipation: 0,
       });
     });
 
-    // Count participants per division - only count those assigned to a pool
+    // Count participants per division
     participants.forEach(p => {
       const formsDivision = getEffectiveDivision(p, 'forms');
       const sparringDivision = getEffectiveDivision(p, 'sparring');
       
-      // Count by forms division for participants with a forms pool
-      if (formsDivision && stats.has(formsDivision) && p.formsPool) {
+      // Track unique participants per division
+      const divisionsCounted = new Set<string>();
+      
+      if (formsDivision && stats.has(formsDivision) && p.competingForms) {
         const s = stats.get(formsDivision)!;
-        s.total++;
-        if (p.formsCategoryId) s.formsAssigned++;
-        if (p.formsPool) s.formsRingAssigned++;
+        if (!divisionsCounted.has(formsDivision)) {
+          s.total++;
+          divisionsCounted.add(formsDivision);
+        }
+        s.formsParticipation++;
       }
       
-      // Count sparring separately
-      if (sparringDivision && stats.has(sparringDivision) && p.sparringPool) {
+      if (sparringDivision && stats.has(sparringDivision) && p.competingSparring) {
         const s = stats.get(sparringDivision)!;
-        // Only increment total if not already counted via forms (to avoid double counting)
-        if (!formsDivision || formsDivision !== sparringDivision || !p.formsPool) {
+        if (!divisionsCounted.has(sparringDivision)) {
           s.total++;
+          divisionsCounted.add(sparringDivision);
         }
-        if (p.sparringCategoryId) s.sparringAssigned++;
-        if (p.sparringPool) s.sparringRingAssigned++;
+        s.sparringParticipation++;
       }
     });
 
@@ -81,6 +79,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
     const sparringWithCategory = sparringParticipants.filter(p => p.sparringCategoryId);
 
     const withCategory = participatingParticipants.filter(p => p.formsCategoryId || p.sparringCategoryId);
+    const withoutCategory = participatingParticipants.filter(p => !p.formsCategoryId && !p.sparringCategoryId);
     const withRing = participatingParticipants.filter(p => p.formsPool || p.sparringPool);
 
     return {
@@ -91,6 +90,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
       formsWithCategory: formsWithCategory.length,
       sparringWithCategory: sparringWithCategory.length,
       withCategory: withCategory.length,
+      withoutCategory: withoutCategory.length,
       withRing: withRing.length,
       categoryPercent: participatingParticipants.length > 0 
         ? Math.round((withCategory.length / participatingParticipants.length) * 100) 
@@ -100,25 +100,6 @@ function Dashboard({ onNavigate }: DashboardProps) {
         : 0,
     };
   }, [participants]);
-
-  // Ring balance analysis
-  const ringAnalysis = useMemo(() => {
-    const issues: Array<{ ring: string; issue: string; severity: 'warning' | 'error' }> = [];
-    
-    competitionRings.forEach(ring => {
-      const count = ring.participantIds.length;
-      const displayName = ring.name ? formatPoolNameForDisplay(ring.name) : ring.id;
-      if (count === 0) {
-        issues.push({ ring: displayName, issue: 'Empty pool (0 participants)', severity: 'error' });
-      } else if (count < 3) {
-        issues.push({ ring: displayName, issue: `Very small pool (${count} participants)`, severity: 'warning' });
-      } else if (count > 16) {
-        issues.push({ ring: displayName, issue: `Large pool (${count} participants)`, severity: 'warning' });
-      }
-    });
-
-    return issues;
-  }, [competitionRings]);
 
   // Physical ring mapping analysis
   const mappingAnalysis = useMemo(() => {
@@ -195,8 +176,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   // Count all warnings
-  const warningCount = ringAnalysis.length + mappingAnalysis.length + 
-    (overallStats.participatingParticipants - overallStats.withCategory);
+  const warningCount = mappingAnalysis.length + overallStats.withoutCategory;
 
   return (
     <div style={{ padding: '20px', width: 'fit-content', minWidth: 0 }}>
@@ -306,10 +286,8 @@ function Dashboard({ onNavigate }: DashboardProps) {
             <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
               <th style={{ padding: '10px', textAlign: 'left', color: 'var(--text-primary)' }}>Division</th>
               <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Total</th>
-              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Forms Category</th>
-              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Sparring Category</th>
-              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Forms Ring</th>
-              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Sparring Ring</th>
+              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Forms Participation</th>
+              <th style={{ padding: '10px', textAlign: 'center', color: 'var(--text-primary)' }}>Sparring Participation</th>
             </tr>
           </thead>
           <tbody>
@@ -334,24 +312,10 @@ function Dashboard({ onNavigate }: DashboardProps) {
                   </td>
                   <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>{stats.total}</td>
                   <td style={{ padding: '10px', textAlign: 'center' }}>
-                    <span style={{ color: stats.formsAssigned === stats.total ? '#28a745' : '#dc3545' }}>
-                      {stats.formsAssigned}/{stats.total}
-                    </span>
+                    {stats.formsParticipation}
                   </td>
                   <td style={{ padding: '10px', textAlign: 'center' }}>
-                    <span style={{ color: stats.sparringAssigned === stats.total ? '#28a745' : '#dc3545' }}>
-                      {stats.sparringAssigned}/{stats.total}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px', textAlign: 'center' }}>
-                    <span style={{ color: stats.formsRingAssigned === stats.total ? '#28a745' : '#dc3545' }}>
-                      {stats.formsRingAssigned}/{stats.total}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px', textAlign: 'center' }}>
-                    <span style={{ color: stats.sparringRingAssigned === stats.total ? '#28a745' : '#dc3545' }}>
-                      {stats.sparringRingAssigned}/{stats.total}
-                    </span>
+                    {stats.sparringParticipation}
                   </td>
                 </tr>
               );
@@ -361,9 +325,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
       </div>
 
       {/* Warnings & Issues */}
-      {(ringAnalysis.length > 0 || mappingAnalysis.length > 0 || 
-        overallStats.formsWithCategory < overallStats.formsParticipants ||
-        overallStats.sparringWithCategory < overallStats.sparringParticipants) && (
+      {(overallStats.withoutCategory > 0 || mappingAnalysis.length > 0) && (
         <div style={{
           backgroundColor: 'var(--warning-bg)',
           border: '1px solid var(--warning-border)',
@@ -373,8 +335,8 @@ function Dashboard({ onNavigate }: DashboardProps) {
         }}>
           <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--warning-text)' }}>⚠️ Warnings & Issues</h3>
           
-          {/* Unassigned participants */}
-          {overallStats.formsWithCategory < overallStats.formsParticipants && (
+          {/* Participants not assigned to any category */}
+          {overallStats.withoutCategory > 0 && (
             <div 
               onClick={() => onNavigate('categories')}
               style={{ 
@@ -386,48 +348,12 @@ function Dashboard({ onNavigate }: DashboardProps) {
                 color: 'var(--text-primary)',
               }}
             >
-              <strong>{overallStats.formsParticipants - overallStats.formsWithCategory}</strong> forms participants not assigned to categories
-              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Categories →</span>
-            </div>
-          )}
-          
-          {overallStats.sparringWithCategory < overallStats.sparringParticipants && (
-            <div 
-              onClick={() => onNavigate('categories')}
-              style={{ 
-                padding: '10px', 
-                backgroundColor: 'var(--bg-secondary)', 
-                borderRadius: '4px', 
-                marginBottom: '8px',
-                cursor: 'pointer',
-                color: 'var(--text-primary)',
-              }}
-            >
-              <strong>{overallStats.sparringParticipants - overallStats.sparringWithCategory}</strong> sparring participants not assigned to categories
+              <strong>{overallStats.withoutCategory}</strong> participants not assigned to any category
               <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Categories →</span>
             </div>
           )}
 
-          {/* Ring balance issues */}
-          {ringAnalysis.map((issue, idx) => (
-            <div 
-              key={idx}
-              onClick={() => onNavigate('tournament')}
-              style={{ 
-                padding: '10px', 
-                backgroundColor: issue.severity === 'error' ? 'rgba(220,53,69,0.2)' : 'var(--bg-secondary)', 
-                borderRadius: '4px', 
-                marginBottom: '8px',
-                cursor: 'pointer',
-                color: 'var(--text-primary)',
-              }}
-            >
-              <strong>{issue.ring}:</strong> {issue.issue}
-              <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Tournament →</span>
-            </div>
-          ))}
-
-          {/* Unmapped rings */}
+          {/* Unmapped pools */}
           {mappingAnalysis.length > 0 && (
             <div 
               onClick={() => onNavigate('ringmap')}
@@ -440,7 +366,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
                 color: 'var(--text-primary)',
               }}
             >
-              <strong>{mappingAnalysis.length}</strong> rings not mapped to physical rings
+              <strong>{mappingAnalysis.length}</strong> pools not assigned to physical rings
               <span style={{ float: 'right', color: 'var(--accent-primary)' }}>Go to Ring Map →</span>
             </div>
           )}
