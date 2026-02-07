@@ -20,6 +20,7 @@
   --warning-border: #ffc107;
   --warning-text: #856404;
   --success-bg: #d4edda;
+  --success-border: #28a745;
   --success-text: #155724;
   --success-color: #28a745;
   --error-bg: #f8d7da;
@@ -58,6 +59,7 @@
   --warning-border: #ffc107;
   --warning-text: #ffc107;
   --success-bg: #1a4d2e;
+  --success-border: #198754;
   --success-text: #4ade80;
   --success-color: #198754;
   --error-bg: #4d1a1a;

@@ -686,6 +686,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     const { participant } = quickEdit;
     
     // Get current values (either from pending changes or participant)
+    const currentCompetingForms = pendingChanges.competingForms !== undefined ? pendingChanges.competingForms : participant.competingForms;
+    const currentCompetingSparring = pendingChanges.competingSparring !== undefined ? pendingChanges.competingSparring : participant.competingSparring;
+    
     const currentFormsDivision = pendingChanges.formsDivision !== undefined ? pendingChanges.formsDivision : participant.formsDivision;
     const currentFormsCategoryId = pendingChanges.formsCategoryId !== undefined ? pendingChanges.formsCategoryId : participant.formsCategoryId;
     const currentFormsPool = pendingChanges.formsPool !== undefined ? pendingChanges.formsPool : participant.formsPool;
@@ -1023,7 +1026,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           style={{
             backgroundColor: 'var(--bg-primary)',
             borderRadius: '8px',
-            padding: '20px',
+            padding: '24px',
             minWidth: '900px',
             maxWidth: '1000px',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
@@ -1032,7 +1035,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '10px', color: 'var(--text-primary)' }}>
             Quick Edit: {participant.firstName} {participant.lastName}
           </h3>
           
@@ -1043,38 +1046,100 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             )}
           </div>
 
+          {/* Copy from Forms checkbox - at the top */}
+          {currentFormsDivision && currentFormsCategoryId && currentFormsPool && (
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              backgroundColor: copySparringFromForms ? 'var(--info-bg)' : 'var(--bg-secondary)',
+              borderRadius: '6px',
+              border: copySparringFromForms ? '1px solid var(--info-border)' : '1px solid var(--border-color)',
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+                <input
+                  type="checkbox"
+                  checked={copySparringFromForms}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    console.log('[QuickEdit] ========== COPY FROM FORMS CHECKBOX ==========');
+                    console.log('[QuickEdit] Checkbox changed to:', isChecked);
+                    console.log('[QuickEdit] Participant:', participant.firstName, participant.lastName);
+                    console.log('[QuickEdit] Current Forms:', { 
+                      division: currentFormsDivision,
+                      categoryId: currentFormsCategoryId, 
+                      pool: currentFormsPool 
+                    });
+                    console.log('[QuickEdit] Current Sparring:', { 
+                      division: currentSparringDivision,
+                      categoryId: currentSparringCategoryId, 
+                      pool: currentSparringPool 
+                    });
+                    console.log('[QuickEdit] ================================================');
+                    
+                    setCopySparringFromForms(isChecked);
+                    if (isChecked) {
+                      // Copy forms assignment to sparring
+                      console.log('[QuickEdit] Updating pending changes to copy forms to sparring');
+                      updatePending({
+                        sparringDivision: currentFormsDivision,
+                        sparringCategoryId: currentFormsCategoryId,
+                        sparringPool: currentFormsPool,
+                      });
+                    } else {
+                      // Unchecking - decouple sparring from forms by clearing the values
+                      console.log('[QuickEdit] Checkbox unchecked - decoupling sparring from forms');
+                      updatePending({
+                        sparringDivision: null,
+                        sparringCategoryId: undefined,
+                        sparringPool: undefined,
+                      });
+                    }
+                  }}
+                  style={{ marginRight: '8px' }}
+                />
+                {copySparringFromForms ? '✓ Sparring uses same Division, Category & Pool as Forms' : 'Use same assignment for both Forms and Sparring'}
+              </label>
+              {copySparringFromForms && (
+                <div style={{ fontSize: '11px', color: 'var(--info-text)', marginTop: '6px', marginLeft: '22px' }}>
+                  Both Forms and Sparring are assigned to the same category and pool
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Two-column layout: Forms on left, Sparring on right */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
             {/* Forms Section */}
             <div style={{ 
               paddingRight: '20px', 
               borderRight: '1px solid var(--border-color)'
             }}>
-            <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#007bff', fontSize: '14px' }}>
+            <h4 style={{ marginTop: 0, marginBottom: '12px', color: '#007bff', fontSize: '15px', fontWeight: '600' }}>
               Forms
             </h4>
             
-            {/* Current Ring Assignment Info */}
-            {formsCategory && currentFormsPool && (
-              <div style={{ 
-                marginBottom: '15px', 
-                padding: '10px', 
-                backgroundColor: 'var(--bg-secondary)',
-                borderRadius: '4px',
-                fontSize: '12px',
-              }}>
-                <div><strong>Category:</strong> {formsCategory.name}</div>
-                <div><strong>Category Ring:</strong> {formatPoolOnly(currentFormsPool)}</div>
-                {formsPhysicalMapping && (
-                  <div><strong>Physical Ring:</strong> {formsPhysicalMapping.physicalRingName}</div>
-                )}
+            {/* Competing Checkbox */}
+            <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: currentCompetingForms ? 'var(--success-bg)' : 'var(--bg-secondary)', borderRadius: '4px', border: `1px solid ${currentCompetingForms ? 'var(--success-border)' : 'var(--border-color)'}` }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+                <input
+                  type="checkbox"
+                  checked={currentCompetingForms ?? false}
+                  onChange={(e) => {
+                    updatePending({ competingForms: e.target.checked });
+                  }}
+                  style={{ marginRight: '8px' }}
+                />
+                Competing in Forms
+              </label>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '22px' }}>
+                {currentCompetingForms ? 'Fields unlocked for editing' : 'Uncheck to withdraw - fields locked but data preserved'}
               </div>
-            )}
-
+            </div>
+            
             {/* Division Selector */}
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                Division:
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Division
               </label>
               <select
                 value={currentFormsDivision ?? ''}
@@ -1082,12 +1147,16 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   const value = e.target.value || null;
                   updatePending({ formsDivision: value });
                 }}
+                disabled={!currentCompetingForms}
                 style={{
                   width: '100%',
                   padding: '8px',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   border: '1px solid var(--input-border)',
                   borderRadius: '4px',
+                  backgroundColor: currentCompetingForms ? 'var(--input-bg)' : 'var(--bg-tertiary)',
+                  opacity: currentCompetingForms ? 1 : 0.6,
+                  cursor: currentCompetingForms ? 'default' : 'not-allowed',
                 }}
               >
                 <option value="">Not Participating</option>
@@ -1099,9 +1168,9 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
             {/* Category/Pool Selector */}
             {currentFormsDivision && (
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                  Category & Pool:
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Category & Pool
                 </label>
                 <select
                   value={currentFormsCategoryId && currentFormsPool ? `${currentFormsCategoryId}|||${currentFormsPool}` : ''}
@@ -1130,12 +1199,16 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                       updatePending({ formsCategoryId: undefined, formsPool: undefined });
                     }
                   }}
+                  disabled={!currentCompetingForms}
                   style={{
                     width: '100%',
                     padding: '8px',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     border: '1px solid var(--input-border)',
                     borderRadius: '4px',
+                    backgroundColor: currentCompetingForms ? 'var(--input-bg)' : 'var(--bg-tertiary)',
+                    opacity: currentCompetingForms ? 1 : 0.6,
+                    cursor: currentCompetingForms ? 'default' : 'not-allowed',
                   }}
                 >
                   <option value="">Select category & pool...</option>
@@ -1156,29 +1229,36 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     ))
                   }
                 </select>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                  Changing category/pool will update physical ring assignment
-                </div>
               </div>
             )}
 
-            {/* Show physical ring assignment (read-only) */}
+            {/* Physical Ring Assignment */}
             {formsPhysicalMapping && (
-              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '5px' }}>Physical Ring Assignment:</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Physical Ring
+                </label>
+                <div style={{ 
+                  padding: '8px 10px', 
+                  backgroundColor: 'var(--bg-tertiary)', 
+                  borderRadius: '4px',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: 'var(--text-primary)'
+                }}>
                   {formsPhysicalMapping.physicalRingName}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '5px' }}>
-                  Use Ring Map tab to change physical ring assignments
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Change in Ring Map tab
                 </div>
               </div>
             )}
 
             {/* Rank Order */}
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                Rank Order:
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Rank Order
               </label>
               <input
                 type="number"
@@ -1187,48 +1267,53 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   const value = e.target.value ? parseInt(e.target.value) : undefined;
                   updatePending({ formsRankOrder: value });
                 }}
+                disabled={!currentCompetingForms}
                 style={{
                   width: '100%',
                   padding: '8px',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   border: '1px solid var(--input-border)',
                   borderRadius: '4px',
+                  backgroundColor: currentCompetingForms ? 'var(--input-bg)' : 'var(--bg-tertiary)',
+                  opacity: currentCompetingForms ? 1 : 0.6,
+                  cursor: currentCompetingForms ? 'default' : 'not-allowed',
                 }}
                 placeholder="e.g., 1, 2, 3..."
               />
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                Use decimals like 1.5 to insert between 1 and 2.
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                Use decimals like 1.5 to insert between competitors
               </div>
             </div>
             </div>
 
             {/* Sparring Section */}
             <div style={{ paddingLeft: '0px' }}>
-              <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#dc3545', fontSize: '14px' }}>
+              <h4 style={{ marginTop: 0, marginBottom: '12px', color: '#dc3545', fontSize: '15px', fontWeight: '600' }}>
                 Sparring
               </h4>
             
-            {/* Current Ring Assignment Info */}
-            {sparringCategory && currentSparringPool && (
-              <div style={{ 
-                marginBottom: '15px', 
-                padding: '10px', 
-                backgroundColor: 'var(--bg-secondary)',
-                borderRadius: '4px',
-                fontSize: '12px',
-              }}>
-                <div><strong>Category:</strong> {sparringCategory.name}</div>
-                <div><strong>Category Ring:</strong> {formatPoolOnly(currentSparringPool)}</div>
-                {sparringPhysicalMapping && (
-                  <div><strong>Physical Ring:</strong> {sparringPhysicalMapping.physicalRingName}</div>
-                )}
+            {/* Competing Checkbox */}
+            <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: currentCompetingSparring ? 'var(--success-bg)' : 'var(--bg-secondary)', borderRadius: '4px', border: `1px solid ${currentCompetingSparring ? 'var(--success-border)' : 'var(--border-color)'}` }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+                <input
+                  type="checkbox"
+                  checked={currentCompetingSparring ?? false}
+                  onChange={(e) => {
+                    updatePending({ competingSparring: e.target.checked });
+                  }}
+                  style={{ marginRight: '8px' }}
+                />
+                Competing in Sparring
+              </label>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '22px' }}>
+                {currentCompetingSparring ? 'Fields unlocked for editing' : 'Uncheck to withdraw - fields locked but data preserved'}
               </div>
-            )}
-
+            </div>
+            
             {/* Division Selector */}
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                Division:
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Division {copySparringFromForms && <span style={{ color: 'var(--info-text)', fontSize: '11px', fontWeight: 'normal' }}>• Same as Forms</span>}
               </label>
               <select
                 value={currentSparringDivision ?? ''}
@@ -1236,12 +1321,16 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   const value = e.target.value || null;
                   updatePending({ sparringDivision: value });
                 }}
+                disabled={copySparringFromForms || !currentCompetingSparring}
                 style={{
                   width: '100%',
                   padding: '8px',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   border: '1px solid var(--input-border)',
                   borderRadius: '4px',
+                  backgroundColor: (copySparringFromForms || !currentCompetingSparring) ? 'var(--bg-tertiary)' : 'var(--input-bg)',
+                  opacity: (copySparringFromForms || !currentCompetingSparring) ? 0.6 : 1,
+                  cursor: (copySparringFromForms || !currentCompetingSparring) ? 'not-allowed' : 'default',
                 }}
               >
                 <option value="">Not Participating</option>
@@ -1251,64 +1340,11 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               </select>
             </div>
 
-            {/* Copy from Forms checkbox */}
-            {currentFormsDivision && currentFormsCategoryId && currentFormsPool && (
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px' }}>
-                  <input
-                    type="checkbox"
-                    checked={copySparringFromForms}
-                    onChange={(e) => {
-                      const isChecked = e.target.checked;
-                      console.log('[QuickEdit] ========== COPY FROM FORMS CHECKBOX ==========');
-                      console.log('[QuickEdit] Checkbox changed to:', isChecked);
-                      console.log('[QuickEdit] Participant:', participant.firstName, participant.lastName);
-                      console.log('[QuickEdit] Current Forms:', { 
-                        division: currentFormsDivision,
-                        categoryId: currentFormsCategoryId, 
-                        pool: currentFormsPool 
-                      });
-                      console.log('[QuickEdit] Current Sparring:', { 
-                        division: currentSparringDivision,
-                        categoryId: currentSparringCategoryId, 
-                        pool: currentSparringPool 
-                      });
-                      console.log('[QuickEdit] ================================================');
-                      
-                      setCopySparringFromForms(isChecked);
-                      if (isChecked) {
-                        // Copy forms assignment to sparring
-                        console.log('[QuickEdit] Updating pending changes to copy forms to sparring');
-                        updatePending({
-                          sparringDivision: currentFormsDivision,
-                          sparringCategoryId: currentFormsCategoryId,
-                          sparringPool: currentFormsPool,
-                        });
-                      } else {
-                        // Unchecking - decouple sparring from forms by clearing the values
-                        console.log('[QuickEdit] Checkbox unchecked - decoupling sparring from forms');
-                        updatePending({
-                          sparringDivision: null,
-                          sparringCategoryId: undefined,
-                          sparringPool: undefined,
-                        });
-                      }
-                    }}
-                    style={{ marginRight: '8px' }}
-                  />
-                  Copy from Forms (same category & pool)
-                </label>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', marginLeft: '22px' }}>
-                  When checked, sparring will use the same assignment as forms
-                </div>
-              </div>
-            )}
-
-            {/* Category/Pool Selector - only show if not copying from forms */}
-            {currentSparringDivision && !copySparringFromForms && (
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                  Category & Pool:
+            {/* Category/Pool Selector */}
+            {currentSparringDivision && (
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Category & Pool {copySparringFromForms && <span style={{ color: 'var(--info-text)', fontSize: '11px', fontWeight: 'normal' }}>• Same as Forms</span>}
                 </label>
                 <select
                   value={currentSparringCategoryId && currentSparringPool ? `${currentSparringCategoryId}|||${currentSparringPool}` : ''}
@@ -1321,12 +1357,16 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                       updatePending({ sparringCategoryId: undefined, sparringPool: undefined });
                     }
                   }}
+                  disabled={copySparringFromForms || !currentCompetingSparring}
                   style={{
                     width: '100%',
                     padding: '8px',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     border: '1px solid var(--input-border)',
                     borderRadius: '4px',
+                    backgroundColor: (copySparringFromForms || !currentCompetingSparring) ? 'var(--bg-tertiary)' : 'var(--input-bg)',
+                    opacity: (copySparringFromForms || !currentCompetingSparring) ? 0.6 : 1,
+                    cursor: (copySparringFromForms || !currentCompetingSparring) ? 'not-allowed' : 'default',
                   }}
                 >
                   <option value="">Select category & pool...</option>
@@ -1347,29 +1387,47 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                     ))
                   }
                 </select>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                  Changing category/pool will update physical ring assignment
-                </div>
+                {!copySparringFromForms && (
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                    {formsCategory && sparringCategory && formsCategory.division !== sparringCategory.division && (
+                      <span style={{ color: 'var(--accent-primary)' }}>ℹ Different from Forms</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Show physical ring assignment (read-only) */}
+            {/* Physical Ring Assignment */}
             {sparringPhysicalMapping && (
-              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '5px' }}>Physical Ring Assignment:</div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Physical Ring
+                </label>
+                <div style={{ 
+                  padding: '8px 10px', 
+                  backgroundColor: copySparringFromForms ? 'var(--bg-tertiary)' : 'var(--bg-tertiary)', 
+                  borderRadius: '4px',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: 'var(--text-primary)',
+                  opacity: copySparringFromForms ? 0.7 : 1,
+                }}>
                   {sparringPhysicalMapping.physicalRingName}
+                  {copySparringFromForms && formsPhysicalMapping && sparringPhysicalMapping.physicalRingName !== formsPhysicalMapping.physicalRingName && (
+                    <span style={{ fontSize: '11px', marginLeft: '6px', color: 'var(--accent-primary)' }}>ℹ Different from Forms</span>
+                  )}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '5px' }}>
-                  Use Ring Map tab to change physical ring assignments
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Change in Ring Map tab
                 </div>
               </div>
             )}
 
             {/* Rank Order */}
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                Rank Order:
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Rank Order
               </label>
               <input
                 type="number"
@@ -1378,24 +1436,28 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   const value = e.target.value ? parseInt(e.target.value) : undefined;
                   updatePending({ sparringRankOrder: value });
                 }}
+                disabled={!currentCompetingSparring}
                 style={{
                   width: '100%',
                   padding: '8px',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   border: '1px solid var(--input-border)',
                   borderRadius: '4px',
+                  backgroundColor: currentCompetingSparring ? 'var(--input-bg)' : 'var(--bg-tertiary)',
+                  opacity: currentCompetingSparring ? 1 : 0.6,
+                  cursor: currentCompetingSparring ? 'default' : 'not-allowed',
                 }}
                 placeholder="e.g., 1, 2, 3..."
               />
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                Use decimals like 1.5 to insert between 1 and 2.
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                Use decimals like 1.5 to insert between competitors
               </div>
             </div>
 
             {/* Alt Ring */}
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px' }}>
-                Alt Ring (splits ring into a/b):
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Alt Ring
               </label>
               <select
                 value={currentSparringAltRing || ''}
@@ -1403,18 +1465,25 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   const value = e.target.value as '' | 'a' | 'b';
                   updatePending({ sparringAltRing: value });
                 }}
+                disabled={!currentCompetingSparring}
                 style={{
                   width: '100%',
                   padding: '8px',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   border: '1px solid var(--input-border)',
                   borderRadius: '4px',
+                  backgroundColor: currentCompetingSparring ? 'var(--input-bg)' : 'var(--bg-tertiary)',
+                  opacity: currentCompetingSparring ? 1 : 0.6,
+                  cursor: currentCompetingSparring ? 'default' : 'not-allowed',
                 }}
               >
                 <option value="">No alt ring (default)</option>
                 <option value="a">Alt Ring A</option>
                 <option value="b">Alt Ring B</option>
               </select>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                Splits pool into two separate brackets
+              </div>
             </div>
             </div>
           </div>
