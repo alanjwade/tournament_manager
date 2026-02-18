@@ -56,6 +56,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     [participants, categories, categoryPoolMappings]
   );
 
+  // Multi-select age filter
+  const [selectedAges, setSelectedAges] = useState<number[]>([]);
+  const [ageDropdownOpen, setAgeDropdownOpen] = useState(false);
+
   // Filter states for each column
   const [filters, setFilters] = useState({
     firstName: '',
@@ -123,10 +127,20 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         sparringOrder: '',
       });
       
+      setSelectedAges([]);
+      
       // Clear highlight after 5 seconds
       setTimeout(() => setHighlightedId(null), 5000);
     }
   }, [highlightedParticipantId, setHighlightedParticipantId]);
+
+  // Close age dropdown when clicking outside
+  useEffect(() => {
+    if (!ageDropdownOpen) return;
+    const handler = () => setAgeDropdownOpen(false);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [ageDropdownOpen]);
 
   // Scroll to highlighted row when it becomes visible
   useEffect(() => {
@@ -220,6 +234,13 @@ function DataViewer({ globalDivision }: DataViewerProps) {
   // Legal values for forms and sparring divisions - now just division names or not participating (shown as null)
   const formsOptions = ['Not Participating', ...divisionOptions];
   const sparringOptions = ['Not Participating', ...divisionOptions];
+
+  // Get all unique ages from participants, sorted numerically
+  const uniqueAges = useMemo(() => {
+    const ages = new Set<number>();
+    participants.forEach(p => { if (p.age != null) ages.add(p.age); });
+    return Array.from(ages).sort((a, b) => a - b);
+  }, [participants]);
 
   // Get all unique physical ring names from mappings (simple list)
   const physicalRingOptions = useMemo(() => {
@@ -572,7 +593,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
       return (
         p.firstName.toLowerCase().includes(filters.firstName.toLowerCase()) &&
         p.lastName.toLowerCase().includes(filters.lastName.toLowerCase()) &&
-        p.age.toString().includes(filters.age) &&
+        (selectedAges.length === 0 || selectedAges.includes(p.age)) &&
         p.gender.toLowerCase().includes(filters.gender.toLowerCase()) &&
         p.heightFeet.toString().includes(filters.heightFeet) &&
         p.heightInches.toString().includes(filters.heightInches) &&
@@ -590,7 +611,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         sparringOrder.includes(filters.sparringOrder)
       );
     });
-  }, [participants, filters, categories, competitionRings, physicalRingMappings]);
+  }, [participants, filters, selectedAges, categories, competitionRings, physicalRingMappings]);
 
   // Update a specific filter
   const updateFilter = (column: keyof typeof filters, value: string) => {
@@ -599,6 +620,7 @@ function DataViewer({ globalDivision }: DataViewerProps) {
 
   // Clear all filters
   const clearFilters = () => {
+    setSelectedAges([]);
     setFilters({
       firstName: '',
       lastName: '',
@@ -797,15 +819,70 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
-              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '80px' }}>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '80px', position: 'relative' }}>
                 Age
-                <input
-                  type="text"
-                  placeholder="Filter..."
-                  value={filters.age}
-                  onChange={(e) => updateFilter('age', e.target.value)}
-                  style={{ width: '100%', marginTop: '5px', padding: '4px' }}
-                />
+                <div style={{ position: 'relative', marginTop: '5px' }} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setAgeDropdownOpen(v => !v)}
+                    style={{
+                      width: '100%',
+                      padding: '4px 6px',
+                      textAlign: 'left',
+                      background: 'var(--input-bg, #fff)',
+                      border: '1px solid var(--input-border, #ccc)',
+                      borderRadius: '3px',
+                      cursor: 'pointer',
+                      color: 'var(--text-primary)',
+                      fontSize: '12px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {selectedAges.length === 0 ? 'All' : selectedAges.join(', ')}
+                  </button>
+                  {ageDropdownOpen && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      zIndex: 100,
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '4px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                      padding: '6px',
+                      minWidth: '80px',
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                    }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedAges.length === 0}
+                          onChange={() => setSelectedAges([])}
+                        />
+                        All
+                      </label>
+                      {uniqueAges.map(age => (
+                        <label key={age} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 4px', cursor: 'pointer', fontSize: '12px' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedAges.includes(age)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedAges(prev => [...prev, age]);
+                              } else {
+                                setSelectedAges(prev => prev.filter(a => a !== age));
+                              }
+                            }}
+                          />
+                          {age}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </th>
               <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
                 Gender
@@ -873,7 +950,10 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                 Forms Division
                 <select
                   value={filters.formsDivision}
-                  onChange={(e) => updateFilter('formsDivision', e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFilters(prev => ({ ...prev, formsDivision: val, sparringDivision: val }));
+                  }}
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 >
                   <option value="">All</option>
@@ -1272,7 +1352,34 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                   <input
                     type="checkbox"
                     checked={p.competingSparring}
-                    onChange={(e) => updateParticipantField(p.id, 'competingSparring', e.target.checked)}
+                    onChange={(e) => {
+                      const enabling = e.target.checked;
+                      if (enabling && !p.competingSparring) {
+                        // Find corresponding sparring category by matching name AND division to forms category
+                        const formsCategory = categories.find(c => c.id === p.formsCategoryId);
+                        const matchingSparringCategory = formsCategory
+                          ? categories.find(c =>
+                              c.type === 'sparring' &&
+                              c.name === formsCategory.name &&
+                              c.division === formsCategory.division
+                            )
+                          : undefined;
+                        const updatedParticipants = participants.map(participant =>
+                          participant.id === p.id
+                            ? {
+                                ...participant,
+                                competingSparring: true,
+                                sparringDivision: participant.formsDivision,
+                                sparringCategoryId: matchingSparringCategory?.id,
+                                sparringPool: matchingSparringCategory ? participant.formsPool : undefined,
+                              }
+                            : participant
+                        );
+                        setParticipants(updatedParticipants);
+                      } else {
+                        updateParticipantField(p.id, 'competingSparring', enabling);
+                      }
+                    }}
                     style={{ cursor: 'pointer' }}
                   />
                 </td>
