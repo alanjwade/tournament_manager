@@ -445,6 +445,18 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     });
 
     const ringPairs = Array.from(pairMap.values()).sort((a, b) => {
+      // Extract pool numbers from category pool name (e.g., "Division - CategoryName Pool 1" -> 1)
+      const aPoolMatch = a.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const bPoolMatch = b.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const aPool = aPoolMatch ? parseInt(aPoolMatch[1]) : 999;
+      const bPool = bPoolMatch ? parseInt(bPoolMatch[1]) : 999;
+      
+      // Sort by pool number first
+      if (aPool !== bPool) {
+        return aPool - bPool;
+      }
+      
+      // Then sort by physical ring name if both have one
       if (a.physicalRingName && b.physicalRingName) {
         const aMatch = a.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
         const bMatch = b.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
@@ -579,6 +591,18 @@ function PDFExport({ globalDivision }: PDFExportProps) {
     });
 
     const ringPairs = Array.from(pairMap.values()).sort((a, b) => {
+      // Extract pool numbers from category pool name (e.g., "Division - CategoryName Pool 1" -> 1)
+      const aPoolMatch = a.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const bPoolMatch = b.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const aPool = aPoolMatch ? parseInt(aPoolMatch[1]) : 999;
+      const bPool = bPoolMatch ? parseInt(bPoolMatch[1]) : 999;
+      
+      // Sort by pool number first
+      if (aPool !== bPool) {
+        return aPool - bPool;
+      }
+      
+      // Then sort by physical ring name
       const aNum = a.physicalRingName ? parseInt(a.physicalRingName.match(/\d+/)?.[0] || '999') : 999;
       const bNum = b.physicalRingName ? parseInt(b.physicalRingName.match(/\d+/)?.[0] || '999') : 999;
       

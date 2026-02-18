@@ -77,8 +77,20 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
       pairs = pairs.filter(p => p.division === selectedDivision);
     }
 
-    // Sort by physical ring name if available, otherwise by pool name
+    // Sort by pool number first, then by physical ring name
     return pairs.sort((a, b) => {
+      // Extract pool numbers from category pool name (e.g., "Division - CategoryName Pool 1" -> 1)
+      const aPoolMatch = a.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const bPoolMatch = b.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const aPool = aPoolMatch ? parseInt(aPoolMatch[1]) : 999;
+      const bPool = bPoolMatch ? parseInt(bPoolMatch[1]) : 999;
+      
+      // Sort by pool number first
+      if (aPool !== bPool) {
+        return aPool - bPool;
+      }
+
+      // Then sort by physical ring name if available
       if (a.physicalRingName && b.physicalRingName) {
         // Custom sort for physical ring names (Ring 1, Ring 1a, Ring 1b, Ring 2, etc.)
         const aMatch = a.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);

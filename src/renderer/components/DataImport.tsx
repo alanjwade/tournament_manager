@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { parseExcelFile } from '../utils/excelParser';
 import { Division } from '../types/tournament';
+import { ColumnImport } from './ColumnImport';
 
 interface ImportPreview {
   total: number;
@@ -57,7 +58,9 @@ function DataImport() {
         return;
       }
 
-      const parsedParticipants = parseExcelFile(result.data);
+      // Get valid division names from config for normalization
+      const validDivisions = config.divisions.map(d => d.name);
+      const parsedParticipants = parseExcelFile(result.data, validDivisions);
       const warnings = validateImport(parsedParticipants);
       
       setPreview({
@@ -137,7 +140,9 @@ function DataImport() {
       setPreview(null);
 
       const arrayBuffer = await file.arrayBuffer();
-      const parsedParticipants = parseExcelFile(Array.from(new Uint8Array(arrayBuffer)));
+      // Get valid division names from config for normalization
+      const validDivisions = config.divisions.map(d => d.name);
+      const parsedParticipants = parseExcelFile(Array.from(new Uint8Array(arrayBuffer)), validDivisions);
       const warnings = validateImport(parsedParticipants);
 
       setPreview({
@@ -337,11 +342,18 @@ function DataImport() {
           </button>
 
           {participants.length > 0 && (
-            <button className="btn btn-danger" onClick={handleReset}>
-              Reset All Data
-            </button>
+            <>
+              <button className="btn btn-danger" onClick={handleReset}>
+                Reset All Data
+              </button>
+            </>
           )}
         </div>
+      )}
+
+      {/* Single Column Import */}
+      {participants.length > 0 && !preview && (
+        <ColumnImport />
       )}
 
       {/* Division Order Management */}

@@ -108,6 +108,55 @@ export function generateRingOverviewPDF(
   divisions.forEach((division, divIndex) => {
     const divisionRings = ringsByDivision.get(division)!;
     
+    // Sort by category name first (with age-aware sorting), then by pool number
+    const sortedDivisionRings = [...divisionRings].sort((a, b) => {
+      // Extract category name from "Division - CategoryName Pool N"
+      const extractCategory = (name: string) => {
+        const match = name.match(/^.+?\s*-\s*(.+?)\s+Pool\s+\d+/i);
+        return match ? match[1] : name;
+      };
+      
+      // Extract starting age from category for numeric sorting
+      const extractStartingAge = (categoryName: string): number => {
+        // Match patterns like "8-9", "12-13", "18+", "8", etc.
+        const ageMatch = categoryName.match(/\b(\d+)(?:-\d+|\+)?\b/);
+        if (ageMatch) {
+          const age = parseInt(ageMatch[1]);
+          // If it's "18+", treat as 18 but add small offset to sort after "18-19" if exists
+          if (categoryName.includes('+')) {
+            return age + 0.5;
+          }
+          return age;
+        }
+        // Non-numeric categories (like "Adult") go last
+        return 999;
+      };
+      
+      const aCat = extractCategory(a.categoryPoolName);
+      const bCat = extractCategory(b.categoryPoolName);
+      
+      // Sort by category first (age-aware)
+      if (aCat !== bCat) {
+        const aAge = extractStartingAge(aCat);
+        const bAge = extractStartingAge(bCat);
+        
+        // Sort by starting age numerically
+        if (aAge !== bAge) {
+          return aAge - bAge;
+        }
+        
+        // If ages are the same, use alphabetical as fallback
+        return aCat.localeCompare(bCat);
+      }
+      
+      // Then sort by pool number
+      const aPoolMatch = a.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const bPoolMatch = b.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const aPool = aPoolMatch ? parseInt(aPoolMatch[1]) : 999;
+      const bPool = bPoolMatch ? parseInt(bPoolMatch[1]) : 999;
+      return aPool - bPool;
+    });
+    
     if (!isFirstPage) {
       doc.addPage();
     }
@@ -139,7 +188,302 @@ export function generateRingOverviewPDF(
     // Reset text color
     doc.setTextColor(0, 0, 0);
 
-    divisionRings.forEach((pair, ringIndex) => {
+    // ========== RING LIST FIRST ==========
+    // Build a list of rows: each row is a ring + category/pool + counts
+    interface RingListRow {
+      physicalRingName: string;
+      categoryPool: string;
+      formsCount: number;
+      sparringCount: number;
+      ringNum: number;
+      suffix: string;
+    }
+    
+    const ringListRows: RingListRow[] = [];
+    
+    // Parse ring number and suffix for grouping
+    const parseRing = (name: string) => {
+      const match = name.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
+      if (match) {
+        return {
+          num: parseInt(match[1]),
+          suffix: match[2]?.toLowerCase() || ''
+        };
+      }
+      return { num: 999, suffix: '' };
+    };
+    
+    sortedDivisionRings.forEach(pair => {
+      if (pair.physicalRingName) {
+        // Extract category and pool from categoryPoolName
+        const extractCategoryPool = (name: string) => {
+          const match = name.match(/^.+?\s*-\s*(.+?)\s+(Pool\s+\d+)/i);
+          if (match) {
+            return `${match[1]} ${match[2]}`;
+          }
+          return name;
+        };
+        
+        const catPool = extractCategoryPool(pair.categoryPoolName);
+        const parsed = parseRing(pair.physicalRingName);
+        
+        ringListRows.push({
+          physicalRingName: pair.physicalRingName,
+          categoryPool: catPool,
+          formsCount: pair.formsRing ? pair.formsRing.participantIds.length : 0,
+          sparringCount: pair.sparringRing ? pair.sparringRing.participantIds.length : 0,
+          ringNum: parsed.num,
+          suffix: parsed.suffix
+        });
+      }
+    });
+    
+    if (ringListRows.length > 0) {
+      // Ring List Header
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 123, 255);
+      doc.text('Ring List', margin, yPos);
+      yPos += 5;
+      doc.setDrawColor(0, 123, 255);
+      doc.setLineWidth(2);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 20;
+      doc.setTextColor(0, 0, 0);
+      
+      // Check if any ring has a suffix
+      const hasAnySuffix = ringListRows.some(row => row.suffix !== '');
+      
+      // If there are suffixed rings, treat no-suffix rings as 'a'
+      if (hasAnySuffix) {
+        ringListRows.forEach(row => {
+          if (row.suffix === '') {
+            row.suffix = 'a';
+          }
+        });
+      }
+      
+      // Group by ring number and suffix
+      const ringGroups = new Map<number, { a?: RingListRow[], b?: RingListRow[] }>();
+      
+      ringListRows.forEach(row => {
+        if (!ringGroups.has(row.ringNum)) {
+          ringGroups.set(row.ringNum, {});
+        }
+        const group = ringGroups.get(row.ringNum)!;
+        
+        if (row.suffix === 'a' || row.suffix === '') {
+          if (!group.a) group.a = [];
+          group.a.push(row);
+        } else if (row.suffix === 'b') {
+          if (!group.b) group.b = [];
+          group.b.push(row);
+        }
+      });
+      
+      // Sort ring numbers
+      const sortedRingNums = Array.from(ringGroups.keys()).sort((a, b) => a - b);
+      
+      // Define column positions for 2-column layout
+      const leftColumnStart = margin + 5;
+      const rightColumnStart = pageWidth / 2 + 5;
+      
+      // Main column headers
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Ring \'a\'', leftColumnStart, yPos);
+      doc.text('Ring \'b\'', rightColumnStart, yPos);
+      yPos += 8;
+      
+      // Sub-headers for left column (Ring 'a')
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      const leftRingCol = leftColumnStart;
+      const leftCategoryCol = leftRingCol + 40;
+      const leftFormsCol = leftCategoryCol + 110;
+      const leftSparringCol = leftFormsCol + 35;
+      
+      doc.setTextColor(100, 100, 100);
+      doc.text('Ring', leftRingCol, yPos);
+      doc.text('Category / Pool', leftCategoryCol, yPos);
+      doc.setTextColor(0, 123, 255);
+      doc.text('Frms', leftFormsCol, yPos);
+      doc.setTextColor(220, 53, 69);
+      doc.text('Spar', leftSparringCol, yPos);
+      
+      // Sub-headers for right column (Ring 'b')
+      const rightRingCol = rightColumnStart;
+      const rightCategoryCol = rightRingCol + 40;
+      const rightFormsCol = rightCategoryCol + 110;
+      const rightSparringCol = rightFormsCol + 35;
+      
+      doc.setTextColor(100, 100, 100);
+      doc.text('Ring', rightRingCol, yPos);
+      doc.text('Category / Pool', rightCategoryCol, yPos);
+      doc.setTextColor(0, 123, 255);
+      doc.text('Frms', rightFormsCol, yPos);
+      doc.setTextColor(220, 53, 69);
+      doc.text('Spar', rightSparringCol, yPos);
+      doc.setTextColor(0, 0, 0);
+      
+      yPos += 10;
+      
+      // For each ring number, render a and b side by side
+      sortedRingNums.forEach(ringNum => {
+        const group = ringGroups.get(ringNum)!;
+        
+        // Determine max rows needed for this ring number
+        const aRows = group.a || [];
+        const bRows = group.b || [];
+        const maxRows = Math.max(aRows.length, bRows.length);
+        
+        // Render each row (a side and b side)
+        for (let i = 0; i < maxRows; i++) {
+          const rowA = aRows[i];
+          const rowB = bRows[i];
+          
+          // Render Ring 'a' (left column)
+          if (rowA) {
+            const ringCol = leftColumnStart;
+            const categoryCol = ringCol + 40;
+            const formsCol = categoryCol + 110;
+            const sparringCol = formsCol + 35;
+            
+            doc.setFontSize(8);
+            
+            // Ring name with color background
+            doc.setFont('helvetica', 'bold');
+            const ringLabel = `Ring ${ringNum}`;
+            const ringColor = getRingColorFromName(rowA.physicalRingName);
+            const ringTextWidth = doc.getTextWidth(ringLabel);
+            
+            if (ringColor) {
+              const bgColor = hexToRgb(ringColor);
+              const fgColor = getForegroundColor(ringColor);
+              const fgRgb = hexToRgb(fgColor);
+              
+              // Draw colored background for ring name
+              doc.setFillColor(bgColor.r, bgColor.g, bgColor.b);
+              doc.rect(ringCol - 2, yPos - 6, ringTextWidth + 4, 9, 'F');
+              doc.setTextColor(fgRgb.r, fgRgb.g, fgRgb.b);
+            }
+            
+            doc.text(ringLabel, ringCol, yPos);
+            doc.setTextColor(0, 0, 0);
+            
+            // Category/Pool
+            doc.setFont('helvetica', 'normal');
+            doc.text(rowA.categoryPool, categoryCol, yPos);
+            
+            // Forms count
+            doc.setTextColor(0, 123, 255);
+            doc.text(String(rowA.formsCount), formsCol, yPos);
+            
+            // Sparring count
+            doc.setTextColor(220, 53, 69);
+            doc.text(String(rowA.sparringCount), sparringCol, yPos);
+            doc.setTextColor(0, 0, 0);
+          }
+          
+          // Render Ring 'b' (right column)
+          if (rowB) {
+            const ringCol = rightColumnStart;
+            const categoryCol = ringCol + 40;
+            const formsCol = categoryCol + 110;
+            const sparringCol = formsCol + 35;
+            
+            doc.setFontSize(8);
+            
+            // Ring name with color background
+            doc.setFont('helvetica', 'bold');
+            const ringLabel = `Ring ${ringNum}`;
+            const ringColor = getRingColorFromName(rowB.physicalRingName);
+            const ringTextWidth = doc.getTextWidth(ringLabel);
+            
+            if (ringColor) {
+              const bgColor = hexToRgb(ringColor);
+              const fgColor = getForegroundColor(ringColor);
+              const fgRgb = hexToRgb(fgColor);
+              
+              // Draw colored background for ring name
+              doc.setFillColor(bgColor.r, bgColor.g, bgColor.b);
+              doc.rect(ringCol - 2, yPos - 6, ringTextWidth + 4, 9, 'F');
+              doc.setTextColor(fgRgb.r, fgRgb.g, fgRgb.b);
+            }
+            
+            doc.text(ringLabel, ringCol, yPos);
+            doc.setTextColor(0, 0, 0);
+            
+            // Category/Pool
+            doc.setFont('helvetica', 'normal');
+            doc.text(rowB.categoryPool, categoryCol, yPos);
+            
+            // Forms count
+            doc.setTextColor(0, 123, 255);
+            doc.text(String(rowB.formsCount), formsCol, yPos);
+            
+            // Sparring count
+            doc.setTextColor(220, 53, 69);
+            doc.text(String(rowB.sparringCount), sparringCol, yPos);
+            doc.setTextColor(0, 0, 0);
+          }
+          
+          yPos += 12;
+        }
+        
+        // Add small space between different ring numbers
+        yPos += 3;
+      });
+      
+      // Add page break after ring list
+      addFooter(doc, timestamp, pageWidth, pageHeight);
+      doc.addPage();
+      yPos = margin;
+      
+      // Repeat division header on new page
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 123, 255);
+      doc.text(`${division} - Detailed Breakdown`, margin, yPos);
+      yPos += 5;
+      doc.setDrawColor(0, 123, 255);
+      doc.setLineWidth(2);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 20;
+      doc.setTextColor(0, 0, 0);
+    }
+    // ======== END RING LIST ========
+
+    // Track current category for page breaks
+    let currentCategory = '';
+    const extractCategory = (name: string) => {
+      const match = name.match(/^.+?\s*-\s*(.+?)\s+Pool\s+\d+/i);
+      return match ? match[1] : name;
+    };
+
+    sortedDivisionRings.forEach((pair, ringIndex) => {
+      const thisCategory = extractCategory(pair.categoryPoolName);
+      
+      // Start new page when category changes (if not already at top of page)
+      if (thisCategory !== currentCategory && currentCategory !== '' && yPos > margin + 50) {
+        addFooter(doc, timestamp, pageWidth, pageHeight);
+        doc.addPage();
+        yPos = margin;
+        
+        // Repeat division header on new page
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 123, 255);
+        doc.text(`${division} (continued)`, margin, yPos);
+        yPos += 5;
+        doc.setDrawColor(0, 123, 255);
+        doc.setLineWidth(2);
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 20;
+        doc.setTextColor(0, 0, 0);
+      }
+      
+      currentCategory = thisCategory;
       // Check if we need a new page (increased margin for safety)
       if (yPos > pageHeight - 250) {
         addFooter(doc, timestamp, pageWidth, pageHeight);

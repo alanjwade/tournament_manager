@@ -520,12 +520,23 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
 
     const pairs = Array.from(pairMap.values());
 
-    // Sort by division order, then by physical ring name
+    // Sort by division order, then by pool number, then by physical ring name
     return pairs.sort((a, b) => {
       // First sort by division order
       const aDivOrder = config.divisions.find(d => d.name === a.division)?.order ?? DEFAULT_DIVISION_ORDER;
       const bDivOrder = config.divisions.find(d => d.name === b.division)?.order ?? DEFAULT_DIVISION_ORDER;
       if (aDivOrder !== bDivOrder) return aDivOrder - bDivOrder;
+
+      // Extract pool numbers from category pool name (e.g., "Division - CategoryName Pool 1" -> 1)
+      const aPoolMatch = a.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const bPoolMatch = b.categoryPoolName.match(/Pool\s+(\d+)/i);
+      const aPool = aPoolMatch ? parseInt(aPoolMatch[1]) : 999;
+      const bPool = bPoolMatch ? parseInt(bPoolMatch[1]) : 999;
+      
+      // Sort by pool number second
+      if (aPool !== bPool) {
+        return aPool - bPool;
+      }
 
       // Then sort by physical ring name
       if (a.physicalRingName && b.physicalRingName) {

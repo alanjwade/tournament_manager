@@ -12,7 +12,53 @@ export function getEffectiveDivision(participant: Participant, type: 'forms' | '
   }
 }
 
-export function parseExcelFile(data: number[]): Participant[] {
+/**
+ * Normalize a division string from the spreadsheet to match one of the valid divisions.
+ * Performs a fuzzy match by looking for key phrases within the input string.
+ * 
+ * @param rawDivision - The division string from the spreadsheet (may contain extra words)
+ * @param validDivisions - Array of valid division names from config
+ * @returns The matched division name, or null if no match found
+ */
+export function normalizeDivision(rawDivision: string | null, validDivisions: string[]): string | null {
+  if (!rawDivision) return null;
+  
+  const normalized = rawDivision.toLowerCase().trim();
+  
+  // Define key phrases to search for and their corresponding division names
+  const divisionKeywords: Record<string, string[]> = {
+    'Black Belt': ['black belt', 'blackbelt'],
+    'Beginner': ['beginner'],
+    'Level 1': ['level 1', 'level1'],
+    'Level 2': ['level 2', 'level2'],
+    'Level 3': ['level 3', 'level3'],
+  };
+  
+  // First, try to find a match using keyword search
+  for (const [divisionName, keywords] of Object.entries(divisionKeywords)) {
+    // Check if this division exists in the valid divisions list
+    const validDivision = validDivisions.find(d => d.toLowerCase() === divisionName.toLowerCase());
+    if (!validDivision) continue;
+    
+    // Check if any of the keywords appear in the raw division string
+    for (const keyword of keywords) {
+      if (normalized.includes(keyword)) {
+        return validDivision;
+      }
+    }
+  }
+  
+  // If no keyword match, try exact match (case-insensitive)
+  const exactMatch = validDivisions.find(d => d.toLowerCase() === normalized);
+  if (exactMatch) {
+    return exactMatch;
+  }
+  
+  // No match found
+  return null;
+}
+
+export function parseExcelFile(data: number[], validDivisions: string[] = []): Participant[] {
   const uint8Array = new Uint8Array(data);
   const workbook = XLSX.read(uint8Array, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
@@ -21,6 +67,7 @@ export function parseExcelFile(data: number[]): Participant[] {
 
   console.log('========= EXCEL PARSER DEBUG =========');
   console.log('First row of data:', jsonData[0]);
+  console.log('Valid divisions for matching:', validDivisions);
   console.log('======================================');
 
   return jsonData.map((row, index) => {
@@ -44,16 +91,16 @@ export function parseExcelFile(data: number[]): Participant[] {
     }
     
     // Handle Forms and Sparring divisions
-    const formsValue = String(row['Form'] || row['form'] || row['Forms'] || row['forms'] || '').trim();
-    const sparringValue = String(row['Sparring'] || row['sparring'] || '').trim();
-    const baseDivision = String(row['division'] || row['Division'] || '').trim();
+    const formsValue = String(row['Form'] || row['form'] || row['Forms'] || row['forms'] || row['Form?'] || row['form?'] || row['Forms?'] || row['forms?'] || '').trim();
+    const sparringValue = String(row['Sparring'] || row['sparring'] || row['Sparring?'] || row['sparring?'] || '').trim();
+    const baseDivision = normalizeDivision(String(row['division'] || row['Division'] || '').trim(), validDivisions);
     
     // Debug logging for division parsing
     if (index === 0) {
       console.log('📋 First participant division data:');
-      console.log('  - formsValue:', formsValue);
-      console.log('  - sparringValue:', sparringValue);
-      console.log('  - baseDivision:', baseDivision);
+      console.log('  - formsValue (raw):', formsValue);
+      console.log('  - sparringValue (raw):', sparringValue);
+      console.log('  - baseDivision (normalized):', baseDivision);
     }
     
     // Determine forms division - null means not participating
@@ -74,9 +121,17 @@ export function parseExcelFile(data: number[]): Participant[] {
         competingForms = false;
       }
     } else if (formsValue && formsValue !== '') {
-      // Has a specific division name
-      formsDivision = formsValue;
-      competingForms = true;
+      // Has a specific division name - normalize it
+      const normalized = normalizeDivision(formsValue, validDivisions);
+      if (normalized) {
+        formsDivision = normalized;
+        competingForms = true;
+      } else {
+        // Could not normalize - log warning and skip
+        console.warn(`⚠️  Could not normalize forms division "${formsValue}" for participant ${index}`);
+        formsDivision = null;
+        competingForms = false;
+      }
     }
     
     // Determine sparring division - null means not participating
@@ -109,8 +164,17 @@ export function parseExcelFile(data: number[]): Participant[] {
         sparringDivision = formsDivision;
         competingSparring = competingForms;
       } else {
-        sparringDivision = sparringValue;
-        competingSparring = true;
+        // Normalize the sparring division
+        const normalized = normalizeDivision(sparringValue, validDivisions);
+        if (normalized) {
+          sparringDivision = normalized;
+          competingSparring = true;
+        } else {
+          // Could not normalize - log warning and skip
+          console.warn(`⚠️  Could not normalize sparring division "${sparringValue}" for participant ${index}`);
+          sparringDivision = null;
+          competingSparring = false;
+        }
       }
     }
     
@@ -143,8 +207,8 @@ export function parseExcelFile(data: number[]): Participant[] {
       heightFeet,
       heightInches,
       totalHeightInches: heightFeet * 12 + heightInches,
-      school: String(row['school'] || row['School'] || '').trim(),
-      branch: row['branch'] || row['Branch'] ? String(row['branch'] || row['Branch']).trim() : undefined,
+      school: String(row['school'] || row['School'] || row['Home School'] || row['home school'] || '').trim(),
+      branch: row['branch'] || row['Branch'] || row['Home School'] || row['home school'] ? String(row['branch'] || row['Branch'] || row['Home School'] || row['home school']).trim() : undefined,
       formsDivision,
       sparringDivision,
       competingForms,
