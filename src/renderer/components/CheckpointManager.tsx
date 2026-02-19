@@ -77,7 +77,7 @@ export default function CheckpointManager() {
             placeholder="Checkpoint name (optional)"
             value={newCheckpointName}
             onChange={(e) => setNewCheckpointName(e.target.value)}
-            style={{ flex: 1, padding: '5px' }}
+            style={{ flex: 1, padding: '5px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '3px' }}
           />
           <button onClick={handleCreateCheckpoint}>Create Checkpoint</button>
         </div>
@@ -87,11 +87,11 @@ export default function CheckpointManager() {
       <div className="checkpoint-list">
         <h3>Saved Checkpoints ({checkpoints.length})</h3>
         {sortedCheckpoints.length === 0 ? (
-          <p style={{ color: '#666', fontStyle: 'italic' }}>No checkpoints saved yet.</p>
+          <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No checkpoints saved yet.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--text-primary)' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #333' }}>
+              <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
                 <th style={{ padding: '10px', textAlign: 'left' }}>Name</th>
                 <th style={{ padding: '10px', textAlign: 'left' }}>Created</th>
                 <th style={{ padding: '10px', textAlign: 'left' }}>Actions</th>
@@ -99,7 +99,7 @@ export default function CheckpointManager() {
             </thead>
             <tbody>
               {sortedCheckpoints.map((checkpoint) => (
-                <tr key={checkpoint.id} style={{ borderBottom: '1px solid #ddd' }}>
+                <tr key={checkpoint.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <td style={{ padding: '10px' }}>
                     {editingId === checkpoint.id ? (
                       <div style={{ display: 'flex', gap: '5px' }}>
@@ -111,7 +111,7 @@ export default function CheckpointManager() {
                             if (e.key === 'Enter') handleRename(checkpoint.id);
                             if (e.key === 'Escape') setEditingId(null);
                           }}
-                          style={{ flex: 1, padding: '3px' }}
+                          style={{ flex: 1, padding: '3px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '3px' }}
                           autoFocus
                         />
                         <button onClick={() => handleRename(checkpoint.id)}>Save</button>
@@ -161,9 +161,10 @@ export default function CheckpointManager() {
         <div className="checkpoint-diff" style={{ 
           marginTop: '30px', 
           padding: '20px', 
-          border: '2px solid #333',
+          border: '2px solid var(--border-color)',
           borderRadius: '5px',
-          backgroundColor: '#f9f9f9'
+          backgroundColor: 'var(--bg-secondary)',
+          color: 'var(--text-primary)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>Changes from "{selectedDiff.checkpointName}"</h3>
@@ -190,8 +191,8 @@ export default function CheckpointManager() {
                 flexWrap: 'wrap', 
                 gap: '10px',
                 padding: '10px',
-                backgroundColor: '#fff',
-                border: '1px solid #ddd',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
                 borderRadius: '3px'
               }}>
                 {selectedDiff.ringsAffected.map((ring) => (
@@ -246,13 +247,13 @@ export default function CheckpointManager() {
                   <div key={`${change.participantId}-${change.field}`} style={{ 
                     padding: '10px',
                     marginBottom: '10px',
-                    backgroundColor: '#fff',
-                    border: '1px solid #ddd',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
                     borderRadius: '3px'
                   }}>
                     <strong>{change.participantName}</strong>
                     <div style={{ marginTop: '5px', fontSize: '14px' }}>
-                      <span style={{ color: '#666' }}>{change.field}:</span>{' '}
+                      <span style={{ color: 'var(--text-muted)' }}>{change.field}:</span>{' '}
                       <span style={{ color: '#dc3545' }}>{String(change.oldValue) || '(empty)'}</span>
                       {' → '}
                       <span style={{ color: '#28a745' }}>{String(change.newValue) || '(empty)'}</span>
@@ -267,7 +268,7 @@ export default function CheckpointManager() {
           {selectedDiff.participantsAdded.length === 0 && 
            selectedDiff.participantsRemoved.length === 0 && 
            selectedDiff.participantsModified.length === 0 && (
-            <p style={{ color: '#666', fontStyle: 'italic' }}>No changes detected.</p>
+            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No changes detected.</p>
           )}
         </div>
       )}

@@ -43,6 +43,10 @@ function App() {
   const checkpoints = useTournamentStore((state) => state.checkpoints);
   const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
   const config = useTournamentStore((state) => state.config);
+  const undo = useTournamentStore((state) => state.undo);
+  const redo = useTournamentStore((state) => state.redo);
+  const undoStack = useTournamentStore((state) => state.undoStack);
+  const redoStack = useTournamentStore((state) => state.redoStack);
 
   // Apply theme to document
   useEffect(() => {
@@ -68,6 +72,21 @@ function App() {
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.shiftKey && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      } else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   // Search results
   const searchResults = useMemo(() => {
@@ -426,6 +445,42 @@ function App() {
               ➕ Add Participant
             </button>
           )}
+
+          {/* Undo / Redo Buttons */}
+          <button
+            onClick={undo}
+            disabled={undoStack.length === 0}
+            title={`Undo (Ctrl+Z) — ${undoStack.length} step${undoStack.length !== 1 ? 's' : ''} available`}
+            style={{
+              padding: '8px 10px',
+              fontSize: '16px',
+              borderRadius: '4px',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-tertiary)',
+              color: undoStack.length === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+              cursor: undoStack.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: undoStack.length === 0 ? 0.5 : 1,
+            }}
+          >
+            ↩
+          </button>
+          <button
+            onClick={redo}
+            disabled={redoStack.length === 0}
+            title={`Redo (Ctrl+Y) — ${redoStack.length} step${redoStack.length !== 1 ? 's' : ''} available`}
+            style={{
+              padding: '8px 10px',
+              fontSize: '16px',
+              borderRadius: '4px',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-tertiary)',
+              color: redoStack.length === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+              cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: redoStack.length === 0 ? 0.5 : 1,
+            }}
+          >
+            ↪
+          </button>
 
           {/* Theme Toggle */}
           <button

@@ -66,6 +66,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [renamingCheckpointValue, setRenamingCheckpointValue] = useState('');
   const [expandedRings, setExpandedRings] = useState<Set<string>>(new Set());
   const [dismissedUnassignedWarning, setDismissedUnassignedWarning] = useState(false);
+  const [ringSort, setRingSort] = useState<'ring' | 'group' | 'category'>('ring');
   
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
@@ -73,6 +74,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const updateParticipant = useTournamentStore((state) => state.updateParticipant);
+  const batchUpdateParticipants = useTournamentStore((state) => state.batchUpdateParticipants);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const checkpoints = useTournamentStore((state) => state.checkpoints);
   const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
@@ -277,14 +279,14 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     [newOrder[currentIndex], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[currentIndex]];
 
     // Reassign all rank orders sequentially (1, 2, 3, ...)
-    newOrder.forEach((p, index) => {
-      const newRank = index + 1;
-      if (ringType === 'forms') {
-        updateParticipant(p.id, { formsRankOrder: newRank });
-      } else {
-        updateParticipant(p.id, { sparringRankOrder: newRank });
-      }
-    });
+    batchUpdateParticipants(
+      newOrder.map((p, index) => ({
+        id: p.id,
+        updates: ringType === 'forms'
+          ? { formsRankOrder: index + 1 }
+          : { sparringRankOrder: index + 1 },
+      }))
+    );
   };
 
   // Auto-order a specific pool
@@ -618,6 +620,57 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     }
     return ringPairs.filter(pair => pair.division === selectedDivision);
   }, [ringPairs, selectedDivision]);
+
+  // Sort filtered ring pairs by the selected sort mode
+  const sortedRingPairs = useMemo(() => {
+    const parseRingName = (name?: string): { num: number; letter: string } => {
+      const m = name?.match(/(?:PR|Ring\s*)(\d+)([a-z])?/i);
+      return m ? { num: parseInt(m[1]), letter: (m[2] || '').toLowerCase() } : { num: 999, letter: '' };
+    };
+
+    if (ringSort === 'ring') {
+      return [...filteredRingPairs].sort((a, b) => {
+        const aR = parseRingName(a.physicalRingName);
+        const bR = parseRingName(b.physicalRingName);
+        if (aR.num !== bR.num) return aR.num - bR.num;
+        return aR.letter.localeCompare(bR.letter);
+      });
+    }
+
+    if (ringSort === 'group') {
+      // Group by letter suffix first (1a,2a,3a... then 1b,2b,3b... then unlabelled)
+      return [...filteredRingPairs].sort((a, b) => {
+        const aR = parseRingName(a.physicalRingName);
+        const bR = parseRingName(b.physicalRingName);
+        // No-letter rings go last
+        if (!aR.letter && bR.letter) return 1;
+        if (aR.letter && !bR.letter) return -1;
+        if (aR.letter !== bR.letter) return aR.letter.localeCompare(bR.letter);
+        return aR.num - bR.num;
+      });
+    }
+
+    if (ringSort === 'category') {
+      // Sort by minimum actual age of participants in the ring
+      const getMinAge = (pair: RingPair): number => {
+        const ids = [
+          ...(pair.formsRing?.participantIds || []),
+          ...(pair.sparringRing?.participantIds || []),
+        ];
+        const ages = ids
+          .map(id => participants.find(p => p.id === id)?.age)
+          .filter((age): age is number => typeof age === 'number');
+        return ages.length > 0 ? Math.min(...ages) : 999;
+      };
+      return [...filteredRingPairs].sort((a, b) => {
+        const ageDiff = getMinAge(a) - getMinAge(b);
+        if (ageDiff !== 0) return ageDiff;
+        return a.categoryPoolName.localeCompare(b.categoryPoolName);
+      });
+    }
+
+    return filteredRingPairs;
+  }, [filteredRingPairs, ringSort, participants]);
 
   // Handle clicking on a participant name
   const handleParticipantClick = (participant: Participant, ringType: 'forms' | 'sparring', ringName: string) => {
@@ -2273,9 +2326,27 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             }}
             title="Show all divisions overview"
           >
-            OV
+            Overview
           </button>
-          
+
+          {/* Quick Checkpoints button */}
+          <button
+            onClick={() => setSelectedDivision(selectedDivision === 'checkpoints' ? divisionFilter : 'checkpoints')}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              backgroundColor: selectedDivision === 'checkpoints' ? '#007bff' : 'var(--bg-secondary)',
+              color: selectedDivision === 'checkpoints' ? 'white' : 'var(--text-primary)',
+              border: `2px solid ${selectedDivision === 'checkpoints' ? '#007bff' : 'var(--border-color)'}`,
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Toggle Checkpoints view"
+          >
+            📋 Checkpoint
+          </button>
+
           {/* Quick Grand Champion button */}
           <button
             onClick={() => setSelectedDivision(selectedDivision === 'grand-champion' ? divisionFilter : 'grand-champion')}
@@ -2292,24 +2363,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             title="Toggle Grand Champion view"
           >
             ⭐ GC
-          </button>
-          
-          {/* Quick Checkpoints button */}
-          <button
-            onClick={() => setSelectedDivision(selectedDivision === 'checkpoints' ? divisionFilter : 'checkpoints')}
-            style={{
-              padding: '6px 12px',
-              fontSize: '14px',
-              backgroundColor: selectedDivision === 'checkpoints' ? '#007bff' : 'var(--bg-secondary)',
-              color: selectedDivision === 'checkpoints' ? 'white' : 'var(--text-primary)',
-              border: `2px solid ${selectedDivision === 'checkpoints' ? '#007bff' : 'var(--border-color)'}`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-            title="Toggle Checkpoints view"
-          >
-            📋 CP
           </button>
 
           {/* Collapse/Expand all buttons - only show in regular division view */}
@@ -2345,7 +2398,35 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
               >
                 Expand All
               </button>
-              
+
+              {/* Sort By toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Sort by:</span>
+                {(['ring', 'group', 'category'] as const).map((mode) => {
+                  const labels: Record<string, string> = { ring: 'Ring', group: 'Group First', category: 'Category' };
+                  const active = ringSort === mode;
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => setRingSort(mode)}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        backgroundColor: active ? '#007bff' : 'var(--bg-secondary)',
+                        color: active ? 'white' : 'var(--text-primary)',
+                        border: `1px solid ${active ? '#007bff' : 'var(--border-color)'}`,
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: active ? '600' : '400',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {labels[mode]}
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Print All Changed button - only show when there are changes */}
               {checkpoints.length > 0 && changedRingsCounts.total > 0 && (
                 <button
@@ -3072,7 +3153,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       ) : (
         /* Regular Ring Pairs View */
         <div>
-        {filteredRingPairs.map((pair) => {
+        {sortedRingPairs.map((pair) => {
           // Check if this ring pair has changed since checkpoint
           const formsChanged = pair.formsRing && isRingAffectedSimple(pair.formsRing.name || pair.categoryPoolName, 'forms', changedRings);
           const sparringChanged = pair.sparringRing && isRingAffectedSimple(pair.sparringRing.name || pair.categoryPoolName, 'sparring', changedRings);
@@ -3205,43 +3286,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       )}
       </div>
 
-      {/* Unassigned Participants Warning - Dismissable sticky pane */}
-      {unassignedCount > 0 && selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && !dismissedUnassignedWarning && (
-        <div style={{
-          position: 'sticky',
-          top: '69px',
-          zIndex: 99,
-          backgroundColor: '#fff3cd',
-          color: '#856404',
-          borderBottom: '1px solid #ffc107',
-          padding: '10px 15px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '15px',
-        }}>
-          <div style={{ fontSize: '13px', fontWeight: '500' }}>
-            <strong>⚠️ {unassignedCount} participant{unassignedCount !== 1 ? 's' : ''}</strong> not assigned to any ring
-          </div>
-          <button
-            onClick={() => setDismissedUnassignedWarning(true)}
-            style={{
-              padding: '4px 10px',
-              backgroundColor: 'transparent',
-              color: '#856404',
-              border: '1px solid #856404',
-              borderRadius: '3px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: '600',
-              whiteSpace: 'nowrap',
-            }}
-            title="Dismiss this warning"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
     </div>
   );
 }

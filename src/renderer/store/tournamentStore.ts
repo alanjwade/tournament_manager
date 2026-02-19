@@ -4,6 +4,17 @@ import { debounce } from '../utils/debounce';
 import { AUTOSAVE_DELAY_MS } from '../utils/constants';
 import { logger } from '../utils/logger';
 
+type Snapshot = {
+  participants: Participant[];
+  categories: Category[];
+  config: TournamentConfig;
+  physicalRingMappings: PhysicalRingMapping[];
+  categoryPoolMappings: CategoryPoolMapping[];
+  customRings: CustomRing[];
+};
+
+const MAX_HISTORY = 20;
+
 interface TournamentState {
   participants: Participant[];
   categories: Category[];
@@ -13,10 +24,17 @@ interface TournamentState {
   checkpoints: Checkpoint[]; // Checkpoint system
   customRings: CustomRing[]; // Grand Champion / Side rings
   highlightedParticipantId: string | null; // For cross-component highlighting
+  undoStack: Snapshot[];
+  redoStack: Snapshot[];
+
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
   
   // Actions
   setParticipants: (participants: Participant[]) => void;
   updateParticipant: (id: string, updates: Partial<Participant>) => void;
+  batchUpdateParticipants: (updates: Array<{ id: string; updates: Partial<Participant> }>) => void;
   withdrawParticipant: (id: string) => void;
   setCategories: (categories: Category[]) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
@@ -100,6 +118,8 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   physicalRingMappings: [],
   categoryPoolMappings: [],
   checkpoints: [],
+  undoStack: [],
+  redoStack: [],
   customRings: [
     {
       id: 'grand-champion-forms-1',
@@ -117,6 +137,60 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     },
   ],
   highlightedParticipantId: null,
+
+  pushHistory: () => {
+    const s = get();
+    const snapshot: Snapshot = {
+      participants: structuredClone(s.participants),
+      categories: structuredClone(s.categories),
+      config: structuredClone(s.config),
+      physicalRingMappings: structuredClone(s.physicalRingMappings),
+      categoryPoolMappings: structuredClone(s.categoryPoolMappings),
+      customRings: structuredClone(s.customRings),
+    };
+    set((state) => ({
+      undoStack: [...state.undoStack.slice(-(MAX_HISTORY - 1)), snapshot],
+      redoStack: [],
+    }));
+  },
+
+  undo: () => {
+    const s = get();
+    if (s.undoStack.length === 0) return;
+    const snapshot = s.undoStack[s.undoStack.length - 1];
+    const current: Snapshot = {
+      participants: structuredClone(s.participants),
+      categories: structuredClone(s.categories),
+      config: structuredClone(s.config),
+      physicalRingMappings: structuredClone(s.physicalRingMappings),
+      categoryPoolMappings: structuredClone(s.categoryPoolMappings),
+      customRings: structuredClone(s.customRings),
+    };
+    set({
+      ...structuredClone(snapshot),
+      undoStack: s.undoStack.slice(0, -1),
+      redoStack: [...s.redoStack, current],
+    });
+  },
+
+  redo: () => {
+    const s = get();
+    if (s.redoStack.length === 0) return;
+    const snapshot = s.redoStack[s.redoStack.length - 1];
+    const current: Snapshot = {
+      participants: structuredClone(s.participants),
+      categories: structuredClone(s.categories),
+      config: structuredClone(s.config),
+      physicalRingMappings: structuredClone(s.physicalRingMappings),
+      categoryPoolMappings: structuredClone(s.categoryPoolMappings),
+      customRings: structuredClone(s.customRings),
+    };
+    set({
+      ...structuredClone(snapshot),
+      undoStack: [...s.undoStack, current],
+      redoStack: s.redoStack.slice(0, -1),
+    });
+  },
 
   setParticipants: (participants) => {
     // Normalize participant objects - migrate from old model to new
@@ -151,11 +225,13 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       
       return normalized as Participant;
     });
+    get().pushHistory();
     set({ participants: normalized });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
   
   updateParticipant: (id, updates) => {
+    get().pushHistory();
     set((state) => ({
       participants: state.participants.map((p) =>
         p.id === id ? { ...p, ...updates } : p
@@ -164,7 +240,22 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
+  batchUpdateParticipants: (updates) => {
+    get().pushHistory();
+    set((state) => {
+      const updateMap = new Map(updates.map(u => [u.id, u.updates]));
+      return {
+        participants: state.participants.map((p) => {
+          const upd = updateMap.get(p.id);
+          return upd ? { ...p, ...upd } : p;
+        }),
+      };
+    });
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+  },
+
   withdrawParticipant: (id) => {
+    get().pushHistory();
     set((state) => ({
       participants: state.participants.map((p) =>
         p.id === id 
@@ -182,11 +273,13 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   setCategories: (categories) => {
+    get().pushHistory();
     set({ categories });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
   
   updateCategory: (id, updates) => {
+    get().pushHistory();
     set((state) => ({
       categories: state.categories.map((c) =>
         c.id === id ? { ...c, ...updates } : c
@@ -207,6 +300,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       }
       return m;
     });
+    get().pushHistory();
     set({ physicalRingMappings: migratedMappings });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
@@ -218,7 +312,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       // Convert "PR1" to "Ring 1", "PR1a" to "Ring 1a", etc.
       migratedRingName = physicalRingName.replace(/^PR(\d+)([a-z])?$/i, 'Ring $1$2');
     }
-    
+    get().pushHistory();
     set((state) => {
       const existing = state.physicalRingMappings.find(m => m.categoryPoolName === categoryPoolName);
       if (existing) {
@@ -237,6 +331,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   updateConfig: (configUpdates) => {
+    get().pushHistory();
     set((state) => ({
       config: { ...state.config, ...configUpdates },
     }));
@@ -244,6 +339,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   setDivisions: (divisions) => {
+    get().pushHistory();
     set((state) => ({
       config: { ...state.config, divisions },
     }));
@@ -251,6 +347,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   setPhysicalRings: (rings) => {
+    get().pushHistory();
     set((state) => ({
       config: { ...state.config, physicalRings: rings },
     }));
@@ -258,6 +355,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   setWatermark: (image) => {
+    get().pushHistory();
     set((state) => ({
       config: { ...state.config, watermarkImage: image },
     }));
@@ -265,6 +363,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   setSchoolAbbreviations: (abbreviations) => {
+    get().pushHistory();
     set((state) => ({
       config: { ...state.config, schoolAbbreviations: abbreviations },
     }));
@@ -334,6 +433,8 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       physicalRingMappings: migratedPhysicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings || [],
       customRings: state.customRings || [],
+      undoStack: [],
+      redoStack: [],
     });
   },
 
@@ -365,6 +466,8 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       config: initialConfig,
       checkpoints: [],
       customRings: [],
+      undoStack: [],
+      redoStack: [],
     }),
 
   // Checkpoint management
@@ -590,6 +693,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     }
 
     if (confirm(`Load checkpoint "${checkpoint.name}"? This will replace your current state.`)) {
+      get().pushHistory();
       set({
         participants: structuredClone(checkpoint.state.participants),
         categories: structuredClone(checkpoint.state.categories),
@@ -611,6 +715,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       participantIds: [],
       createdAt: new Date().toISOString(),
     };
+    get().pushHistory();
     set((state) => ({
       customRings: [...state.customRings, newRing],
     }));
@@ -619,6 +724,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   deleteCustomRing: (id: string) => {
+    get().pushHistory();
     set((state) => ({
       customRings: state.customRings.filter(r => r.id !== id),
     }));
@@ -626,6 +732,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   updateCustomRing: (id: string, updates: Partial<CustomRing>) => {
+    get().pushHistory();
     set((state) => ({
       customRings: state.customRings.map(r =>
         r.id === id ? { ...r, ...updates } : r
@@ -635,6 +742,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   addParticipantToCustomRing: (ringId: string, participantId: string) => {
+    get().pushHistory();
     set((state) => ({
       customRings: state.customRings.map(r =>
         r.id === ringId && !r.participantIds.includes(participantId)
@@ -646,6 +754,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   removeParticipantFromCustomRing: (ringId: string, participantId: string) => {
+    get().pushHistory();
     set((state) => ({
       customRings: state.customRings.map(r =>
         r.id === ringId
@@ -657,6 +766,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   moveParticipantInCustomRing: (ringId: string, participantId: string, direction: 'up' | 'down') => {
+    get().pushHistory();
     set((state) => {
       const ring = state.customRings.find(r => r.id === ringId);
       if (!ring) return state;
