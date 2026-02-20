@@ -702,6 +702,10 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         categoryPoolMappings: structuredClone(checkpoint.state.categoryPoolMappings),
         customRings: checkpoint.state.customRings ? structuredClone(checkpoint.state.customRings) : [],
       });
+      // Immediately persist the restored state so autosave reflects the checkpoint data.
+      // Without this, closing the app before any subsequent mutation would reload the
+      // pre-restore autosave on next startup (silently discarding the checkpoint restore).
+      useTournamentStore.getState().autoSave();
       alert(`Checkpoint "${checkpoint.name}" loaded successfully`);
     }
   },
