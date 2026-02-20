@@ -380,8 +380,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         if (field === 'formsDivision') {
           updates.competingForms = divisionValue !== null;
           
-          // Save current assignment before clearing (for reinstatement)
-          if (divisionValue === null) {
+          // Clear category/pool when division changes (null or different division)
+          if (divisionValue !== p.formsDivision) {
             updates.lastFormsCategoryId = p.formsCategoryId;
             updates.lastFormsPool = p.formsPool;
             updates.formsCategoryId = undefined;
@@ -391,8 +391,8 @@ function DataViewer({ globalDivision }: DataViewerProps) {
         } else if (field === 'sparringDivision') {
           updates.competingSparring = divisionValue !== null;
           
-          // Save current assignment before clearing (for reinstatement)
-          if (divisionValue === null) {
+          // Clear category/pool when division changes (null or different division)
+          if (divisionValue !== p.sparringDivision) {
             updates.lastSparringCategoryId = p.sparringCategoryId;
             updates.lastSparringPool = p.sparringPool;
             updates.sparringCategoryId = undefined;
@@ -1290,9 +1290,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       }}
                     >
                       <option value="">Not assigned</option>
-                      {formsCategoryOptions.map(opt => (
-                        <option key={opt.id} value={opt.id}>{opt.name}</option>
-                      ))}
+                      {categories
+                        .filter(c => c.type === 'forms' && c.division === p.formsDivision)
+                        .map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))
+                      }
                     </select>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
@@ -1418,9 +1421,12 @@ function DataViewer({ globalDivision }: DataViewerProps) {
                       }}
                     >
                       <option value="">Not assigned</option>
-                      {sparringCategoryOptions.map(opt => (
-                        <option key={opt.id} value={opt.id}>{opt.name}</option>
-                      ))}
+                      {categories
+                        .filter(c => c.type === 'sparring' && c.division === p.sparringDivision)
+                        .map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))
+                      }
                     </select>
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Not competing</span>}
                 </td>
