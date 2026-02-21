@@ -434,7 +434,129 @@ export function generateRingOverviewPDF(
         // Add small space between different ring numbers
         yPos += 3;
       });
-      
+
+      // ====== PARTICIPANT SUMMARY TABLE ======
+      yPos += 16;
+
+      // Aggregate participants by category (sum across all pools)
+      const categorySummaryMap = new Map<string, { formsCount: number; sparringCount: number; poolCount: number }>();
+      ringListRows.forEach(row => {
+        const catName = row.categoryPool.replace(/\s+Pool\s+\d+$/i, '').trim();
+        if (!categorySummaryMap.has(catName)) {
+          categorySummaryMap.set(catName, { formsCount: 0, sparringCount: 0, poolCount: 0 });
+        }
+        const entry = categorySummaryMap.get(catName)!;
+        entry.formsCount += row.formsCount;
+        entry.sparringCount += row.sparringCount;
+        entry.poolCount += 1;
+      });
+
+      // Sort categories age-aware (re-use the same helper)
+      const extractStartingAgeLocal = (name: string): number => {
+        const m = name.match(/\b(\d+)(?:-\d+|\+)?\b/);
+        if (m) return parseInt(m[1]) + (name.includes('+') ? 0.5 : 0);
+        return 999;
+      };
+      const categorySummaries = Array.from(categorySummaryMap.entries())
+        .sort(([a], [b]) => {
+          const diff = extractStartingAgeLocal(a) - extractStartingAgeLocal(b);
+          return diff !== 0 ? diff : a.localeCompare(b);
+        });
+
+      const totalForms    = categorySummaries.reduce((s, [, v]) => s + v.formsCount, 0);
+      const totalSparring = categorySummaries.reduce((s, [, v]) => s + v.sparringCount, 0);
+      const totalPools    = categorySummaries.reduce((s, [, v]) => s + v.poolCount, 0);
+
+      // ---- draw the table ----
+      const tblX       = margin;
+      const tblWidth   = pageWidth - margin * 2;
+      const poolColW   = 50;
+      const formsColW  = 70;
+      const sparColW   = 70;
+      const catColW    = tblWidth - poolColW - formsColW - sparColW;
+      const rowH       = 14;
+      const pad        = 4;
+
+      // Header row
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 123, 255);
+      doc.text('Participant Summary', tblX, yPos);
+      yPos += 4;
+
+      // Column headers background
+      doc.setFillColor(230, 240, 255);
+      doc.rect(tblX, yPos, tblWidth, rowH, 'F');
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineWidth(0.5);
+      doc.rect(tblX, yPos, tblWidth, rowH);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(60, 60, 60);
+      doc.text('Category', tblX + pad, yPos + rowH - 4);
+      doc.setTextColor(80, 80, 80);
+      doc.text('Pools', tblX + catColW + poolColW / 2, yPos + rowH - 4, { align: 'center' });
+      doc.setTextColor(0, 123, 255);
+      doc.text('Forms', tblX + catColW + poolColW + formsColW / 2, yPos + rowH - 4, { align: 'center' });
+      doc.setTextColor(220, 53, 69);
+      doc.text('Sparring', tblX + catColW + poolColW + formsColW + sparColW / 2, yPos + rowH - 4, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      yPos += rowH;
+
+      // Data rows
+      doc.setFont('helvetica', 'normal');
+      categorySummaries.forEach(([catName, counts], idx) => {
+        if (idx % 2 === 0) {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(tblX, yPos, tblWidth, rowH, 'F');
+        }
+        doc.setDrawColor(210, 210, 210);
+        doc.rect(tblX, yPos, tblWidth, rowH);
+
+        doc.setFontSize(8);
+        doc.setTextColor(30, 30, 30);
+        doc.text(catName, tblX + pad, yPos + rowH - 4);
+
+        doc.setTextColor(80, 80, 80);
+        doc.text(String(counts.poolCount), tblX + catColW + poolColW / 2, yPos + rowH - 4, { align: 'center' });
+
+        doc.setTextColor(0, 90, 200);
+        doc.text(String(counts.formsCount), tblX + catColW + poolColW + formsColW / 2, yPos + rowH - 4, { align: 'center' });
+
+        doc.setTextColor(190, 30, 45);
+        doc.text(String(counts.sparringCount), tblX + catColW + poolColW + formsColW + sparColW / 2, yPos + rowH - 4, { align: 'center' });
+
+        doc.setTextColor(0, 0, 0);
+        yPos += rowH;
+      });
+
+      // Total row
+      doc.setFillColor(220, 235, 255);
+      doc.rect(tblX, yPos, tblWidth, rowH, 'F');
+      doc.setDrawColor(150, 150, 180);
+      doc.setLineWidth(1);
+      doc.rect(tblX, yPos, tblWidth, rowH);
+      doc.setLineWidth(0.5);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 30, 30);
+      doc.text('TOTAL', tblX + pad, yPos + rowH - 4);
+
+      doc.setTextColor(60, 60, 60);
+      doc.text(String(totalPools), tblX + catColW + poolColW / 2, yPos + rowH - 4, { align: 'center' });
+
+      doc.setTextColor(0, 80, 180);
+      doc.text(String(totalForms), tblX + catColW + poolColW + formsColW / 2, yPos + rowH - 4, { align: 'center' });
+
+      doc.setTextColor(170, 20, 35);
+      doc.text(String(totalSparring), tblX + catColW + poolColW + formsColW + sparColW / 2, yPos + rowH - 4, { align: 'center' });
+
+      doc.setTextColor(0, 0, 0);
+      yPos += rowH + 10;
+      // ====== END PARTICIPANT SUMMARY TABLE ======
+
       // Add page break after ring list
       addFooter(doc, timestamp, pageWidth, pageHeight);
       doc.addPage();
