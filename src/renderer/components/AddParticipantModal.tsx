@@ -378,7 +378,22 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Category</label>
                 <select
                   value={formData.formsCategoryId || ''}
-                  onChange={(e) => setFormData({ ...formData, formsCategoryId: e.target.value || null, formsPool: null })}
+                  onChange={(e) => {
+                    const catId = e.target.value || null;
+                    let sparCatId = formData.sparringCategoryId;
+                    if (formData.useFormsForSparring) {
+                      const selectedFormsCat = formsCategories.find(c => c.id === catId);
+                      const matchingSparCat = selectedFormsCat
+                        ? categories.find(c => c.type === 'sparring' && c.division === formData.sparringDivision && c.name === selectedFormsCat.name)
+                        : null;
+                      sparCatId = matchingSparCat ? matchingSparCat.id : null;
+                    }
+                    setFormData({
+                      ...formData,
+                      formsCategoryId: catId, formsPool: null,
+                      ...(formData.useFormsForSparring ? { sparringCategoryId: sparCatId, sparringPool: null } : {}),
+                    });
+                  }}
                   disabled={!formData.formsDivision || formsCategories.length === 0}
                   style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: (!formData.formsDivision || formsCategories.length === 0) ? 0.5 : 1 }}
                 >
