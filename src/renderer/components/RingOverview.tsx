@@ -25,9 +25,7 @@ interface QuickEditState {
   ringName: string;
 }
 
-interface RingOverviewProps {
-  globalDivision?: string;
-}
+interface RingOverviewProps {}
 
 // Ring balance indicator helper
 const getRingBalanceStyle = (participantCount: number): { color: string; bg: string; label: string } => {
@@ -40,12 +38,12 @@ const getRingBalanceStyle = (participantCount: number): { color: string; bg: str
   }
 };
 
-function RingOverview({ globalDivision }: RingOverviewProps) {
+function RingOverview({}: RingOverviewProps) {
   const [selectedDivision, setSelectedDivision] = useState<string>(
-    globalDivision || localStorage.getItem('tournament-division') || 'Black Belt'
+    localStorage.getItem('tournament-division') || 'Black Belt'
   );
   const [divisionFilter, setDivisionFilter] = useState<string>(
-    globalDivision || localStorage.getItem('tournament-division') || 'Black Belt'
+    localStorage.getItem('tournament-division') || 'Black Belt'
   ); // Persists dropdown selection
   const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
   const [copySparringFromForms, setCopySparringFromForms] = useState(false);
@@ -65,7 +63,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
   const [renamingCheckpointId, setRenamingCheckpointId] = useState<string | null>(null);
   const [renamingCheckpointValue, setRenamingCheckpointValue] = useState('');
   const [expandedRings, setExpandedRings] = useState<Set<string>>(new Set());
-  const [dismissedUnassignedWarning, setDismissedUnassignedWarning] = useState(false);
   const [ringSort, setRingSort] = useState<'ring' | 'group' | 'category'>('ring');
   
   const participants = useTournamentStore((state) => state.participants);
@@ -162,7 +159,8 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             [],
             undefined,
             undefined,
-            true // isCustomRing
+            true, // isCustomRing
+            config.schoolAbbreviations
           )
         : generateSparringBrackets(
             participantsWithOrder,
@@ -182,6 +180,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       if (printWindow) {
         await new Promise<void>(resolve => {
           printWindow.addEventListener('load', () => {
+            printWindow.addEventListener('afterprint', () => printWindow.close());
             printWindow.print();
             setTimeout(() => {
               URL.revokeObjectURL(pdfUrl);
@@ -207,7 +206,11 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
             config.physicalRings,
             division,
             config.watermarkImage,
-            physicalRingMappings
+            physicalRingMappings,
+            undefined,
+            undefined,
+            undefined,
+            config.schoolAbbreviations
           )
         : generateSparringBrackets(
             participants,
@@ -224,6 +227,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
       if (printWindow) {
         await new Promise<void>(resolve => {
           printWindow.addEventListener('load', () => {
+            printWindow.addEventListener('afterprint', () => printWindow.close());
             printWindow.print();
             setTimeout(() => {
               URL.revokeObjectURL(pdfUrl);
@@ -456,14 +460,6 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
     const allPoolNames = new Set(filteredRingPairs.map(p => p.categoryPoolName));
     setExpandedRings(allPoolNames);
   };
-
-  // Sync with global division when it changes
-  useEffect(() => {
-    if (globalDivision) {
-      setSelectedDivision(globalDivision);
-      setDivisionFilter(globalDivision);
-    }
-  }, [globalDivision]);
 
   // Compute rings changed since latest checkpoint
   const changedRings = useMemo(() => {
@@ -1367,7 +1363,21 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
                   type="checkbox"
                   checked={currentCompetingSparring ?? false}
                   onChange={(e) => {
-                    updatePending({ competingSparring: e.target.checked });
+                    const updates: Partial<Participant> = { competingSparring: e.target.checked };
+                    
+                    // If enabling sparring and copySparringFromForms is checked, populate sparring fields
+                    if (e.target.checked && copySparringFromForms && currentCompetingForms && currentFormsDivision && currentFormsCategoryId && currentFormsPool) {
+                      console.log('[QuickEdit] Auto-populating sparring fields from forms because copySparringFromForms is enabled');
+                      // Convert forms category ID to sparring category ID
+                      // Format: "forms-{division}-{gender}-{minAge}-{maxAge}" -> "sparring-{division}-{gender}-{minAge}-{maxAge}"
+                      const sparringCategoryId = currentFormsCategoryId.replace(/^forms-/, 'sparring-');
+                      console.log('[QuickEdit] Converted categoryId from', currentFormsCategoryId, 'to', sparringCategoryId);
+                      updates.sparringDivision = currentFormsDivision;
+                      updates.sparringCategoryId = sparringCategoryId;
+                      updates.sparringPool = currentFormsPool;
+                    }
+                    
+                    updatePending(updates);
                   }}
                   style={{ marginRight: '8px' }}
                 />
@@ -2454,43 +2464,7 @@ function RingOverview({ globalDivision }: RingOverviewProps) {
         </div>
       </div>
 
-      {/* Unassigned Participants Warning - Dismissable sticky pane */}
-      {unassignedCount > 0 && selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && !dismissedUnassignedWarning && (
-        <div style={{
-          position: 'sticky',
-          top: '69px',
-          zIndex: 99,
-          backgroundColor: '#fff3cd',
-          color: '#856404',
-          borderBottom: '1px solid #ffc107',
-          padding: '10px 15px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '15px',
-        }}>
-          <div style={{ fontSize: '13px', fontWeight: '500' }}>
-            <strong>⚠️ {unassignedCount} participant{unassignedCount !== 1 ? 's' : ''}</strong> not assigned to any ring
-          </div>
-          <button
-            onClick={() => setDismissedUnassignedWarning(true)}
-            style={{
-              padding: '4px 10px',
-              backgroundColor: 'transparent',
-              color: '#856404',
-              border: '1px solid #856404',
-              borderRadius: '3px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: '600',
-              whiteSpace: 'nowrap',
-            }}
-            title="Dismiss this warning"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+
 
       {/* Grand Champion View */}
       {selectedDivision === 'grand-champion' ? (

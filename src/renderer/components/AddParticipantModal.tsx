@@ -9,10 +9,11 @@ interface AddParticipantModalProps {
 
 function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
   const participants = useTournamentStore((state) => state.participants);
+  const categories = useTournamentStore((state) => state.categories);
   const config = useTournamentStore((state) => state.config);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
 
-  const [formData, setFormData] = useState({
+  const emptyForm = {
     firstName: '',
     lastName: '',
     age: 0,
@@ -22,8 +23,16 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
     school: '',
     branch: '',
     formsDivision: null as string | null,
+    formsCategoryId: null as string | null,
+    formsPool: null as string | null,
     sparringDivision: null as string | null,
-  });
+    sparringCategoryId: null as string | null,
+    sparringPool: null as string | null,
+    sparringAltRing: '' as '' | 'a' | 'b',
+    useFormsForSparring: true,
+  };
+
+  const [formData, setFormData] = useState(emptyForm);
 
   // Get unique schools and branches from existing participants
   const uniqueSchools = useMemo(() => {
@@ -40,6 +49,30 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
     const genders = new Set(participants.map(p => p.gender).filter(Boolean));
     return Array.from(genders).sort();
   }, [participants]);
+
+  // Filtered categories based on selected division
+  const formsCategories = useMemo(() =>
+    categories.filter(c => c.type === 'forms' && c.division === formData.formsDivision),
+    [categories, formData.formsDivision]
+  );
+
+  const sparringCategories = useMemo(() =>
+    categories.filter(c => c.type === 'sparring' && c.division === formData.sparringDivision),
+    [categories, formData.sparringDivision]
+  );
+
+  // Pool options for selected category (P1, P2, ...)
+  const formsPoolOptions = useMemo(() => {
+    const cat = formsCategories.find(c => c.id === formData.formsCategoryId);
+    if (!cat || !cat.numPools) return [];
+    return Array.from({ length: cat.numPools }, (_, i) => `P${i + 1}`);
+  }, [formsCategories, formData.formsCategoryId]);
+
+  const sparringPoolOptions = useMemo(() => {
+    const cat = sparringCategories.find(c => c.id === formData.sparringCategoryId);
+    if (!cat || !cat.numPools) return [];
+    return Array.from({ length: cat.numPools }, (_, i) => `P${i + 1}`);
+  }, [sparringCategories, formData.sparringCategoryId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,47 +103,25 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
       sparringDivision: formData.sparringDivision,
       competingForms: formData.formsDivision !== null,
       competingSparring: formData.sparringDivision !== null,
-      formsCategoryId: undefined,
-      sparringCategoryId: undefined,
-      formsPool: undefined,
-      sparringPool: undefined,
+      formsCategoryId: formData.formsCategoryId || undefined,
+      sparringCategoryId: formData.sparringCategoryId || undefined,
+      formsPool: formData.formsPool || undefined,
+      sparringPool: formData.sparringPool || undefined,
       formsRankOrder: undefined,
       sparringRankOrder: undefined,
-      sparringAltRing: '',
+      sparringAltRing: formData.sparringAltRing,
     };
 
     // Add to participants list
     setParticipants([...participants, newParticipant]);
 
     // Reset form and close
-    setFormData({
-      firstName: '',
-      lastName: '',
-      age: 0,
-      gender: '',
-      heightFeet: 0,
-      heightInches: 0,
-      school: '',
-      branch: '',
-      formsDivision: null,
-      sparringDivision: null,
-    });
+    setFormData(emptyForm);
     onClose();
   };
 
   const handleCancel = () => {
-    setFormData({
-      firstName: '',
-      lastName: '',
-      age: 0,
-      gender: '',
-      heightFeet: 0,
-      heightInches: 0,
-      school: '',
-      branch: '',
-      formsDivision: null,
-      sparringDivision: null,
-    });
+    setFormData(emptyForm);
     onClose();
   };
 
@@ -335,53 +346,161 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
             </div>
           </div>
 
-          {/* Divisions */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#007bff' }}>
-                Forms Division
-              </label>
-              <select
-                value={formData.formsDivision || ''}
-                onChange={(e) => setFormData({ ...formData, formsDivision: e.target.value || null })}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  fontSize: '14px',
-                  border: '1px solid var(--input-border)',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--input-bg)',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                <option value="">Not Participating</option>
-                {config.divisions.map(div => (
-                  <option key={div.name} value={div.name}>{div.name}</option>
-                ))}
-              </select>
+          {/* Forms Section */}
+          <div style={{ marginBottom: '20px', padding: '12px', border: '1px solid #007bff', borderRadius: '6px' }}>
+            <h4 style={{ margin: '0 0 10px 0', color: '#007bff', fontSize: '14px' }}>Forms</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Division</label>
+                <select
+                  value={formData.formsDivision || ''}
+                  onChange={(e) => {
+                    const div = e.target.value || null;
+                    const sparCats = formData.useFormsForSparring
+                      ? categories.filter(c => c.type === 'sparring' && c.division === div)
+                      : [];
+                    const autoSparCatId = sparCats.length === 1 ? sparCats[0].id : null;
+                    setFormData({
+                      ...formData,
+                      formsDivision: div, formsCategoryId: null, formsPool: null,
+                      ...(formData.useFormsForSparring ? { sparringDivision: div, sparringCategoryId: autoSparCatId, sparringPool: null, sparringAltRing: '' } : {}),
+                    });
+                  }}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">Not Participating</option>
+                  {config.divisions.map(div => (
+                    <option key={div.name} value={div.name}>{div.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Category</label>
+                <select
+                  value={formData.formsCategoryId || ''}
+                  onChange={(e) => setFormData({ ...formData, formsCategoryId: e.target.value || null, formsPool: null })}
+                  disabled={!formData.formsDivision || formsCategories.length === 0}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: (!formData.formsDivision || formsCategories.length === 0) ? 0.5 : 1 }}
+                >
+                  <option value="">{formsCategories.length === 0 ? 'No categories' : 'Select...'}</option>
+                  {formsCategories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Pool</label>
+                <select
+                  value={formData.formsPool || ''}
+                  onChange={(e) => {
+                    const pool = e.target.value || null;
+                    setFormData({
+                      ...formData,
+                      formsPool: pool,
+                      ...(formData.useFormsForSparring ? { sparringPool: pool } : {}),
+                    });
+                  }}
+                  disabled={!formData.formsCategoryId || formsPoolOptions.length === 0}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: (!formData.formsCategoryId || formsPoolOptions.length === 0) ? 0.5 : 1 }}
+                >
+                  <option value="">{formsPoolOptions.length === 0 ? 'No pools' : 'Select...'}</option>
+                  {formsPoolOptions.map(p => (
+                    <option key={p} value={p}>{p.replace(/^P(\d+)$/, 'Pool $1')}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#dc3545' }}>
-                Sparring Division
-              </label>
-              <select
-                value={formData.sparringDivision || ''}
-                onChange={(e) => setFormData({ ...formData, sparringDivision: e.target.value || null })}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  fontSize: '14px',
-                  border: '1px solid var(--input-border)',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--input-bg)',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                <option value="">Not Participating</option>
-                {config.divisions.map(div => (
-                  <option key={div.name} value={div.name}>{div.name}</option>
-                ))}
-              </select>
+          </div>
+
+          {/* Use forms for sparring checkbox */}
+          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              id="useFormsForSparring"
+              checked={formData.useFormsForSparring}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                if (checked) {
+                  const div = formData.formsDivision;
+                  const sparCats = categories.filter(c => c.type === 'sparring' && c.division === div);
+                  const autoSparCatId = sparCats.length === 1 ? sparCats[0].id : null;
+                  setFormData({
+                    ...formData,
+                    useFormsForSparring: true,
+                    sparringDivision: div,
+                    sparringCategoryId: autoSparCatId,
+                    sparringPool: formData.formsPool,
+                  });
+                } else {
+                  setFormData({ ...formData, useFormsForSparring: false });
+                }
+              }}
+              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+            />
+            <label htmlFor="useFormsForSparring" style={{ fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+              Use forms settings for sparring
+            </label>
+          </div>
+
+          {/* Sparring Section */}
+          <div style={{ marginBottom: '20px', padding: '12px', border: '1px solid #dc3545', borderRadius: '6px' }}>
+            <h4 style={{ margin: '0 0 10px 0', color: '#dc3545', fontSize: '14px' }}>Sparring</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Division</label>
+                <select
+                  value={formData.sparringDivision || ''}
+                  onChange={(e) => setFormData({ ...formData, sparringDivision: e.target.value || null, sparringCategoryId: null, sparringPool: null, sparringAltRing: '' })}
+                  disabled={formData.useFormsForSparring}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: formData.useFormsForSparring ? 0.6 : 1 }}
+                >
+                  <option value="">Not Participating</option>
+                  {config.divisions.map(div => (
+                    <option key={div.name} value={div.name}>{div.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Category</label>
+                <select
+                  value={formData.sparringCategoryId || ''}
+                  onChange={(e) => setFormData({ ...formData, sparringCategoryId: e.target.value || null, sparringPool: null, sparringAltRing: '' })}
+                  disabled={formData.useFormsForSparring || !formData.sparringDivision || sparringCategories.length === 0}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: (formData.useFormsForSparring || !formData.sparringDivision || sparringCategories.length === 0) ? 0.5 : 1 }}
+                >
+                  <option value="">{sparringCategories.length === 0 ? 'No categories' : 'Select...'}</option>
+                  {sparringCategories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Pool</label>
+                <select
+                  value={formData.sparringPool || ''}
+                  onChange={(e) => setFormData({ ...formData, sparringPool: e.target.value || null })}
+                  disabled={formData.useFormsForSparring || !formData.sparringCategoryId || sparringPoolOptions.length === 0}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: (formData.useFormsForSparring || !formData.sparringCategoryId || sparringPoolOptions.length === 0) ? 0.5 : 1 }}
+                >
+                  <option value="">{sparringPoolOptions.length === 0 ? 'No pools' : 'Select...'}</option>
+                  {sparringPoolOptions.map(p => (
+                    <option key={p} value={p}>{p.replace(/^P(\d+)$/, 'Pool $1')}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Alt Ring</label>
+                <select
+                  value={formData.sparringAltRing}
+                  onChange={(e) => setFormData({ ...formData, sparringAltRing: e.target.value as '' | 'a' | 'b' })}
+                  disabled={!formData.sparringPool}
+                  style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: !formData.sparringPool ? 0.5 : 1 }}
+                >
+                  <option value="">None</option>
+                  <option value="a">Alt Ring A</option>
+                  <option value="b">Alt Ring B</option>
+                </select>
+              </div>
             </div>
           </div>
 
