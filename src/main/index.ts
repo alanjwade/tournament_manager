@@ -18,9 +18,11 @@ function createWindow() {
     show: false, // Don't show until ready
   });
 
-  // Maximize after creation
-  mainWindow.maximize();
-  mainWindow.show();
+  // Show only once the renderer is ready (avoids blank/white flash on startup)
+  mainWindow.once('ready-to-show', () => {
+    mainWindow!.maximize();
+    mainWindow!.show();
+  });
 
   // Load the renderer
   if (process.env.NODE_ENV === 'development') {

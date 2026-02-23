@@ -675,6 +675,42 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       });
     });
 
+    // Track rings for newly added participants
+    participantsAdded.forEach(p => {
+      if (p.competingForms && p.formsCategoryId) {
+        const category = state.categories.find(c => c.id === p.formsCategoryId);
+        if (category) {
+          const pool = p.formsPool || 'P1';
+          ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
+        }
+      }
+      if (p.competingSparring && p.sparringCategoryId) {
+        const category = state.categories.find(c => c.id === p.sparringCategoryId);
+        if (category) {
+          const pool = p.sparringPool || 'P1';
+          ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', p.sparringAltRing || undefined));
+        }
+      }
+    });
+
+    // Track rings for removed participants (use checkpoint categories)
+    participantsRemoved.forEach(p => {
+      if (p.competingForms && p.formsCategoryId) {
+        const category = checkpoint.state.categories.find(c => c.id === p.formsCategoryId);
+        if (category) {
+          const pool = p.formsPool || 'P1';
+          ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
+        }
+      }
+      if (p.competingSparring && p.sparringCategoryId) {
+        const category = checkpoint.state.categories.find(c => c.id === p.sparringCategoryId);
+        if (category) {
+          const pool = p.sparringPool || 'P1';
+          ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', p.sparringAltRing || undefined));
+        }
+      }
+    });
+
     return {
       participantsAdded,
       participantsRemoved,
