@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTournamentStore } from './store/tournamentStore';
 import { getEffectiveDivision } from './utils/excelParser';
 import { computeCompetitionRings } from './utils/computeRings';
+import { buildCategoryPoolName } from './utils/ringNameFormatter';
 import Dashboard from './components/Dashboard';
 import DataImport from './components/DataImport';
 import CategoryManagement from './components/CategoryManagement';
@@ -21,10 +22,6 @@ type Theme = 'light' | 'dark';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const [globalDivision, setGlobalDivision] = useState<string>(() => {
-    const saved = localStorage.getItem('tournament-division');
-    return saved || 'Black Belt';
-  });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchFocused, setSearchFocused] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -117,11 +114,33 @@ function App() {
     
     if (formsDivision) {
       const formsPoolDisplay = p.formsPool ? p.formsPool.replace(/^P(\d+)$/, 'Pool $1') : 'unassigned';
-      parts.push(`F: ${formsPoolDisplay}`);
+      let formsRingDisplay = '';
+      if (p.formsCategoryId && p.formsPool) {
+        const formsCategory = categories.find(c => c.id === p.formsCategoryId);
+        if (formsCategory) {
+          const poolName = buildCategoryPoolName(formsCategory.division, formsCategory.name, p.formsPool);
+          const physicalMapping = physicalRingMappings.find(m => m.categoryPoolName === poolName);
+          if (physicalMapping) {
+            formsRingDisplay = ` (${physicalMapping.physicalRingName})`;
+          }
+        }
+      }
+      parts.push(`F: ${formsPoolDisplay}${formsRingDisplay}`);
     }
     if (sparringDivision) {
       const sparringPoolDisplay = p.sparringPool ? p.sparringPool.replace(/^P(\d+)$/, 'Pool $1') : 'unassigned';
-      parts.push(`S: ${sparringPoolDisplay}`);
+      let sparringRingDisplay = '';
+      if (p.sparringCategoryId && p.sparringPool) {
+        const sparringCategory = categories.find(c => c.id === p.sparringCategoryId);
+        if (sparringCategory) {
+          const poolName = buildCategoryPoolName(sparringCategory.division, sparringCategory.name, p.sparringPool);
+          const physicalMapping = physicalRingMappings.find(m => m.categoryPoolName === poolName);
+          if (physicalMapping) {
+            sparringRingDisplay = ` (${physicalMapping.physicalRingName})`;
+          }
+        }
+      }
+      parts.push(`S: ${sparringPoolDisplay}${sparringRingDisplay}`);
     }
     return parts.join(' | ') || 'Not competing';
   };
@@ -397,34 +416,6 @@ function App() {
               )}
             </div>
           )}
-          
-          {/* Division Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>Division:</label>
-            <select
-              value={globalDivision}
-              onChange={(e) => {
-                setGlobalDivision(e.target.value);
-                localStorage.setItem('tournament-division', e.target.value);
-              }}
-              style={{
-                padding: '8px 12px',
-                fontSize: '14px',
-                borderRadius: '4px',
-                border: '2px solid var(--accent-primary)',
-                backgroundColor: 'var(--input-bg)',
-                color: 'var(--text-primary)',
-                fontWeight: 'bold',
-                minWidth: '150px',
-              }}
-            >
-              {config.divisions.sort((a, b) => a.order - b.order).map(div => (
-                <option key={div.name} value={div.name}>
-                  {div.abbreviation || div.name.substring(0, 4).toUpperCase()} - {div.name}
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Add Participant Button */}
           {participants.length > 0 && (
@@ -582,11 +573,11 @@ function App() {
         {activeTab === 'dashboard' && <Dashboard onNavigate={(tab) => setActiveTab(tab as Tab)} />}
         {activeTab === 'import' && <DataImport />}
         {activeTab === 'configuration' && <Configuration />}
-        {activeTab === 'categories' && <CategoryManagement globalDivision={globalDivision} />}
-        {activeTab === 'ringmap' && <RingMapEditor globalDivision={globalDivision} />}
-        {activeTab === 'editor' && <DataViewer globalDivision={globalDivision} />}
-        {activeTab === 'tournament' && <RingOverview globalDivision={globalDivision} />}
-        {activeTab === 'export' && <PDFExport globalDivision={globalDivision} />}
+        {activeTab === 'categories' && <CategoryManagement />}
+        {activeTab === 'ringmap' && <RingMapEditor />}
+        {activeTab === 'editor' && <DataViewer />}
+        {activeTab === 'tournament' && <RingOverview />}
+        {activeTab === 'export' && <PDFExport />}
         {activeTab === 'checkpoints' && <CheckpointManager />}
       </div>
 

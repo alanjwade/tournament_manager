@@ -47,7 +47,7 @@ Execute a release with automatic patch version increment
 
 **Specific version:**
 ```
-Execute a release with version 1.0.0
+Execute a release with Release v1.0.0
 ```
 
 ---

@@ -78,7 +78,8 @@ function GrandChampionSection({
             [],
             undefined,
             undefined,
-            true // isCustomRing
+            true, // isCustomRing
+            config.schoolAbbreviations
           )
         : generateSparringBrackets(
             participantsWithOrder,
@@ -98,6 +99,7 @@ function GrandChampionSection({
       if (printWindow) {
         await new Promise<void>(resolve => {
           printWindow.addEventListener('load', () => {
+            printWindow.addEventListener('afterprint', () => printWindow.close());
             printWindow.print();
             setTimeout(() => {
               URL.revokeObjectURL(pdfUrl);

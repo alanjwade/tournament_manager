@@ -31,11 +31,9 @@ const RING_COLOR_MAP: { [key: number]: string } = {
   14: '#b4a7d6', // Light Purple
 };
 
-interface RingMapEditorProps {
-  globalDivision?: string;
-}
+interface RingMapEditorProps {}
 
-function RingMapEditor({ globalDivision }: RingMapEditorProps) {
+function RingMapEditor({}: RingMapEditorProps) {
   const participants = useTournamentStore((state) => state.participants);
   const categories = useTournamentStore((state) => state.categories);
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
@@ -67,22 +65,20 @@ function RingMapEditor({ globalDivision }: RingMapEditorProps) {
     });
   }, [participants, config.divisions]);
   
-  const [selectedDivision, setSelectedDivision] = useState<string>(globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt');
+  const [selectedDivision, setSelectedDivision] = useState<string>(localStorage.getItem('division-ringmap') || 'Black Belt');
   const [numPhysicalRings, setNumPhysicalRings] = useState<number>(14);
   const [assignments, setAssignments] = useState<RingAssignmentRow[]>([]);
   const [isDirty, setIsDirty] = useState(false); // Track if user has made changes
 
-  // Sync with global division when it changes
+  // Persist division selection per-page
   useEffect(() => {
-    if (globalDivision && globalDivision !== 'all') {
-      setSelectedDivision(globalDivision);
-    }
-  }, [globalDivision]);
+    localStorage.setItem('division-ringmap', selectedDivision);
+  }, [selectedDivision]);
 
   // Set default division on mount or when divisions change
   useEffect(() => {
     if (divisions.length > 0 && !divisions.includes(selectedDivision)) {
-      setSelectedDivision(divisions[0] === 'Black Belt' ? 'Black Belt' : divisions[0]);
+      setSelectedDivision(divisions[0]);
     }
   }, [divisions]);
 

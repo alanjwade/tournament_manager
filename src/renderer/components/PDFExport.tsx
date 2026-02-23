@@ -10,11 +10,9 @@ import { getEffectiveDivision } from '../utils/excelParser';
 import { CompetitionRing } from '../types/tournament';
 import logoImage from '../assets/logos/logo_orig_dark_letters.png';
 
-interface PDFExportProps {
-  globalDivision?: string;
-}
+interface PDFExportProps {}
 
-function PDFExport({ globalDivision }: PDFExportProps) {
+function PDFExport({}: PDFExportProps) {
   const participants = useTournamentStore((state) => state.participants);
   const categories = useTournamentStore((state) => state.categories);
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
@@ -61,7 +59,7 @@ function PDFExport({ globalDivision }: PDFExportProps) {
   );
   
   const [selectedDivision, setSelectedDivision] = useState<string>(
-    globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt'
+    localStorage.getItem('division-export') || 'Black Belt'
   );
   const [exporting, setExporting] = useState(false);
   const [fileLocations, setFileLocations] = useState<{
@@ -80,12 +78,10 @@ function PDFExport({ globalDivision }: PDFExportProps) {
   const [selectedFormsCheckpoint, setSelectedFormsCheckpoint] = useState<string>('');
   const [selectedSparringCheckpoint, setSelectedSparringCheckpoint] = useState<string>('');
   
-  // Sync with global division when it changes
+  // Persist division selection per-page
   useEffect(() => {
-    if (globalDivision && globalDivision !== 'all') {
-      setSelectedDivision(globalDivision);
-    }
-  }, [globalDivision]);
+    localStorage.setItem('division-export', selectedDivision);
+  }, [selectedDivision]);
   
   // Get sorted checkpoints (latest first)
   const sortedCheckpoints = useMemo(() => {

@@ -10,11 +10,9 @@ function generateCategoryId(type: 'forms' | 'sparring', division: string, gender
   return `${type}-${division}-${gender}-${minAge}-${maxAge}`;
 }
 
-interface CategoryManagementProps {
-  globalDivision?: string;
-}
+interface CategoryManagementProps {}
 
-function CategoryManagement({ globalDivision }: CategoryManagementProps) {
+function CategoryManagement({}: CategoryManagementProps) {
   const participants = useTournamentStore((state) => state.participants);
   const categories = useTournamentStore((state) => state.categories);
   const config = useTournamentStore((state) => state.config);
@@ -22,17 +20,15 @@ function CategoryManagement({ globalDivision }: CategoryManagementProps) {
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const updateCategory = useTournamentStore((state) => state.updateCategory);
 
-  const [selectedDivision, setSelectedDivision] = useState(globalDivision && globalDivision !== 'all' ? globalDivision : 'Black Belt');
+  const [selectedDivision, setSelectedDivision] = useState(localStorage.getItem('division-categories') || 'Black Belt');
   const [selectedGender, setSelectedGender] = useState<'male' | 'female' | 'mixed'>('mixed');
   const [selectedAges, setSelectedAges] = useState<Set<string>>(new Set());
   const [numPools, setNumPools] = useState(1);
 
-  // Sync with global division when it changes
+  // Persist division selection per-page
   useEffect(() => {
-    if (globalDivision && globalDivision !== 'all') {
-      setSelectedDivision(globalDivision);
-    }
-  }, [globalDivision]);
+    localStorage.setItem('division-categories', selectedDivision);
+  }, [selectedDivision]);
 
   // Get unique ages from participants in selected division with unassigned participants
   const availableAges = useMemo(() => {

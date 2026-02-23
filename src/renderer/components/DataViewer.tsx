@@ -6,11 +6,9 @@ import { Participant } from '../types/tournament';
 import { computeCompetitionRings } from '../utils/computeRings';
 import AddParticipantModal from './AddParticipantModal';
 
-interface DataViewerProps {
-  globalDivision?: string;
-}
+interface DataViewerProps {}
 
-function DataViewer({ globalDivision }: DataViewerProps) {
+function DataViewer({}: DataViewerProps) {
   const participants = useTournamentStore((state) => state.participants);
   const categories = useTournamentStore((state) => state.categories);
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
@@ -84,17 +82,6 @@ function DataViewer({ globalDivision }: DataViewerProps) {
     formsOrder: '',
     sparringOrder: '',
   });
-
-  // Sync with global division when it changes
-  useEffect(() => {
-    if (globalDivision && globalDivision !== 'all') {
-      setFilters(prev => ({
-        ...prev,
-        formsDivision: globalDivision,
-        sparringDivision: globalDivision,
-      }));
-    }
-  }, [globalDivision]);
 
   // Check for highlighted participant from global search - use store instead of sessionStorage
   useEffect(() => {
