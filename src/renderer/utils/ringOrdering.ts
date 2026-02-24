@@ -1,5 +1,5 @@
-import { Participant } from '../types/tournament';
-import { getEffectiveSparringInfo, getEffectiveFormsInfo } from './computeRings';
+import { Participant, Category, CategoryPoolMapping } from '../types/tournament';
+import { getEffectiveSparringInfo, getEffectiveFormsInfo, computeCompetitionRings } from './computeRings';
 
 /**
  * Check if a sparring ring has mixed alt ring assignments (some set, some not).
@@ -421,4 +421,35 @@ export function orderSparringRing(
     const ordered = orderedWithRanks.find((op) => op.id === p.id);
     return ordered || p;
   });
+}
+/**
+ * Re-order all competition rings (forms and sparring) in one pass.
+ * Idempotent: running on already-ordered participants produces the same result.
+ */
+export function reorderAllRings(
+  participants: Participant[],
+  categories: Category[],
+  categoryPoolMappings: CategoryPoolMapping[]
+): Participant[] {
+  const rings = computeCompetitionRings(participants, categories, categoryPoolMappings);
+
+  let updated = participants;
+
+  for (const ring of rings) {
+    if (ring.type === 'forms') {
+      const prefix = `forms-${ring.categoryId}-`;
+      const pool = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;
+      updated = pool
+        ? orderFormsRing(updated, ring.categoryId, pool)
+        : orderFormsRing(updated, ring.id);
+    } else if (ring.type === 'sparring') {
+      const prefix = `sparring-${ring.categoryId}-`;
+      const pool = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;
+      updated = pool
+        ? orderSparringRing(updated, ring.categoryId, pool)
+        : orderSparringRing(updated, ring.id);
+    }
+  }
+
+  return updated;
 }

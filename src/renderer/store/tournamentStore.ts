@@ -3,6 +3,41 @@ import { Participant, Category, CompetitionRing, TournamentConfig, Division, Phy
 import { debounce } from '../utils/debounce';
 import { AUTOSAVE_DELAY_MS } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { reorderAllRings } from '../utils/ringOrdering';
+
+/** Fields whose changes should trigger automatic ring re-ordering. */
+const ASSIGNMENT_FIELDS: (keyof Participant)[] = [
+  'formsCategoryId', 'formsPool', 'competingForms',
+  'sparringCategoryId', 'sparringPool', 'competingSparring', 'sparringAltRing',
+];
+
+/** Returns true if any participant has a changed ring-assignment field, or a new/removed participant carries ring assignments. */
+function hasAssignmentChanges(oldList: Participant[], newList: Participant[]): boolean {
+  const oldMap = new Map(oldList.map(p => [p.id, p]));
+  const newMap = new Map(newList.map(p => [p.id, p]));
+
+  // New participants with an assignment
+  for (const np of newList) {
+    if (!oldMap.has(np.id)) {
+      if (np.formsCategoryId || np.sparringCategoryId) return true;
+    }
+  }
+
+  // Removed participants that had an assignment
+  for (const op of oldList) {
+    if (!newMap.has(op.id)) {
+      if (op.formsCategoryId || op.sparringCategoryId) return true;
+    }
+  }
+
+  // Existing participants with changed assignment fields
+  for (const np of newList) {
+    const op = oldMap.get(np.id);
+    if (op && ASSIGNMENT_FIELDS.some(f => (op as any)[f] !== (np as any)[f])) return true;
+  }
+
+  return false;
+}
 
 type Snapshot = {
   participants: Participant[];
@@ -225,32 +260,55 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       
       return normalized as Participant;
     });
+    const oldParticipants = get().participants;
     get().pushHistory();
-    set({ participants: normalized });
+    const shouldReorder = hasAssignmentChanges(oldParticipants, normalized);
+    const finalParticipants = shouldReorder
+      ? reorderAllRings(normalized, get().categories, get().categoryPoolMappings)
+      : normalized;
+    set({ participants: finalParticipants });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
   
   updateParticipant: (id, updates) => {
+    const shouldReorder = ASSIGNMENT_FIELDS.some(f => f in updates);
     get().pushHistory();
-    set((state) => ({
-      participants: state.participants.map((p) =>
-        p.id === id ? { ...p, ...updates } : p
-      ),
-    }));
+    if (shouldReorder) {
+      const newParticipants = get().participants.map(p => p.id === id ? { ...p, ...updates } : p);
+      const { categories, categoryPoolMappings } = get();
+      set({ participants: reorderAllRings(newParticipants, categories, categoryPoolMappings) });
+    } else {
+      set((state) => ({
+        participants: state.participants.map((p) =>
+          p.id === id ? { ...p, ...updates } : p
+        ),
+      }));
+    }
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
   batchUpdateParticipants: (updates) => {
+    const shouldReorder = updates.some(u => ASSIGNMENT_FIELDS.some(f => f in u.updates));
     get().pushHistory();
-    set((state) => {
+    if (shouldReorder) {
       const updateMap = new Map(updates.map(u => [u.id, u.updates]));
-      return {
-        participants: state.participants.map((p) => {
-          const upd = updateMap.get(p.id);
-          return upd ? { ...p, ...upd } : p;
-        }),
-      };
-    });
+      const newParticipants = get().participants.map(p => {
+        const upd = updateMap.get(p.id);
+        return upd ? { ...p, ...upd } : p;
+      });
+      const { categories, categoryPoolMappings } = get();
+      set({ participants: reorderAllRings(newParticipants, categories, categoryPoolMappings) });
+    } else {
+      set((state) => {
+        const updateMap = new Map(updates.map(u => [u.id, u.updates]));
+        return {
+          participants: state.participants.map((p) => {
+            const upd = updateMap.get(p.id);
+            return upd ? { ...p, ...upd } : p;
+          }),
+        };
+      });
+    }
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
