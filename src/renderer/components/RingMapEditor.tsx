@@ -138,12 +138,14 @@ function RingMapEditor({}: RingMapEditorProps) {
         participantIds: ring.participantIds,
       }))
       .sort((a, b) => {
-        // Sort by age
+        // Sort by age first
         if (a.minAge !== b.minAge) {
           return a.minAge - b.minAge;
         }
-        // Then alphabetically by name
-        return a.ringName.localeCompare(b.ringName);
+        // Then by pool number
+        const aPool = parseInt(a.ringName.match(/Pool\s*(\d+)/i)?.[1] ?? '0', 10);
+        const bPool = parseInt(b.ringName.match(/Pool\s*(\d+)/i)?.[1] ?? '0', 10);
+        return aPool - bPool;
       });
   }, [competitionRings, categories, selectedDivision]);
 

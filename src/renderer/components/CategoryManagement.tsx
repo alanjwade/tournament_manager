@@ -466,6 +466,43 @@ function CategoryManagement({}: CategoryManagementProps) {
     alert('Participants have been reassigned to all categories.');
   };
 
+  // Deduplicated + filtered + sorted categories for the selected division
+  // Deduplication: sparring categories that have a forms counterpart are hidden (shown as one row)
+  const divisionVisibleCategories = useMemo(() => {
+    const deduped = categories.filter((c) => {
+      if (c.type === 'sparring') {
+        const hasFormsCounterpart = categories.some(
+          (o) =>
+            o.id !== c.id &&
+            o.name === c.name &&
+            o.division === c.division &&
+            o.type === 'forms'
+        );
+        if (hasFormsCounterpart) return false;
+      }
+      return true;
+    });
+    return deduped
+      .filter((c) => c.division === selectedDivision)
+      .sort((a, b) => a.minAge - b.minAge);
+  }, [categories, selectedDivision]);
+
+  // Total deduplicated categories across all divisions (for heading)
+  const totalVisibleCount = useMemo(() => {
+    return categories.filter((c) => {
+      if (c.type === 'sparring') {
+        return !categories.some(
+          (o) =>
+            o.id !== c.id &&
+            o.name === c.name &&
+            o.division === c.division &&
+            o.type === 'forms'
+        );
+      }
+      return true;
+    }).length;
+  }, [categories]);
+
   // Calculate ring totals per division (only count Forms rings since Sparring uses same physical rings)
   const ringTotalsByDivision = useMemo(() => {
     const totals: { [division: string]: number } = {};
@@ -601,7 +638,7 @@ function CategoryManagement({}: CategoryManagementProps) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <h3 style={{ fontSize: '16px', margin: 0 }}>
-              Categories ({categories.length})
+              Categories ({divisionVisibleCategories.length}/{totalVisibleCount})
             </h3>
             {categories.length > 0 && (
               <button
@@ -615,12 +652,11 @@ function CategoryManagement({}: CategoryManagementProps) {
             )}
           </div>
 
-          {categories.length > 0 ? (
+          {divisionVisibleCategories.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Division</th>
                     <th>Gender</th>
                     <th>Age</th>
                     <th>Participants</th>
@@ -629,7 +665,7 @@ function CategoryManagement({}: CategoryManagementProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {categories.map((category) => {
+                  {divisionVisibleCategories.map((category) => {
                     // Find matching category of opposite type
                     const oppositeCategory = categories.find(c => 
                       c.id !== category.id &&
@@ -637,11 +673,6 @@ function CategoryManagement({}: CategoryManagementProps) {
                       c.division === category.division &&
                       c.type !== category.type
                     );
-                    
-                    // Only show forms categories or sparring-only categories (avoid duplicates)
-                    if (category.type === 'sparring' && oppositeCategory) {
-                      return null;
-                    }
 
                     // Combine participant counts from both forms and sparring
                     const allParticipantIds = new Set([
@@ -652,7 +683,6 @@ function CategoryManagement({}: CategoryManagementProps) {
                     
                     return (
                       <tr key={category.id}>
-                        <td>{category.division}</td>
                         <td style={{ textTransform: 'capitalize' }}>{category.gender}</td>
                         <td>
                           {category.maxAge === 999 ? `${category.minAge}+` : `${category.minAge}-${category.maxAge}`}
