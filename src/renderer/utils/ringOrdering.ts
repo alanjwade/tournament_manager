@@ -116,7 +116,9 @@ function distributeBranches(participants: Participant[]): Participant[] {
         const positionsLeft = totalCount - i;
         const urgency = remaining / positionsLeft;
         
-        if (urgency > bestUrgency) {
+        // Use >= so that on a tie the last-processed (smallest) branch wins,
+        // ensuring minority branches are pulled forward instead of left at the end.
+        if (urgency >= bestUrgency) {
           bestUrgency = urgency;
           bestBranch = branch;
         }
@@ -134,149 +136,79 @@ function distributeBranches(participants: Participant[]): Participant[] {
 }
 
 /**
- * Order schools using urgency-based algorithm
- * Phase 1: First three people from different schools (if possible)
- * Phase 2: Strategic distribution using urgency scores
+ * Order schools to minimise adjacent same-school participants.
+ * Phase 1: Place the first three participants from different schools (if possible).
+ * Phase 2: Greedy adjacency minimisation – at each position pick the school
+ *          with the most remaining participants that is different from the
+ *          immediately preceding school.  When forced to repeat a school,
+ *          pick the one with the most remaining to keep future options open.
+ *
+ * Keys in schoolGroups must equal the participant's `school` field so that
+ * last-school comparisons work correctly.
  */
 function orderSchools(schoolGroups: Map<string, Participant[]>): Participant[] {
   const schools = Array.from(schoolGroups.entries())
     .map(([schoolKey, participants]) => ({
       key: schoolKey,
-      participants: participants, // Already sorted by hash in orderFormsRing
-      index: 0
+      participants,
+      index: 0,
     }))
-    .sort((a, b) => b.participants.length - a.participants.length); // Largest schools first
-  
+    .sort((a, b) => b.participants.length - a.participants.length); // largest first
+
   if (schools.length === 0) return [];
   if (schools.length === 1) return schools[0].participants;
-  
+
   const result: Participant[] = [];
   const totalCount = schools.reduce((sum, s) => sum + s.participants.length, 0);
-  
-  // Phase 1: First three people from different SCHOOLS (not school-branch combos)
+
+  // Phase 1: first three positions from different schools
   const usedSchools = new Set<string>();
-  let phase1Count = 0;
-  
-  for (let i = 0; i < schools.length && phase1Count < 3; i++) {
-    if (schools[i].index >= schools[i].participants.length) continue;
-    
-    // Extract actual school name (remove branch part)
-    const participant = schools[i].participants[schools[i].index];
-    const actualSchool = participant.school;
-    
-    // Only use if we haven't used this actual school yet
-    if (!usedSchools.has(actualSchool)) {
-      result.push(participant);
-      schools[i].index++;
-      usedSchools.add(actualSchool);
-      phase1Count++;
+  for (const school of schools) {
+    if (result.length >= 3) break;
+    if (school.index >= school.participants.length) continue;
+    if (!usedSchools.has(school.key)) {
+      result.push(school.participants[school.index]);
+      school.index++;
+      usedSchools.add(school.key);
     }
   }
-  
-  // Phase 2: Strategic distribution using urgency scoring
+
+  // Phase 2: greedy – always prefer a different school; among ties pick most remaining
   for (let position = result.length; position < totalCount; position++) {
+    const lastSchool = result.length > 0 ? result[result.length - 1].school : null;
+
     let bestSchool = null;
-    let bestScore = -Infinity;
-    
-    const positionsLeft = totalCount - position;
-    const lastParticipant = result.length > 0 ? result[result.length - 1] : null;
-    const lastSchoolBranchKey = lastParticipant
-      ? (lastParticipant.branch 
-          ? `${lastParticipant.school} ${lastParticipant.branch}`
-          : lastParticipant.school)
-      : null;
-    const lastActualSchool = lastParticipant ? lastParticipant.school : null;
-    
-    // Debug logging
-    const debugMode = false; // Set to true to enable debug output
-    if (debugMode) {
-      console.log(`\n--- Position ${position}, positionsLeft: ${positionsLeft}, last: ${lastSchoolBranchKey}`);
-      console.log('Available schools:', schools.map(s => `${s.key}: ${s.participants.length - s.index} left`));
-    }
-    
-    // First pass: try to find school where neither school-branch nor actual school matches previous
+    let bestRemaining = -1;
+
     for (const school of schools) {
-      if (school.index >= school.participants.length) continue; // School exhausted
-      
-      const nextParticipant = school.participants[school.index];
-      const nextActualSchool = nextParticipant.school;
-      
-      // Skip if exact same school-branch combo
-      if (lastSchoolBranchKey === school.key) {
-        if (debugMode) console.log(`  Skip ${school.key} - same school-branch as last`);
-        continue;
-      }
-      
-      // Skip if same actual school (we want different schools first)
-      if (lastActualSchool === nextActualSchool) {
-        if (debugMode) console.log(`  Skip ${school.key} - same actual school as last`);
-        continue;
-      }
-      
-      // Calculate urgency ratio
+      if (school.index >= school.participants.length) continue;
+      if (school.key === lastSchool) continue; // avoid same-school adjacency
+
       const remaining = school.participants.length - school.index;
-      const urgency = remaining / positionsLeft;
-      
-      // Tiebreaker: slight bonus for schools with more remaining
-      const tiebreaker = remaining * 0.001;
-      
-      const score = urgency + tiebreaker;
-      
-      if (debugMode) console.log(`  ${school.key}: urgency=${urgency.toFixed(3)}, score=${score.toFixed(3)}`);
-      
-      if (score > bestScore) {
-        bestScore = score;
+      if (remaining > bestRemaining) {
+        bestRemaining = remaining;
         bestSchool = school;
       }
     }
-    
-    if (debugMode && bestSchool) console.log(`  First pass selected: ${bestSchool.key}`);
-    
-    // Second pass: if no different school available, allow same school but different branch
+
+    // Forced repeat: no different school left – pick the one with the most remaining
     if (!bestSchool) {
-      if (debugMode) console.log('  Second pass: allowing same school, different branch');
-      bestScore = -Infinity;
       for (const school of schools) {
         if (school.index >= school.participants.length) continue;
-        
-        // Still skip exact same school-branch combo
-        if (lastSchoolBranchKey === school.key) {
-          continue;
-        }
-        
         const remaining = school.participants.length - school.index;
-        const urgency = remaining / positionsLeft;
-        const tiebreaker = remaining * 0.001;
-        const score = urgency + tiebreaker;
-        
-        if (score > bestScore) {
-          bestScore = score;
+        if (remaining > bestRemaining) {
+          bestRemaining = remaining;
           bestSchool = school;
         }
       }
-      if (debugMode && bestSchool) console.log(`  Second pass selected: ${bestSchool.key}`);
     }
-    
-    // Third pass: if still no option (shouldn't happen), take any available including exact same
-    if (!bestSchool) {
-      if (debugMode) console.log('  Third pass: taking any available');
-      bestSchool = schools.find(s => s.index < s.participants.length) || null;
-    }
-    
-    // Add next person from best school
-    if (bestSchool && bestSchool.index < bestSchool.participants.length) {
+
+    if (bestSchool) {
       result.push(bestSchool.participants[bestSchool.index]);
       bestSchool.index++;
-    } else {
-      // Fallback: if all remaining schools are same as previous, just take the first available
-      const availableSchool = schools.find(s => s.index < s.participants.length);
-      if (availableSchool) {
-        result.push(availableSchool.participants[availableSchool.index]);
-        availableSchool.index++;
-      }
     }
   }
-  
+
   return result;
 }
 
@@ -307,26 +239,24 @@ export function orderFormsRing(
     return participants; // No changes if no participants in this ring
   }
 
-  // Step 1: Group by school-branch combination directly
-  const schoolBranchGroups = new Map<string, Participant[]>();
-  
+  // Step 1: Group by school (keys must equal p.school for orderSchools comparisons)
+  const schoolGroups = new Map<string, Participant[]>();
+
   ringParticipants.forEach((p) => {
-    const schoolBranchKey = p.branch ? `${p.school} ${p.branch}` : p.school;
-    if (!schoolBranchGroups.has(schoolBranchKey)) {
-      schoolBranchGroups.set(schoolBranchKey, []);
+    const key = p.school || '__no_school__';
+    if (!schoolGroups.has(key)) {
+      schoolGroups.set(key, []);
     }
-    schoolBranchGroups.get(schoolBranchKey)!.push(p);
+    schoolGroups.get(key)!.push(p);
   });
 
-  // Step 2: Within each school-branch group, sort by hash of name+age
-  schoolBranchGroups.forEach((group) => {
-    group.sort((a, b) => 
-      hashNameAge(a.firstName, a.lastName, a.age) - hashNameAge(b.firstName, b.lastName, b.age)
-    );
+  // Step 2: Within each school, distribute branches evenly and sort by hash within each branch
+  schoolGroups.forEach((group, key) => {
+    schoolGroups.set(key, distributeBranches(group));
   });
 
-  // Step 3: Use urgency-based algorithm to order all school-branch groups
-  const orderedParticipants = orderSchools(schoolBranchGroups);
+  // Step 3: Order schools – first 3 from different schools, then minimise adjacencies
+  const orderedParticipants = orderSchools(schoolGroups);
 
   // Assign rank order numbers (position for ordering)
   const orderedWithRanks = orderedParticipants.map((p, index) => ({
