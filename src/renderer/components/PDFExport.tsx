@@ -5,6 +5,7 @@ import { generateCheckInSheet } from '../utils/pdfGenerators/checkInSheet';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
 import { generateRingOverviewPDF } from '../utils/pdfGenerators/ringOverview';
+import { generateScoreSheetsPerDivision } from '../utils/pdfGenerators/scoreSheetsPerDivision';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { getEffectiveDivision } from '../utils/excelParser';
 import { CompetitionRing } from '../types/tournament';
@@ -414,6 +415,24 @@ function PDFExport({}: PDFExportProps) {
     }
   };
 
+  const handleExportScoreSheets = async () => {
+    if (!selectedDivision) {
+      alert('Please select a division');
+      return;
+    }
+
+    const pdf = generateScoreSheetsPerDivision(
+      participants,
+      competitionRings,
+      config.physicalRings,
+      selectedDivision,
+      config.watermarkImage,
+      physicalRingMappings,
+      config.schoolAbbreviations
+    );
+    await savePDF(pdf, `score-sheets-${selectedDivision}.pdf`);
+  };
+
   const handleExportRingOverview = async () => {
     // Build ring pairs similar to RingOverview component
     const pairMap = new Map<string, any>();
@@ -644,6 +663,18 @@ function PDFExport({}: PDFExportProps) {
       physicalRingMappings
     );
     await savePDF(sparringPdf, `sparring-brackets-${division}.pdf`);
+
+    // Export combined score sheets per division (forms + sparring interleaved by ring)
+    const scoreSheetsPdf = generateScoreSheetsPerDivision(
+      participants,
+      competitionRings,
+      config.physicalRings,
+      division,
+      config.watermarkImage,
+      physicalRingMappings,
+      config.schoolAbbreviations
+    );
+    await savePDF(scoreSheetsPdf, `score-sheets-${division}.pdf`);
   };
 
   const handleOpenPDFFolder = async () => {
@@ -938,6 +969,26 @@ function PDFExport({}: PDFExportProps) {
               style={{ whiteSpace: 'nowrap' }}
             >
               {exporting ? 'Exporting...' : `Export ${selectedDivision} Sparring`}
+            </button>
+          </div>
+        </div>
+
+        {/* Score Sheets Per Division (Forms + Sparring interleaved by ring) */}
+        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '10px', marginTop: 0 }}>Score Sheets Per Division</h3>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: 0 }}>
+                Combined PDF with forms scoring sheet then sparring bracket for each ring in order.
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleExportScoreSheets}
+              disabled={!selectedDivision || exporting}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {exporting ? 'Exporting...' : `Export ${selectedDivision} Score Sheets`}
             </button>
           </div>
         </div>
