@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import jsPDF from 'jspdf';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
-import { checkSparringAltRingStatus, orderFormsRing, orderSparringRing } from '../utils/ringOrdering';
+import { checkSparringAltRingStatus } from '../utils/ringOrdering';
 import { formatPoolNameForDisplay, formatPoolOnly, isRingAffected, isRingAffectedSimple, buildCategoryPoolName, extractPoolId } from '../utils/ringNameFormatter';
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
@@ -89,6 +89,8 @@ function RingOverview({}: RingOverviewProps) {
   const deleteCheckpoint = useTournamentStore((state) => state.deleteCheckpoint);
   const openQuickEditParticipantId = useTournamentStore((state) => state.openQuickEditParticipantId);
   const setOpenQuickEditParticipantId = useTournamentStore((state) => state.setOpenQuickEditParticipantId);
+  const customOrderRings = useTournamentStore((state) => state.customOrderRings);
+  const toggleCustomOrderRing = useTournamentStore((state) => state.toggleCustomOrderRing);
 
   // Open quick-edit modal when triggered from global search
   useEffect(() => {
@@ -308,19 +310,6 @@ function RingOverview({}: RingOverviewProps) {
           : { sparringRankOrder: index + 1 },
       }))
     );
-  };
-
-  // Auto-order a specific pool
-  const handleAutoOrderPool = (categoryId: string, pool: string, ringType: 'forms' | 'sparring') => {
-    let updatedParticipants = participants;
-    
-    if (ringType === 'forms') {
-      updatedParticipants = orderFormsRing(updatedParticipants, categoryId, pool);
-    } else {
-      updatedParticipants = orderSparringRing(updatedParticipants, categoryId, pool);
-    }
-    
-    setParticipants(updatedParticipants);
   };
 
   // Print all changed rings combined into one PDF
@@ -1626,6 +1615,7 @@ function RingOverview({}: RingOverviewProps) {
       );
     }
 
+    const isCustomOrder = customOrderRings.includes(ring.id);
     const category = categories.find((c) => c.id === ring.categoryId);
 
     if (type === 'sparring') {
@@ -1749,21 +1739,24 @@ function RingOverview({}: RingOverviewProps) {
                   >
                     🖨️ Print
                   </button>
-                  <button
-                    onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), 'sparring')}
+                  <label
                     style={{
-                      padding: '4px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
                       fontSize: '12px',
-                      backgroundColor: '#dc3545',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
+                      color: 'var(--text-secondary)',
                     }}
                   >
-                    Auto Order
-                  </button>
+                    <input
+                      type="checkbox"
+                      checked={isCustomOrder}
+                      onChange={() => toggleCustomOrderRing(ring.id)}
+                    />
+                    Custom Order
+                  </label>
                 </div>
               </div>
               <table
@@ -1802,15 +1795,15 @@ function RingOverview({}: RingOverviewProps) {
                           <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                             <button
                               onClick={() => moveParticipant(p.id, 'up', 'sparring')}
-                              disabled={isFirst}
-                              title="Move up"
+                              disabled={isFirst || !isCustomOrder}
+                              title={isCustomOrder ? 'Move up' : 'Enable Custom Order to reorder'}
                               style={{
                                 padding: '4px 8px',
-                                backgroundColor: isFirst ? '#6c757d' : '#007bff',
+                                backgroundColor: (isFirst || !isCustomOrder) ? '#6c757d' : '#007bff',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '4px',
-                                cursor: isFirst ? 'not-allowed' : 'pointer',
+                                cursor: (isFirst || !isCustomOrder) ? 'not-allowed' : 'pointer',
                                 fontSize: '12px',
                               }}
                             >
@@ -1818,15 +1811,15 @@ function RingOverview({}: RingOverviewProps) {
                             </button>
                             <button
                               onClick={() => moveParticipant(p.id, 'down', 'sparring')}
-                              disabled={isLast}
-                              title="Move down"
+                              disabled={isLast || !isCustomOrder}
+                              title={isCustomOrder ? 'Move down' : 'Enable Custom Order to reorder'}
                               style={{
                                 padding: '4px 8px',
-                                backgroundColor: isLast ? '#6c757d' : '#007bff',
+                                backgroundColor: (isLast || !isCustomOrder) ? '#6c757d' : '#007bff',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '4px',
-                                cursor: isLast ? 'not-allowed' : 'pointer',
+                                cursor: (isLast || !isCustomOrder) ? 'not-allowed' : 'pointer',
                                 fontSize: '12px',
                               }}
                             >
@@ -1872,21 +1865,24 @@ function RingOverview({}: RingOverviewProps) {
                   >
                     🖨️ Print
                   </button>
-                  <button
-                    onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), 'sparring')}
+                  <label
                     style={{
-                      padding: '4px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
                       fontSize: '12px',
-                      backgroundColor: '#dc3545',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
+                      color: 'var(--text-secondary)',
                     }}
                   >
-                    Auto Order
-                  </button>
+                    <input
+                      type="checkbox"
+                      checked={isCustomOrder}
+                      onChange={() => toggleCustomOrderRing(ring.id)}
+                    />
+                    Custom Order
+                  </label>
                 </div>
               </div>
               <table
@@ -1925,15 +1921,15 @@ function RingOverview({}: RingOverviewProps) {
                           <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                             <button
                               onClick={() => moveParticipant(p.id, 'up', 'sparring')}
-                              disabled={isFirst}
-                              title="Move up"
+                              disabled={isFirst || !isCustomOrder}
+                              title={isCustomOrder ? 'Move up' : 'Enable Custom Order to reorder'}
                               style={{
                                 padding: '4px 8px',
-                                backgroundColor: isFirst ? '#6c757d' : '#007bff',
+                                backgroundColor: (isFirst || !isCustomOrder) ? '#6c757d' : '#007bff',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '4px',
-                                cursor: isFirst ? 'not-allowed' : 'pointer',
+                                cursor: (isFirst || !isCustomOrder) ? 'not-allowed' : 'pointer',
                                 fontSize: '12px',
                               }}
                             >
@@ -1941,15 +1937,15 @@ function RingOverview({}: RingOverviewProps) {
                             </button>
                             <button
                               onClick={() => moveParticipant(p.id, 'down', 'sparring')}
-                              disabled={isLast}
-                              title="Move down"
+                              disabled={isLast || !isCustomOrder}
+                              title={isCustomOrder ? 'Move down' : 'Enable Custom Order to reorder'}
                               style={{
                                 padding: '4px 8px',
-                                backgroundColor: isLast ? '#6c757d' : '#007bff',
+                                backgroundColor: (isLast || !isCustomOrder) ? '#6c757d' : '#007bff',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '4px',
-                                cursor: isLast ? 'not-allowed' : 'pointer',
+                                cursor: (isLast || !isCustomOrder) ? 'not-allowed' : 'pointer',
                                 fontSize: '12px',
                               }}
                             >
@@ -2008,21 +2004,24 @@ function RingOverview({}: RingOverviewProps) {
             >
               🖨️ Print
             </button>
-            <button
-              onClick={() => handleAutoOrderPool(ring.categoryId, extractPoolId(ring.name), type)}
+            <label
               style={{
-                padding: '4px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
                 fontSize: '12px',
-                backgroundColor: type === 'forms' ? '#007bff' : '#dc3545',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                color: 'var(--text-secondary)',
               }}
             >
-              Auto Order
-            </button>
+              <input
+                type="checkbox"
+                checked={isCustomOrder}
+                onChange={() => toggleCustomOrderRing(ring.id)}
+              />
+              Custom Order
+            </label>
           </div>
         </div>
 
@@ -2066,15 +2065,15 @@ function RingOverview({}: RingOverviewProps) {
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                       <button
                         onClick={() => moveParticipant(p.id, 'up', type)}
-                        disabled={isFirst}
-                        title="Move up"
+                        disabled={isFirst || !isCustomOrder}
+                        title={isCustomOrder ? 'Move up' : 'Enable Custom Order to reorder'}
                         style={{
                           padding: '4px 8px',
-                          backgroundColor: isFirst ? '#6c757d' : (type === 'forms' ? '#007bff' : '#dc3545'),
+                          backgroundColor: (isFirst || !isCustomOrder) ? '#6c757d' : (type === 'forms' ? '#007bff' : '#dc3545'),
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
-                          cursor: isFirst ? 'not-allowed' : 'pointer',
+                          cursor: (isFirst || !isCustomOrder) ? 'not-allowed' : 'pointer',
                           fontSize: '12px',
                         }}
                       >
@@ -2082,15 +2081,15 @@ function RingOverview({}: RingOverviewProps) {
                       </button>
                       <button
                         onClick={() => moveParticipant(p.id, 'down', type)}
-                        disabled={isLast}
-                        title="Move down"
+                        disabled={isLast || !isCustomOrder}
+                        title={isCustomOrder ? 'Move down' : 'Enable Custom Order to reorder'}
                         style={{
                           padding: '4px 8px',
-                          backgroundColor: isLast ? '#6c757d' : (type === 'forms' ? '#007bff' : '#dc3545'),
+                          backgroundColor: (isLast || !isCustomOrder) ? '#6c757d' : (type === 'forms' ? '#007bff' : '#dc3545'),
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
-                          cursor: isLast ? 'not-allowed' : 'pointer',
+                          cursor: (isLast || !isCustomOrder) ? 'not-allowed' : 'pointer',
                           fontSize: '12px',
                         }}
                       >

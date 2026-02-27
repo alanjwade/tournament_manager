@@ -355,17 +355,22 @@ export function orderSparringRing(
 /**
  * Re-order all competition rings (forms and sparring) in one pass.
  * Idempotent: running on already-ordered participants produces the same result.
+ * Rings in the customOrderRings set are skipped (they have manual ordering).
  */
 export function reorderAllRings(
   participants: Participant[],
   categories: Category[],
-  categoryPoolMappings: CategoryPoolMapping[]
+  categoryPoolMappings: CategoryPoolMapping[],
+  customOrderRings?: Set<string>
 ): Participant[] {
   const rings = computeCompetitionRings(participants, categories, categoryPoolMappings);
 
   let updated = participants;
 
   for (const ring of rings) {
+    // Skip rings with custom (manual) ordering
+    if (customOrderRings?.has(ring.id)) continue;
+
     if (ring.type === 'forms') {
       const prefix = `forms-${ring.categoryId}-`;
       const pool = ring.id.startsWith(prefix) ? ring.id.substring(prefix.length) : undefined;

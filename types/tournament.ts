@@ -113,6 +113,7 @@ export interface TournamentState {
   physicalRingMappings: PhysicalRingMapping[];
   categoryPoolMappings: CategoryPoolMapping[];
   customRings?: CustomRing[]; // Optional for backward compatibility
+  customOrderRings?: string[]; // Ring IDs with custom (manual) ordering enabled
   lastSaved?: string;
 }
 

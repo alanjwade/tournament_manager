@@ -46,6 +46,7 @@ type Snapshot = {
   physicalRingMappings: PhysicalRingMapping[];
   categoryPoolMappings: CategoryPoolMapping[];
   customRings: CustomRing[];
+  customOrderRings: string[];
 };
 
 const MAX_HISTORY = 20;
@@ -58,6 +59,7 @@ interface TournamentState {
   categoryPoolMappings: CategoryPoolMapping[]; // New mapping system
   checkpoints: Checkpoint[]; // Checkpoint system
   customRings: CustomRing[]; // Grand Champion / Side rings
+  customOrderRings: string[]; // Ring IDs with custom (manual) ordering enabled
   highlightedParticipantId: string | null; // For cross-component highlighting
   openQuickEditParticipantId: string | null; // For opening quick-edit modal from global search
   undoStack: Snapshot[];
@@ -101,6 +103,7 @@ interface TournamentState {
   addParticipantToCustomRing: (ringId: string, participantId: string) => void;
   removeParticipantFromCustomRing: (ringId: string, participantId: string) => void;
   moveParticipantInCustomRing: (ringId: string, participantId: string, direction: 'up' | 'down') => void;
+  toggleCustomOrderRing: (ringId: string) => void;
   setHighlightedParticipantId: (id: string | null) => void;
   setOpenQuickEditParticipantId: (id: string | null) => void;
 }
@@ -173,6 +176,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       createdAt: new Date().toISOString(),
     },
   ],
+  customOrderRings: [],
   highlightedParticipantId: null,
   openQuickEditParticipantId: null,
 
@@ -185,6 +189,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       physicalRingMappings: structuredClone(s.physicalRingMappings),
       categoryPoolMappings: structuredClone(s.categoryPoolMappings),
       customRings: structuredClone(s.customRings),
+      customOrderRings: [...s.customOrderRings],
     };
     set((state) => ({
       undoStack: [...state.undoStack.slice(-(MAX_HISTORY - 1)), snapshot],
@@ -203,6 +208,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       physicalRingMappings: structuredClone(s.physicalRingMappings),
       categoryPoolMappings: structuredClone(s.categoryPoolMappings),
       customRings: structuredClone(s.customRings),
+      customOrderRings: [...s.customOrderRings],
     };
     set({
       ...structuredClone(snapshot),
@@ -222,6 +228,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       physicalRingMappings: structuredClone(s.physicalRingMappings),
       categoryPoolMappings: structuredClone(s.categoryPoolMappings),
       customRings: structuredClone(s.customRings),
+      customOrderRings: [...s.customOrderRings],
     };
     set({
       ...structuredClone(snapshot),
@@ -267,7 +274,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     get().pushHistory();
     const shouldReorder = hasAssignmentChanges(oldParticipants, normalized);
     const finalParticipants = shouldReorder
-      ? reorderAllRings(normalized, get().categories, get().categoryPoolMappings)
+      ? reorderAllRings(normalized, get().categories, get().categoryPoolMappings, new Set(get().customOrderRings))
       : normalized;
     set({ participants: finalParticipants });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
@@ -278,8 +285,8 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     get().pushHistory();
     if (shouldReorder) {
       const newParticipants = get().participants.map(p => p.id === id ? { ...p, ...updates } : p);
-      const { categories, categoryPoolMappings } = get();
-      set({ participants: reorderAllRings(newParticipants, categories, categoryPoolMappings) });
+      const { categories, categoryPoolMappings, customOrderRings } = get();
+      set({ participants: reorderAllRings(newParticipants, categories, categoryPoolMappings, new Set(customOrderRings)) });
     } else {
       set((state) => ({
         participants: state.participants.map((p) =>
@@ -299,8 +306,8 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         const upd = updateMap.get(p.id);
         return upd ? { ...p, ...upd } : p;
       });
-      const { categories, categoryPoolMappings } = get();
-      set({ participants: reorderAllRings(newParticipants, categories, categoryPoolMappings) });
+      const { categories, categoryPoolMappings, customOrderRings } = get();
+      set({ participants: reorderAllRings(newParticipants, categories, categoryPoolMappings, new Set(customOrderRings)) });
     } else {
       set((state) => {
         const updateMap = new Map(updates.map(u => [u.id, u.updates]));
@@ -440,6 +447,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       physicalRingMappings: state.physicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings,
       customRings: state.customRings,
+      customOrderRings: state.customOrderRings,
       lastSaved: new Date().toISOString(),
     };
     const result = await window.electronAPI.saveTournamentState(tournamentState);
@@ -494,6 +502,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       physicalRingMappings: migratedPhysicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings || [],
       customRings: state.customRings || [],
+      customOrderRings: state.customOrderRings || [],
       undoStack: [],
       redoStack: [],
     });
@@ -508,6 +517,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       physicalRingMappings: state.physicalRingMappings,
       categoryPoolMappings: state.categoryPoolMappings,
       customRings: state.customRings,
+      customOrderRings: state.customOrderRings,
       lastSaved: new Date().toISOString(),
     };
     logger.debug('Saving autosave - participants count:', state.participants.length);
@@ -527,6 +537,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       config: initialConfig,
       checkpoints: [],
       customRings: [],
+      customOrderRings: [],
       undoStack: [],
       redoStack: [],
     }),
@@ -548,6 +559,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         physicalRingMappings: structuredClone(state.physicalRingMappings),
         categoryPoolMappings: structuredClone(state.categoryPoolMappings),
         customRings: structuredClone(state.customRings),
+        customOrderRings: [...state.customOrderRings],
         lastSaved: timestamp,
       },
     };
@@ -888,6 +900,23 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         ),
       };
     });
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+  },
+
+  toggleCustomOrderRing: (ringId: string) => {
+    const { customOrderRings, participants, categories, categoryPoolMappings } = get();
+    get().pushHistory();
+    const isCurrentlyCustom = customOrderRings.includes(ringId);
+    if (isCurrentlyCustom) {
+      // Turning off custom order — re-enable auto ordering for this ring and trigger a reorder
+      const newCustomOrderRings = customOrderRings.filter(id => id !== ringId);
+      // Reorder all rings with updated skip set (this ring is no longer skipped)
+      const reordered = reorderAllRings(participants, categories, categoryPoolMappings, new Set(newCustomOrderRings));
+      set({ customOrderRings: newCustomOrderRings, participants: reordered });
+    } else {
+      // Turning on custom order — just add to skip set, no reorder needed
+      set({ customOrderRings: [...customOrderRings, ringId] });
+    }
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 
