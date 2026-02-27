@@ -1,6 +1,6 @@
 # Tournament Manager - Quick Reference Card
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 npm install          # Install dependencies (first time only)
@@ -10,7 +10,7 @@ npm start            # Run built application
 npm run package      # Create distributable
 ```
 
-## 📋 Excel File Format
+## Excel File Format
 
 Required columns (exact names):
 - `student first name`
@@ -23,168 +23,112 @@ Required columns (exact names):
 - `Branch` (optional)
 - `division`
 
-## 🎯 Workflow
+## Workflow
 
-- **Import** → Upload Excel file
-- **Configure** → Set divisions & rings
-- **Categories** → Assign participants to categories
-- **Rings** → Distribute to physical rings
-- **Order** → Run forms/sparring ordering
-- **Overview** → Review assignments
-- **Export** → Generate PDFs
+1. **Import** → Upload Excel file
+2. **Configure** → Set divisions, physical rings, school abbreviations
+3. **Categories** → Assign participants to categories by age/gender/division
+4. **Ring Map** → Map category pools to physical rings
+5. **Tournament** → Review rings, quick-edit participants, adjust ordering
+6. **Checkpoints** → Save snapshots, track and print changes
+7. **Export** → Generate PDFs
 
-## ⚠️ Important Warnings
+## Standard Flows
+
+| Task | How |
+|------|-----|
+| **Move to another ring** | Tournament → click name → Quick Edit → change Category/Pool → Save |
+| **Withdraw from sparring** | Quick Edit → uncheck "Competing in Sparring" → Save |
+| **Add to sparring** | Quick Edit → check "Competing in Sparring" → select Division/Category/Pool → Save |
+| **Withdraw completely** | Quick Edit → uncheck both Forms and Sparring → Save |
+| **Add new participant** | Header bar → "+ Add Participant" → fill fields → Add |
+| **Custom order a ring** | Tournament → check "Custom Order" on ring → use ▲/▼ buttons |
+| **Return to auto order** | Uncheck "Custom Order" → ring re-orders automatically |
+| **Create checkpoint** | Checkpoints tab → "Create Checkpoint" → name it |
+| **View changes** | Click "View Diff" on a checkpoint |
+| **Revert changes** | Click "Load" on a checkpoint |
+| **Print only changed rings** | Tournament → "Print All Changed" button |
+
+## Ring Ordering
+
+| Mode | Behavior |
+|------|----------|
+| **Auto (default)** | Rings re-order automatically when participants are moved. ▲/▼ buttons disabled. |
+| **Custom Order** | Check the "Custom Order" checkbox. ▲/▼ buttons enabled. Auto-reorder skipped for that ring. |
+| **Uncheck Custom** | Ring immediately re-orders using the automatic algorithm. |
+
+**Forms algorithm:** Interleaves schools, distributes branches evenly, first 3 from different schools.
+
+**Sparring algorithm:** Sorted by height, shortest to tallest. Alt rings (a/b) sorted independently.
+
+## Warnings
 
 | Action | Warning | Impact |
 |--------|---------|--------|
-| Re-run Category Assignment | ⚠️ Destroys previous category assignments | All manual edits lost |
-| Re-run Ring Assignment | ⚠️ Destroys previous ring assignments | Participant distribution reset |
-| Re-order Forms Ring | ✅ Safe - per ring only | No impact on other data |
-| Re-order Sparring Ring | ✅ Safe - per ring only | No impact on other data |
+| Re-run Category Assignment | ⚠️ Destroys previous assignments | All manual edits lost |
+| Load Checkpoint | ⚠️ Replaces current state | Create a checkpoint first |
+| Uncheck Custom Order | ✅ Re-orders that ring only | Other rings unaffected |
 
-## 📊 Category Guidelines
+## Category Guidelines
 
 ### Age Ranges
 - **Young Children**: 2-year ranges (5-6, 7-8, 9-10)
 - **Teens**: 3-4 year ranges (11-14, 15-17)
 - **Adults**: 18+ or (18-34, 35+)
 
-### Gender
-- **Male**: Male participants only
-- **Female**: Female participants only
-- **Mixed**: All genders (good for young children & forms)
-
-### Ring Counts
-| Participants | Recommended Rings |
+### Ring Balance
+| Participants | Recommended Pools |
 |--------------|-------------------|
-| 1-8 | 1 ring |
-| 9-16 | 2 rings |
-| 17-24 | 3 rings |
-| 25+ | 4 rings |
+| 1-8 | 1 pool |
+| 9-16 | 2 pools |
+| 17-24 | 3 pools |
+| 25+ | 4 pools |
 
-## 📄 PDF Outputs
+## PDF Outputs
 
-### Name Tags
-- **Format**: 2 columns × 4 rows per page
-- **Contains**: Name, division, school, ring color
-- **Print On**: Perforated business card sheets
+| Document | Format | Key Features |
+|----------|--------|-------------|
+| **Name Tags** | 2×4 grid per page | Name, division, school, ring color |
+| **Check-In Sheets** | One per division | Sorted by last name, checkbox |
+| **Forms Scoring Sheets** | One per ring | Rank order, 3 judges, watermark |
+| **Sparring Brackets** | 16-person landscape | Height order, byes, color-coded rounds |
 
-### Check-In Sheets
-- **Format**: One per division
-- **Sorted**: Last name, first name
-- **Contains**: School, ring color, checkbox
+## Quick Edit Modal
 
-### Forms Scoring Sheets
-- **Format**: One per ring
-- **Contains**: Participants in rank order, 3 judge columns, final score, placements table
-- **Features**: Watermark support
+Click any participant name in the Tournament tab to open:
+- Toggle competing in forms/sparring
+- Change division, category, pool
+- Set sparring alt ring (a/b)
+- Adjust rank order
+- "Copy from Forms" checkbox mirrors settings to sparring
 
-### Sparring Brackets
-- **Format**: 16-person bracket (landscape)
-- **Contains**: Height-ordered participants, numbered matches, color-coded rounds, 3rd place match
-- **Features**: Watermark support, automatic bye placement
+## Checkpoints
 
-## 🔢 Rank Order Numbers
+- **Create**: Save a named snapshot of the current state
+- **Diff**: Compare current state vs. checkpoint (added/removed/modified participants, affected rings)
+- **Load**: Restore to a previous checkpoint
+- **Print Changed**: Print only the rings that changed since the last checkpoint
 
-- Forms/Sparring orders are adjusted using **Up/Down buttons**
-- Click the up arrow to move a participant higher in rank
-- Click the down arrow to move a participant lower in rank
-- Changes are saved automatically to the ring
+## Day-of-Tournament Checklist
 
-## 🎨 Ring Color Codes
+1. Create a checkpoint at start of day
+2. Handle late registrations (+ Add Participant)
+3. Handle no-shows (Quick Edit → uncheck competing)
+4. Move participants between rings as needed (Quick Edit)
+5. Use Custom Order for finalized rings
+6. Print All Changed for updated sheets
+7. Create checkpoints before major changes
 
-Default color support in PDFs:
-- Red → #FF0000
-- Blue → #0000FF
-- Green → #00FF00
-- Yellow → #FFFF00
-- Orange → #FFA500
-- Purple → #800080
-
-## 💾 Data Management
-
-**Important**: All data is currently in memory!
-- ✅ Keep original Excel file safe
-- ✅ Export all PDFs before closing app
-- ❌ No auto-save (yet)
-- ❌ Closing app loses all work
-
-## 🐛 Troubleshooting
+## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
 | Excel won't import | Check column names match exactly |
-| Participant missing category | Review age/gender criteria or assign manually |
-| Unbalanced rings | Manually move participants in Ring Management |
-| First 3 same school in forms | Adjust rank_order numbers manually |
-| PDF won't open | Install PDF reader, try different filename |
+| Participant missing from ring | Check category/pool in Quick Edit |
+| Unbalanced rings | Move participants between pools via Quick Edit |
+| Need specific order | Enable Custom Order on that ring |
+| Need to undo changes | Load a previous checkpoint |
 | Build errors | Run `npm install` again |
-| App won't start | Run `npm run build` first |
-
-## ⌨️ Keyboard Shortcuts
-
-- **Tab**: Navigate between fields
-- **Enter**: Submit forms
-- **Escape**: Close dialogs
-- **Ctrl/Cmd + R**: Refresh (dev mode)
-
-## 📏 PDF Customization
-
-Edit these files to adjust PDF layouts:
-```
-src/utils/pdfGenerators/
-├── nameTags.ts        # Adjust width, height, margins, fontSize
-├── checkInSheet.ts    # Modify table layout
-├── formsScoringSheet.ts  # Change column widths
-└── sparringBracket.ts    # Adjust bracket spacing
-```
-
-## 🏷️ Name Tag Dimensions
-
-Default configuration (in mm):
-```javascript
-{
-  width: 95,      // Tag width
-  height: 65,     // Tag height
-  marginX: 10,    // Horizontal margin
-  marginY: 10,    // Vertical margin
-  fontSize: 14,   // Base font size
-  columns: 2,     // Tags per row
-  rows: 4         // Tags per column
-}
-```
-
-## 📱 File Locations
-
-- **Config**: `src/store/tournamentStore.ts`
-- **Types**: `types/tournament.ts`
-- **Styles**: `src/renderer/styles/index.css`
-- **Components**: `src/renderer/components/`
-- **Utils**: `src/renderer/utils/`
-
-## 🎓 For Developers
-
-### Type Definitions
-- `Participant`: Individual competitor
-- `Division`: Tournament division (Black Belt, Level 1, etc.)
-- `Category`: Group of participants who compete together
-- `PhysicalRing`: Actual ring at venue
-- `CompetitionRing`: Virtual ring assignment for category
-- `TournamentConfig`: Global settings
-
-### State Management
-Uses Zustand for state:
-```typescript
-const participants = useTournamentStore(state => state.participants);
-const setParticipants = useTournamentStore(state => state.setParticipants);
-```
-
-### Adding Features
-1. Add types to `types/tournament.ts`
-2. Update store in `src/store/tournamentStore.ts`
-3. Create utility functions in `src/utils/`
-4. Build UI component in `src/renderer/components/`
-5. Wire up in `App.tsx`
 
 ---
 

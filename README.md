@@ -10,11 +10,18 @@ A desktop application for managing martial arts tournament participation, built 
 - **Ring Assignment**: Distribute participants across physical rings
 - **Forms Competition**: Automated ordering to prevent same-school clustering
 - **Sparring Competition**: Height-based ordering with automated bracket generation
+- **Custom Order**: Per-ring manual ordering with automatic reorder bypass
+- **Checkpoints**: Save, compare, and restore tournament state snapshots
+- **Quick Edit**: Click any participant name to edit assignments inline
+- **Grand Champion**: Custom rings for grand champion rounds
+- **Undo/Redo**: Full undo/redo support for all changes
+- **Auto-Save**: Automatic state persistence across restarts
 - **PDF Generation**:
   - Name tags (2x4 grid)
   - Check-in sheets
   - Forms scoring sheets
   - Sparring brackets (16-person format)
+  - Print only changed rings via checkpoint diff
 
 ## Requirements
 
@@ -68,16 +75,26 @@ The input Excel file should have the following columns (case-insensitive):
 2. **Configuration**: 
    - Set up divisions (default: Black Belt, Level 1-3, Beginner)
    - Add physical rings with names and colors
+   - Configure school abbreviations
    - Optionally add a watermark image for PDFs
-   - Optionally set a default PDF output directory (PDFs will be saved here by default)
+   - Optionally set a default PDF output directory
 3. **Category Management**: 
    - Auto-assign participants to categories based on division, gender, and age
-   - Adjust ring counts per category as needed
-4. **Ring Assignment**:
-   - Assign forms and sparring rings
-   - Order participants within each ring
-5. **Ring Overview**: Review all ring assignments
-6. **Export PDFs**: Generate and save tournament documents (will use configured directory if set)
+   - Adjust pool counts per category as needed
+4. **Ring Map**:
+   - Map category pools to physical rings at the venue
+5. **Tournament**:
+   - Review all ring assignments with the division filter
+   - Click participant names to Quick Edit their assignments
+   - Rings auto-reorder when participants are moved between pools
+   - Enable **Custom Order** per-ring for manual reordering (disables auto-reorder for that ring)
+   - Set up Grand Champion rings
+6. **Checkpoints**:
+   - Save named snapshots before making changes
+   - View diffs to see what changed (added/removed/modified participants, affected rings)
+   - Load a checkpoint to revert changes
+   - Print only changed rings for reprinting
+7. **Export PDFs**: Generate and save tournament documents
 
 ## Project Structure
 
