@@ -385,7 +385,7 @@ function App() {
                         {p.firstName} {p.lastName}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {getEffectiveDivision(p, 'forms') || getEffectiveDivision(p, 'sparring') || 'No division'} • {p.age}yo • {p.gender}
+                        {getEffectiveDivision(p, 'forms') || getEffectiveDivision(p, 'sparring') || 'No division'} • {p.age}yo • {p.gender || '?'}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                         {getParticipantRingInfo(p)}

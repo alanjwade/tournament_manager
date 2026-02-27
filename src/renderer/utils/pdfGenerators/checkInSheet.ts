@@ -35,8 +35,7 @@ export function generateCheckInSheet(
   const divisionParticipants = participants
     .filter((p) => {
       return p.formsDivision === division || 
-             p.sparringDivision === division || 
-             p.division === division;
+             p.sparringDivision === division;
     })
     .sort((a, b) => {
       const lastNameCompare = a.lastName.localeCompare(b.lastName);

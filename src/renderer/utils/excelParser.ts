@@ -142,7 +142,7 @@ export function parseExcelFile(data: number[], validDivisions: string[] = []): P
       sparringDivision = null;
       competingSparring = false;
     } else if (sparringValue.toLowerCase() === 'yes' || sparringValue.toLowerCase() === 'y') {
-      // "Yes" or "y" - use base division (empty/absent = not participating; column is required)
+      // "Yes" or "y" - use base division (empty/absent = not participating)
       if (baseDivision && baseDivision !== '') {
         sparringDivision = baseDivision;
         competingSparring = true;

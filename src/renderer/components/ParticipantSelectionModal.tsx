@@ -243,9 +243,9 @@ function ParticipantSelectionModal({
                     <td style={{ 
                       padding: '8px', 
                       textAlign: 'center',
-                      color: 'var(--text-primary)'
+                      color: p.gender ? 'var(--text-primary)' : '#dc3545'
                     }}>
-                      {p.gender}
+                      {p.gender || '?'}
                     </td>
                     <td style={{ padding: '8px', textAlign: 'center' }}>
                       <button

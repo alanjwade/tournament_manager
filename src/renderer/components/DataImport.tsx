@@ -6,6 +6,7 @@ import { ColumnImport } from './ColumnImport';
 
 interface ImportPreview {
   total: number;
+  errors: Array<{ participant: any; issues: string[] }>;
   warnings: Array<{ participant: any; issues: string[] }>;
   participants: any[];
   duplicateNames: string[];
@@ -36,31 +37,37 @@ function DataImport() {
       .sort();
   };
 
-  const validateImport = (participants: any[]): Array<{ participant: any; issues: string[] }> => {
+  const validateImport = (participants: any[]): { errors: Array<{ participant: any; issues: string[] }>; warnings: Array<{ participant: any; issues: string[] }> } => {
+    const errors: Array<{ participant: any; issues: string[] }> = [];
     const warnings: Array<{ participant: any; issues: string[] }> = [];
 
     participants.forEach((p) => {
-      const issues: string[] = [];
+      const errs: string[] = [];
+      const warns: string[] = [];
       
-      if (!p.heightFeet || p.heightInches === undefined || p.heightInches === null) {
-        issues.push('Missing height information');
+      if (!p.gender) {
+        errs.push('Missing gender (required)');
+      }
+      
+      if (p.heightFeet === undefined || p.heightFeet === null || (p.heightFeet === 0 && (p.heightInches === undefined || p.heightInches === null || p.heightInches === 0))) {
+        warns.push('Missing height information');
       }
       if (!p.formsDivision && !p.sparringDivision) {
-        issues.push('Not assigned to any division');
+        warns.push('Not assigned to any division');
       }
       if (!p.age || p.age < 3 || p.age > 100) {
-        issues.push('Invalid age');
-      }
-      if (!p.gender) {
-        issues.push('Missing gender');
+        warns.push('Invalid age');
       }
       
-      if (issues.length > 0) {
-        warnings.push({ participant: p, issues });
+      if (errs.length > 0) {
+        errors.push({ participant: p, issues: errs });
+      }
+      if (warns.length > 0) {
+        warnings.push({ participant: p, issues: warns });
       }
     });
 
-    return warnings;
+    return { errors, warnings };
   };
 
   const handleFileSelect = async () => {
@@ -78,12 +85,13 @@ function DataImport() {
       // Get valid division names from config for normalization
       const validDivisions = config.divisions.map(d => d.name);
       const parsedParticipants = parseExcelFile(result.data, validDivisions);
-      const warnings = validateImport(parsedParticipants);
+      const { errors, warnings } = validateImport(parsedParticipants);
       const duplicateNames = findDuplicateNames(parsedParticipants);
       
       setDuplicateBannerDismissed(false);
       setPreview({
         total: parsedParticipants.length,
+        errors,
         warnings,
         participants: parsedParticipants,
         duplicateNames
@@ -163,12 +171,13 @@ function DataImport() {
       // Get valid division names from config for normalization
       const validDivisions = config.divisions.map(d => d.name);
       const parsedParticipants = parseExcelFile(Array.from(new Uint8Array(arrayBuffer)), validDivisions);
-      const warnings = validateImport(parsedParticipants);
+      const { errors, warnings } = validateImport(parsedParticipants);
       const duplicateNames = findDuplicateNames(parsedParticipants);
 
       setDuplicateBannerDismissed(false);
       setPreview({
         total: parsedParticipants.length,
+        errors,
         warnings,
         participants: parsedParticipants,
         duplicateNames
@@ -251,6 +260,8 @@ function DataImport() {
           <li>School</li>
           <li>Branch (optional)</li>
           <li>Division</li>
+          <li>Form? (optional — default is "yes")</li>
+          <li>Sparring? (yes / no — required)</li>
         </ul>
       </details>
 
@@ -311,6 +322,39 @@ function DataImport() {
             </div>
           )}
 
+          {preview.errors.length > 0 && (
+            <div style={{ marginBottom: '15px' }}>
+              <strong style={{ color: '#dc3545', display: 'block', marginBottom: '8px' }}>
+                ❌ Errors ({preview.errors.length} participant(s)) — must be fixed before importing:
+              </strong>
+              <div style={{ 
+                maxHeight: '300px', 
+                overflowY: 'auto',
+                border: '1px solid #dc3545',
+                borderRadius: '4px',
+                padding: '10px',
+                backgroundColor: 'rgba(220, 53, 69, 0.08)'
+              }}>
+                {preview.errors.map((err, idx) => (
+                  <div key={idx} style={{ 
+                    marginBottom: '8px', 
+                    paddingBottom: '8px',
+                    borderBottom: idx < preview.errors.length - 1 ? '1px solid var(--border-color)' : 'none'
+                  }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px' }}>
+                      {err.participant.firstName} {err.participant.lastName}
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: '#dc3545' }}>
+                      {err.issues.map((issue, issueIdx) => (
+                        <li key={issueIdx}>{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {preview.warnings.length > 0 && (
             <div>
               <strong style={{ color: '#ffc107', display: 'block', marginBottom: '8px' }}>⚠️ Warnings ({preview.warnings.length} participant(s)):</strong>
@@ -346,7 +390,9 @@ function DataImport() {
             <button
               className="btn btn-success"
               onClick={confirmImport}
-              style={{ flex: 1 }}
+              disabled={preview.errors.length > 0}
+              title={preview.errors.length > 0 ? 'Fix errors in spreadsheet before importing' : ''}
+              style={{ flex: 1, opacity: preview.errors.length > 0 ? 0.5 : 1, cursor: preview.errors.length > 0 ? 'not-allowed' : 'pointer' }}
             >
               ✓ Confirm Import
             </button>

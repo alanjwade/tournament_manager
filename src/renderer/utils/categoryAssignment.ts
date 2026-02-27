@@ -19,7 +19,8 @@ export function assignCategories(
 
   categoryDefinitions.forEach((def) => {
     const matchingParticipants = participants.filter((p) => {
-      if (p.division !== def.division) return false;
+      const division = type === 'forms' ? p.formsDivision : p.sparringDivision;
+      if (division !== def.division) return false;
       if (type === 'forms' && !p.competingForms) return false;
       if (type === 'sparring' && !p.competingSparring) return false;
       
@@ -56,10 +57,10 @@ export function autoGenerateCategoryDefinitions(
   const definitions: CategoryDefinition[] = [];
   const divisions = division
     ? [division]
-    : [...new Set(participants.map((p) => p.division))];
+    : [...new Set(participants.flatMap((p) => [p.formsDivision, p.sparringDivision].filter(Boolean)))];
 
   divisions.forEach((div) => {
-    const divParticipants = participants.filter((p) => p.division === div);
+    const divParticipants = participants.filter((p) => p.formsDivision === div || p.sparringDivision === div);
     
     // Group by gender
     const males = divParticipants.filter((p) => p.gender === 'Male');

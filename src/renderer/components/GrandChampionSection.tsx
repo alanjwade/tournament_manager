@@ -566,8 +566,8 @@ function GrandChampionSection({
                                   <td style={{ padding: '6px', textAlign: 'center', color: 'var(--text-primary)' }}>
                                     {p.age}
                                   </td>
-                                  <td style={{ padding: '6px', textAlign: 'center', color: 'var(--text-primary)' }}>
-                                    {p.gender}
+                                  <td style={{ padding: '6px', textAlign: 'center', color: p.gender ? 'var(--text-primary)' : '#dc3545' }}>
+                                    {p.gender || '?'}
                                   </td>
                                   <td style={{ padding: '6px', textAlign: 'center' }}>
                                     <button

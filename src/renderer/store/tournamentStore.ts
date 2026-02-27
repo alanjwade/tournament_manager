@@ -342,7 +342,16 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
   setCategories: (categories) => {
     get().pushHistory();
-    set({ categories });
+    // Prune customOrderRings: remove IDs referencing categories that no longer exist
+    const validCategoryIds = new Set(categories.map(c => c.id));
+    const prunedCustomOrderRings = get().customOrderRings.filter(ringId => {
+      // Ring IDs are formatted as "forms-{categoryId}-{pool}" or "sparring-{categoryId}-{pool}"
+      const parts = ringId.split('-');
+      // categoryId is the middle segment (after type prefix, before pool)
+      const categoryId = parts.slice(1, -1).join('-');
+      return validCategoryIds.has(categoryId);
+    });
+    set({ categories, customOrderRings: prunedCustomOrderRings });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
   
@@ -538,6 +547,8 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       checkpoints: [],
       customRings: [],
       customOrderRings: [],
+      physicalRingMappings: [],
+      categoryPoolMappings: [],
       undoStack: [],
       redoStack: [],
     }),
@@ -810,6 +821,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
         physicalRingMappings: structuredClone(checkpoint.state.physicalRingMappings),
         categoryPoolMappings: structuredClone(checkpoint.state.categoryPoolMappings),
         customRings: checkpoint.state.customRings ? structuredClone(checkpoint.state.customRings) : [],
+        customOrderRings: checkpoint.state.customOrderRings ? [...checkpoint.state.customOrderRings] : [],
       });
       // Immediately persist the restored state so autosave reflects the checkpoint data.
       // Without this, closing the app before any subsequent mutation would reload the

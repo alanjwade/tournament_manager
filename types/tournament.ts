@@ -34,6 +34,9 @@ export interface Participant {
   lastFormsPool?: string;
   lastSparringCategoryId?: string;
   lastSparringPool?: string;
+  
+  // Withdrawal flag
+  withdrawn?: boolean;
 }
 
 export interface Division {

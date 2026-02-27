@@ -276,6 +276,10 @@ function RingOverview({}: RingOverviewProps) {
     
     if (!categoryId || !pool) return;
 
+    // Guard: only allow manual moves when custom order is enabled for this ring
+    const ringId = `${ringType}-${categoryId}-${pool}`;
+    if (!customOrderRings.includes(ringId)) return;
+
     const ringParticipants = participants
       .filter(p => {
         const pEffective = ringType === 'forms' 
@@ -988,14 +992,9 @@ function RingOverview({}: RingOverviewProps) {
         sparringRankOrder: updatedMovedParticipant?.sparringRankOrder
       });
       
-      // Close modal first to release any stale state
+      // Close modal and update participants together
       setQuickEdit(null);
-      
-      // Then update participants - this ensures the modal isn't open when the update happens
-      // Use setTimeout to ensure the modal close happens first
-      setTimeout(() => {
-        setParticipants(updatedParticipantsList);
-      }, 0);
+      setParticipants(updatedParticipantsList);
     };
 
     const handleCancel = () => {
@@ -1787,7 +1786,7 @@ function RingOverview({}: RingOverviewProps) {
                         </td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>{getParticipantSchool(p)}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
-                        <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
+                        <td style={{ padding: '4px', textAlign: 'center', color: p.gender ? undefined : '#dc3545' }}>{p.gender || '?'}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>
                           {p.heightFeet}'{p.heightInches}"
                         </td>
@@ -1913,7 +1912,7 @@ function RingOverview({}: RingOverviewProps) {
                         </td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>{getParticipantSchool(p)}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
-                        <td style={{ padding: '4px', textAlign: 'center' }}>{p.gender}</td>
+                        <td style={{ padding: '4px', textAlign: 'center', color: p.gender ? undefined : '#dc3545' }}>{p.gender || '?'}</td>
                         <td style={{ padding: '4px', textAlign: 'center' }}>
                           {p.heightFeet}'{p.heightInches}"
                         </td>
@@ -2053,8 +2052,8 @@ function RingOverview({}: RingOverviewProps) {
                   </td>
                   <td style={{ padding: '4px', textAlign: 'center' }}>{getParticipantSchool(p)}</td>
                   <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
-                  <td style={{ padding: '4px', textAlign: 'center' }}>
-                    {p.gender}
+                  <td style={{ padding: '4px', textAlign: 'center', color: p.gender ? undefined : '#dc3545' }}>
+                    {p.gender || '?'}
                   </td>
                   {type === 'sparring' && (
                     <td style={{ padding: '4px', textAlign: 'center' }}>
@@ -2324,6 +2323,7 @@ function RingOverview({}: RingOverviewProps) {
               border: '1px solid var(--input-border)',
             }}
           >
+            <option value="all">All Divisions ({ringPairs.length} rings)</option>
             {divisions.map((division) => {
               const count = ringPairs.filter(p => p.division === division).length;
               return (
@@ -2758,7 +2758,7 @@ function RingOverview({}: RingOverviewProps) {
                               </td>
                               <td style={{ padding: '8px', textAlign: 'center' }}>{getParticipantSchool(p)}</td>
                               <td style={{ padding: '8px', textAlign: 'center' }}>{p.age}</td>
-                              <td style={{ padding: '8px', textAlign: 'center' }}>{p.gender}</td>
+                              <td style={{ padding: '8px', textAlign: 'center', color: p.gender ? undefined : '#dc3545' }}>{p.gender || '?'}</td>
                               {ring.type === 'sparring' && (
                                 <td style={{ padding: '8px', textAlign: 'center' }}>
                                   {p.heightFeet}'{p.heightInches}"

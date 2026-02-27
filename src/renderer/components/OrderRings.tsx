@@ -308,8 +308,8 @@ function OrderRings({ globalDivision }: OrderRingsProps) {
                     {p.firstName} {p.lastName}
                   </td>
                   <td style={{ padding: '4px', textAlign: 'center' }}>{p.age}</td>
-                  <td style={{ padding: '4px', textAlign: 'center' }}>
-                    {p.gender}
+                  <td style={{ padding: '4px', textAlign: 'center', color: p.gender ? undefined : '#dc3545' }}>
+                    {p.gender || '?'}
                   </td>
                   {type === 'sparring' && (
                     <td style={{ padding: '4px', textAlign: 'center' }}>
