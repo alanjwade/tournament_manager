@@ -51,6 +51,9 @@ function DataImport() {
       if (!p.age || p.age < 3 || p.age > 100) {
         issues.push('Invalid age');
       }
+      if (!p.gender) {
+        issues.push('Missing gender');
+      }
       
       if (issues.length > 0) {
         warnings.push({ participant: p, issues });

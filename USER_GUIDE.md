@@ -32,12 +32,16 @@ The application has the following tabs:
 - student first name
 - student last name
 - age
-- gender
+- gender (Male / Female — must be explicit; blank triggers a warning)
 - height feet
 - height inches
 - school
-- Branch (optional — leave blank if school has no branches)
 - division
+- sparring? (yes / no — must be explicit; blank is treated as "not participating")
+
+**Optional Columns:**
+- form? (yes / no — default is "yes" when blank or omitted)
+- Branch (leave blank or omit if school has no branches)
 
 **Tips:**
 - Ensure your Excel file has a header row

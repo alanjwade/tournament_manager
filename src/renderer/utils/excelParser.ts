@@ -111,7 +111,7 @@ export function parseExcelFile(data: number[], validDivisions: string[] = []): P
       formsDivision = null;
       competingForms = false;
     } else if (formsValue.toLowerCase() === 'yes' || formsValue.toLowerCase() === 'y' || formsValue === '') {
-      // "Yes", "y", or empty Forms column - use base division if available
+      // "Yes", "y", or empty/absent Forms column - default is participating; use base division
       if (baseDivision && baseDivision !== '') {
         formsDivision = baseDivision;
         competingForms = true;
@@ -141,20 +141,20 @@ export function parseExcelFile(data: number[], validDivisions: string[] = []): P
       // Explicitly marked as not participating
       sparringDivision = null;
       competingSparring = false;
-    } else if (sparringValue.toLowerCase() === 'yes' || sparringValue.toLowerCase() === 'y' || sparringValue === '') {
-      // "Yes", "y", or empty Sparring column - treat as "yes", use base division
+    } else if (sparringValue.toLowerCase() === 'yes' || sparringValue.toLowerCase() === 'y') {
+      // "Yes" or "y" - use base division (empty/absent = not participating; column is required)
       if (baseDivision && baseDivision !== '') {
         sparringDivision = baseDivision;
         competingSparring = true;
         if (index === 0) {
-          console.log('  ✅ Sparring is Yes/empty, using baseDivision:', baseDivision);
+          console.log('  ✅ Sparring is Yes, using baseDivision:', baseDivision);
         }
       } else {
         // No base division either - not participating
         sparringDivision = null;
         competingSparring = false;
         if (index === 0) {
-          console.log('  ❌ Sparring is Yes/empty BUT baseDivision is empty - setting to not participating');
+          console.log('  ❌ Sparring is Yes BUT baseDivision is empty - setting to not participating');
         }
       }
     } else if (sparringValue && sparringValue !== '') {
@@ -191,11 +191,14 @@ export function parseExcelFile(data: number[], validDivisions: string[] = []): P
     
     // Parse gender field
     const genderRaw = String(row['Student Gender'] || row['student gender'] || row['gender'] || row['Gender'] || '').trim().toLowerCase();
-    let gender: 'Male' | 'Female' = 'Male'; // default
+    let gender: string;
     if (genderRaw === 'f' || genderRaw === 'female') {
       gender = 'Female';
     } else if (genderRaw === 'm' || genderRaw === 'male') {
       gender = 'Male';
+    } else {
+      // Missing or unrecognized - leave empty so validation can flag it
+      gender = '';
     }
     
     return {
