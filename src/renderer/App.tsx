@@ -149,10 +149,8 @@ function App() {
   const handleSearchSelect = (participantId: string) => {
     setSearchQuery('');
     setSearchFocused(false);
-    // Navigate to editor tab with highlighted participant
-    setActiveTab('editor');
-    // Use store instead of sessionStorage
-    useTournamentStore.getState().setHighlightedParticipantId(participantId);
+    // Open quick-edit modal directly via store signal (RingOverview is always mounted)
+    useTournamentStore.getState().setOpenQuickEditParticipantId(participantId);
   };
 
   // Compute competition rings for status tracking
@@ -575,8 +573,18 @@ function App() {
         {activeTab === 'configuration' && <Configuration />}
         {activeTab === 'categories' && <CategoryManagement />}
         {activeTab === 'ringmap' && <RingMapEditor />}
-        {activeTab === 'editor' && <DataViewer />}
-        {activeTab === 'tournament' && <RingOverview />}
+        {/* DataViewer stays mounted while participants exist to avoid expensive re-mount on every tab switch */}
+        {participants.length > 0 && (
+          <div style={{ display: activeTab === 'editor' ? undefined : 'none', height: '100%' }}>
+            <DataViewer />
+          </div>
+        )}
+        {/* RingOverview stays mounted so the quick-edit modal can open from global search */}
+        {participants.length > 0 && (
+          <div style={{ display: activeTab === 'tournament' ? undefined : 'none', height: '100%' }}>
+            <RingOverview />
+          </div>
+        )}
         {activeTab === 'export' && <PDFExport />}
         {activeTab === 'checkpoints' && <CheckpointManager />}
       </div>

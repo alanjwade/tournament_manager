@@ -8,6 +8,7 @@ interface ImportPreview {
   total: number;
   warnings: Array<{ participant: any; issues: string[] }>;
   participants: any[];
+  duplicateNames: string[];
 }
 
 function DataImport() {
@@ -15,12 +16,25 @@ function DataImport() {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [duplicateBannerDismissed, setDuplicateBannerDismissed] = useState(false);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const participants = useTournamentStore((state) => state.participants);
   const reset = useTournamentStore((state) => state.reset);
   const loadState = useTournamentStore((state) => state.loadState);
   const config = useTournamentStore((state) => state.config);
   const setDivisions = useTournamentStore((state) => state.setDivisions);
+
+  const findDuplicateNames = (participants: any[]): string[] => {
+    const counts = new Map<string, number>();
+    for (const p of participants) {
+      const key = `${(p.firstName ?? '').trim()} ${(p.lastName ?? '').trim()}`.trim();
+      if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name)
+      .sort();
+  };
 
   const validateImport = (participants: any[]): Array<{ participant: any; issues: string[] }> => {
     const warnings: Array<{ participant: any; issues: string[] }> = [];
@@ -62,11 +76,14 @@ function DataImport() {
       const validDivisions = config.divisions.map(d => d.name);
       const parsedParticipants = parseExcelFile(result.data, validDivisions);
       const warnings = validateImport(parsedParticipants);
+      const duplicateNames = findDuplicateNames(parsedParticipants);
       
+      setDuplicateBannerDismissed(false);
       setPreview({
         total: parsedParticipants.length,
         warnings,
-        participants: parsedParticipants
+        participants: parsedParticipants,
+        duplicateNames
       });
       setLoading(false);
     } catch (err) {
@@ -144,11 +161,14 @@ function DataImport() {
       const validDivisions = config.divisions.map(d => d.name);
       const parsedParticipants = parseExcelFile(Array.from(new Uint8Array(arrayBuffer)), validDivisions);
       const warnings = validateImport(parsedParticipants);
+      const duplicateNames = findDuplicateNames(parsedParticipants);
 
+      setDuplicateBannerDismissed(false);
       setPreview({
         total: parsedParticipants.length,
         warnings,
-        participants: parsedParticipants
+        participants: parsedParticipants,
+        duplicateNames
       });
       setLoading(false);
     } catch (err) {
@@ -253,7 +273,41 @@ function DataImport() {
             <strong style={{ color: 'var(--text-primary)' }}>Total Participants:</strong>{' '}
             <span style={{ color: '#28a745', fontSize: '16px', fontWeight: 'bold' }}>{preview.total}</span>
           </div>
-          
+
+          {preview.duplicateNames.length > 0 && !duplicateBannerDismissed && (
+            <div style={{
+              marginBottom: '15px',
+              padding: '12px 14px',
+              backgroundColor: 'rgba(255, 193, 7, 0.12)',
+              border: '1px solid #ffc107',
+              borderRadius: '6px',
+              fontSize: '13px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                <div>
+                  <strong style={{ color: '#ffc107' }}>ℹ️ Duplicate name{preview.duplicateNames.length > 1 ? 's' : ''} detected ({preview.duplicateNames.length})</strong>
+                  <div style={{ marginTop: '6px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                    {preview.duplicateNames.join(', ')}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDuplicateBannerDismissed(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    fontSize: '18px',
+                    lineHeight: 1,
+                    padding: '0 2px',
+                    flexShrink: 0,
+                  }}
+                  title="Dismiss"
+                >×</button>
+              </div>
+            </div>
+          )}
+
           {preview.warnings.length > 0 && (
             <div>
               <strong style={{ color: '#ffc107', display: 'block', marginBottom: '8px' }}>⚠️ Warnings ({preview.warnings.length} participant(s)):</strong>

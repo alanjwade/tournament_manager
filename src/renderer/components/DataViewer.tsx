@@ -24,6 +24,9 @@ function DataViewer({}: DataViewerProps) {
   
   // State for Add Participant modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // State for duplicates report modal
+  const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
   
   // State for column visibility
   const [visibleColumns, setVisibleColumns] = useState({
@@ -54,9 +57,25 @@ function DataViewer({}: DataViewerProps) {
     [participants, categories, categoryPoolMappings]
   );
 
+  // Duplicate first+last name detection
+  const duplicateNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of participants) {
+      const key = `${(p.firstName ?? '').trim()} ${(p.lastName ?? '').trim()}`.trim();
+      if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [participants]);
+
   // Multi-select age filter
   const [selectedAges, setSelectedAges] = useState<number[]>([]);
   const [ageDropdownOpen, setAgeDropdownOpen] = useState(false);
+
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Filter states for each column
   const [filters, setFilters] = useState({
@@ -82,6 +101,18 @@ function DataViewer({}: DataViewerProps) {
     formsOrder: '',
     sparringOrder: '',
   });
+
+  // Debounced version of filters used for actual filtering (avoids re-filtering on every keystroke)
+  const [appliedFilters, setAppliedFilters] = useState(filters);
+  useEffect(() => {
+    const timer = setTimeout(() => setAppliedFilters(filters), 300);
+    return () => clearTimeout(timer);
+  }, [filters]);
+
+  // Reset to page 1 whenever the effective filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [appliedFilters, selectedAges]);
 
   // Check for highlighted participant from global search - use store instead of sessionStorage
   useEffect(() => {
@@ -564,41 +595,48 @@ function DataViewer({}: DataViewerProps) {
       const sparringPhysicalRingName = sparringPhysicalMapping?.physicalRingName || '';
       
       // For division filters, check if EITHER forms OR sparring division matches
-      const formsDivisionMatch = filters.formsDivision 
-        ? (p.formsDivision || '').toLowerCase().includes(filters.formsDivision.toLowerCase())
+      const formsDivisionMatch = appliedFilters.formsDivision 
+        ? (p.formsDivision || '').toLowerCase().includes(appliedFilters.formsDivision.toLowerCase())
         : true;
-      const sparringDivisionMatch = filters.sparringDivision
-        ? (p.sparringDivision || '').toLowerCase().includes(filters.sparringDivision.toLowerCase())
+      const sparringDivisionMatch = appliedFilters.sparringDivision
+        ? (p.sparringDivision || '').toLowerCase().includes(appliedFilters.sparringDivision.toLowerCase())
         : true;
       
       // If both division filters are set to the same value (from global filter),
       // use OR logic: match if EITHER division matches
-      const divisionMatch = filters.formsDivision && filters.sparringDivision && filters.formsDivision === filters.sparringDivision
+      const divisionMatch = appliedFilters.formsDivision && appliedFilters.sparringDivision && appliedFilters.formsDivision === appliedFilters.sparringDivision
         ? (formsDivisionMatch || sparringDivisionMatch)
         : (formsDivisionMatch && sparringDivisionMatch);
       
       return (
-        p.firstName.toLowerCase().includes(filters.firstName.toLowerCase()) &&
-        p.lastName.toLowerCase().includes(filters.lastName.toLowerCase()) &&
+        p.firstName.toLowerCase().includes(appliedFilters.firstName.toLowerCase()) &&
+        p.lastName.toLowerCase().includes(appliedFilters.lastName.toLowerCase()) &&
         (selectedAges.length === 0 || selectedAges.includes(p.age)) &&
-        p.gender.toLowerCase().includes(filters.gender.toLowerCase()) &&
-        p.heightFeet.toString().includes(filters.heightFeet) &&
-        p.heightInches.toString().includes(filters.heightInches) &&
-        p.school.toLowerCase().includes(filters.school.toLowerCase()) &&
-        (p.branch || '').toLowerCase().includes(filters.branch.toLowerCase()) &&
+        p.gender.toLowerCase().includes(appliedFilters.gender.toLowerCase()) &&
+        p.heightFeet.toString().includes(appliedFilters.heightFeet) &&
+        p.heightInches.toString().includes(appliedFilters.heightInches) &&
+        p.school.toLowerCase().includes(appliedFilters.school.toLowerCase()) &&
+        (p.branch || '').toLowerCase().includes(appliedFilters.branch.toLowerCase()) &&
         divisionMatch &&
-        formsCategoryName.toLowerCase().includes(filters.formsCategory.toLowerCase()) &&
-        sparringCategoryName.toLowerCase().includes(filters.sparringCategory.toLowerCase()) &&
-        formsPoolValue.toLowerCase().includes(filters.formsRing.toLowerCase()) &&
-        sparringPoolValue.toLowerCase().includes(filters.sparringRing.toLowerCase()) &&
-        formsPhysicalRingName.toLowerCase().includes(filters.formsPhysicalRing.toLowerCase()) &&
-        sparringPhysicalRingName.toLowerCase().includes(filters.sparringPhysicalRing.toLowerCase()) &&
-        (p.sparringAltRing || '').toLowerCase().includes(filters.sparringAltRing.toLowerCase()) &&
-        formsOrder.includes(filters.formsOrder) &&
-        sparringOrder.includes(filters.sparringOrder)
+        formsCategoryName.toLowerCase().includes(appliedFilters.formsCategory.toLowerCase()) &&
+        sparringCategoryName.toLowerCase().includes(appliedFilters.sparringCategory.toLowerCase()) &&
+        formsPoolValue.toLowerCase().includes(appliedFilters.formsRing.toLowerCase()) &&
+        sparringPoolValue.toLowerCase().includes(appliedFilters.sparringRing.toLowerCase()) &&
+        formsPhysicalRingName.toLowerCase().includes(appliedFilters.formsPhysicalRing.toLowerCase()) &&
+        sparringPhysicalRingName.toLowerCase().includes(appliedFilters.sparringPhysicalRing.toLowerCase()) &&
+        (p.sparringAltRing || '').toLowerCase().includes(appliedFilters.sparringAltRing.toLowerCase()) &&
+        formsOrder.includes(appliedFilters.formsOrder) &&
+        sparringOrder.includes(appliedFilters.sparringOrder)
       );
     });
-  }, [participants, filters, selectedAges, categories, competitionRings, physicalRingMappings]);
+  }, [participants, appliedFilters, selectedAges, categories, physicalRingMappings]);
+
+  // Paginated slice of filtered participants
+  const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / PAGE_SIZE));
+  const pagedParticipants = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredParticipants.slice(start, start + PAGE_SIZE);
+  }, [filteredParticipants, currentPage]);
 
   // Update a specific filter
   const updateFilter = (column: keyof typeof filters, value: string) => {
@@ -608,6 +646,29 @@ function DataViewer({}: DataViewerProps) {
   // Clear all filters
   const clearFilters = () => {
     setSelectedAges([]);
+    setAppliedFilters({
+      firstName: '',
+      lastName: '',
+      age: '',
+      gender: '',
+      heightFeet: '',
+      heightInches: '',
+      school: '',
+      branch: '',
+      competingForms: '',
+      formsDivision: '',
+      sparringDivision: '',
+      competingSparring: '',
+      formsCategory: '',
+      sparringCategory: '',
+      formsRing: '',
+      sparringRing: '',
+      formsPhysicalRing: '',
+      sparringPhysicalRing: '',
+      sparringAltRing: '',
+      formsOrder: '',
+      sparringOrder: '',
+    });
     setFilters({
       firstName: '',
       lastName: '',
@@ -643,7 +704,7 @@ function DataViewer({}: DataViewerProps) {
       width: '100%'
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexShrink: 0 }}>
-        <h2>All Participants Data ({filteredParticipants.length} of {participants.length})</h2>
+        <h2>All Participants Data ({filteredParticipants.length} of {participants.length}{totalPages > 1 ? ` — Page ${currentPage}/${totalPages}` : ''})</h2>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
             onClick={() => setIsAddModalOpen(true)} 
@@ -651,6 +712,14 @@ function DataViewer({}: DataViewerProps) {
             style={{ padding: '8px 16px' }}
           >
             ➕ Add Participant
+          </button>
+          <button
+            onClick={() => setShowDuplicatesModal(true)}
+            className={`btn ${duplicateNames.length > 0 ? 'btn-warning' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px' }}
+            title={duplicateNames.length > 0 ? `${duplicateNames.length} duplicate name(s) found` : 'No duplicates found'}
+          >
+            👥 Duplicates{duplicateNames.length > 0 ? ` (${duplicateNames.length})` : ''}
           </button>
           <button 
             onClick={exportToExcel} 
@@ -761,6 +830,79 @@ function DataViewer({}: DataViewerProps) {
         isOpen={isAddModalOpen} 
         onClose={() => setIsAddModalOpen(false)} 
       />
+
+      {/* Duplicates Report Modal */}
+      {showDuplicatesModal && (
+        <div
+          onClick={() => setShowDuplicatesModal(false)}
+          style={{
+            position: 'fixed', inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              padding: '24px',
+              minWidth: '340px',
+              maxWidth: '500px',
+              maxHeight: '70vh',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>
+                Duplicate Names
+              </h3>
+              <button
+                onClick={() => setShowDuplicatesModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: 'var(--text-muted)', lineHeight: 1 }}
+              >×</button>
+            </div>
+            {duplicateNames.length === 0 ? (
+              <p style={{ margin: 0, color: 'var(--text-secondary)' }}>✅ No duplicate names found.</p>
+            ) : (
+              <>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {duplicateNames.length} name{duplicateNames.length > 1 ? 's appear' : ' appears'} more than once:
+                </p>
+                <div style={{ overflowY: 'auto', flex: 1 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-secondary)' }}>Name</th>
+                        <th style={{ textAlign: 'center', padding: '6px 8px', color: 'var(--text-secondary)' }}>Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {duplicateNames.map(({ name, count }) => (
+                        <tr key={name} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '6px 8px' }}>{name}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', color: '#ffc107', fontWeight: 'bold' }}>{count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            <button
+              onClick={() => setShowDuplicatesModal(false)}
+              className="btn btn-secondary"
+              style={{ alignSelf: 'flex-end', padding: '6px 16px' }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}>
         {/* Dynamic column visibility styles */}
@@ -1067,7 +1209,7 @@ function DataViewer({}: DataViewerProps) {
             </tr>
           </thead>
           <tbody>
-            {filteredParticipants.map((p) => {
+            {pagedParticipants.map((p) => {
               const formsCategory = categories.find(c => c.id === p.formsCategoryId);
               const sparringCategory = categories.find(c => c.id === p.sparringCategoryId);
               
@@ -1509,6 +1651,46 @@ function DataViewer({}: DataViewerProps) {
         {filteredParticipants.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
             {participants.length === 0 ? 'No participants loaded' : 'No participants match the current filters'}
+          </div>
+        )}
+
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 0',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              style={{ padding: '4px 10px', fontSize: '13px' }}
+            >⏮ First</button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              style={{ padding: '4px 10px', fontSize: '13px' }}
+            >◀ Prev</button>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              Page {currentPage} of {totalPages} ({filteredParticipants.length} participants)
+            </span>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              style={{ padding: '4px 10px', fontSize: '13px' }}
+            >Next ▶</button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              style={{ padding: '4px 10px', fontSize: '13px' }}
+            >Last ⏭</button>
           </div>
         )}
       </div>

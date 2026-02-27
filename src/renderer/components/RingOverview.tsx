@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import jsPDF from 'jspdf';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
@@ -86,6 +87,22 @@ function RingOverview({}: RingOverviewProps) {
   const loadCheckpoint = useTournamentStore((state) => state.loadCheckpoint);
   const renameCheckpoint = useTournamentStore((state) => state.renameCheckpoint);
   const deleteCheckpoint = useTournamentStore((state) => state.deleteCheckpoint);
+  const openQuickEditParticipantId = useTournamentStore((state) => state.openQuickEditParticipantId);
+  const setOpenQuickEditParticipantId = useTournamentStore((state) => state.setOpenQuickEditParticipantId);
+
+  // Open quick-edit modal when triggered from global search
+  useEffect(() => {
+    if (!openQuickEditParticipantId) return;
+    const participant = participants.find(p => p.id === openQuickEditParticipantId);
+    if (participant) {
+      const ringType = participant.competingForms ? 'forms' : 'sparring';
+      const ringName = ringType === 'forms'
+        ? (participant.formsDivision ?? '')
+        : (participant.sparringDivision ?? '');
+      setQuickEdit({ participant, ringType, ringName });
+    }
+    setOpenQuickEditParticipantId(null);
+  }, [openQuickEditParticipantId]);
 
   // Reset copySparringFromForms and pendingChanges when quickEdit changes
   useEffect(() => {
@@ -2119,8 +2136,8 @@ function RingOverview({}: RingOverviewProps) {
           overflowY: 'auto',
           overflowX: 'hidden',
         }}>
-      {/* Quick Edit Modal */}
-      {renderQuickEditModal()}
+      {/* Quick Edit Modal — portaled to document.body so it shows over any active tab */}
+      {quickEdit ? ReactDOM.createPortal(renderQuickEditModal()!, document.body) : null}
       
       {/* Participant Selection Modal */}
       {participantSelectionModal && (

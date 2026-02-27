@@ -59,6 +59,7 @@ interface TournamentState {
   checkpoints: Checkpoint[]; // Checkpoint system
   customRings: CustomRing[]; // Grand Champion / Side rings
   highlightedParticipantId: string | null; // For cross-component highlighting
+  openQuickEditParticipantId: string | null; // For opening quick-edit modal from global search
   undoStack: Snapshot[];
   redoStack: Snapshot[];
 
@@ -101,6 +102,7 @@ interface TournamentState {
   removeParticipantFromCustomRing: (ringId: string, participantId: string) => void;
   moveParticipantInCustomRing: (ringId: string, participantId: string, direction: 'up' | 'down') => void;
   setHighlightedParticipantId: (id: string | null) => void;
+  setOpenQuickEditParticipantId: (id: string | null) => void;
 }
 
 const initialConfig: TournamentConfig = {
@@ -172,6 +174,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     },
   ],
   highlightedParticipantId: null,
+  openQuickEditParticipantId: null,
 
   pushHistory: () => {
     const s = get();
@@ -890,6 +893,9 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
   setHighlightedParticipantId: (id: string | null) => {
     set({ highlightedParticipantId: id });
+  },
+  setOpenQuickEditParticipantId: (id: string | null) => {
+    set({ openQuickEditParticipantId: id });
   },
 }));
 
