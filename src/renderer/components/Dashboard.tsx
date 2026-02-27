@@ -291,7 +291,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
             </tr>
           </thead>
           <tbody>
-            {config.divisions.sort((a, b) => a.order - b.order).map(div => {
+            {[...config.divisions].sort((a, b) => a.order - b.order).map(div => {
               const stats = divisionStats.get(div.name);
               if (!stats || stats.total === 0) return null;
               return (

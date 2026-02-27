@@ -88,6 +88,11 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
       return;
     }
 
+    if (!formData.gender.trim()) {
+      alert('Please select a gender');
+      return;
+    }
+
     // Create new participant
     const newParticipant: Participant = {
       id: `participant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

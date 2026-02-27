@@ -632,7 +632,7 @@ function PDFExport({}: PDFExportProps) {
         return aLetter.localeCompare(bLetter);
       }
       
-      return a.physicalRingName.localeCompare(b.physicalRingName);
+      return (a.physicalRingName || '').localeCompare(b.physicalRingName || '');
     });
 
     const ringOverviewPdf = generateRingOverviewPDF(participants, ringPairs, categories, division, config.schoolAbbreviations);

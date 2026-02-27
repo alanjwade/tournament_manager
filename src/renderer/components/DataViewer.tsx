@@ -455,7 +455,7 @@ function DataViewer({}: DataViewerProps) {
   const updateParticipantOrder = (participantId: string, field: 'formsRankOrder' | 'sparringRankOrder', value: string) => {
     const updatedParticipants = participants.map(p => {
       if (p.id === participantId) {
-        const numValue = value ? parseInt(value) / 10 : undefined;
+        const numValue = value ? parseInt(value) : undefined;
         return { ...p, [field]: numValue };
       }
       return p;
@@ -626,7 +626,9 @@ function DataViewer({}: DataViewerProps) {
         sparringPhysicalRingName.toLowerCase().includes(appliedFilters.sparringPhysicalRing.toLowerCase()) &&
         (p.sparringAltRing || '').toLowerCase().includes(appliedFilters.sparringAltRing.toLowerCase()) &&
         formsOrder.includes(appliedFilters.formsOrder) &&
-        sparringOrder.includes(appliedFilters.sparringOrder)
+        sparringOrder.includes(appliedFilters.sparringOrder) &&
+        (appliedFilters.competingForms === '' || (appliedFilters.competingForms === 'true') === p.competingForms) &&
+        (appliedFilters.competingSparring === '' || (appliedFilters.competingSparring === 'true') === p.competingSparring)
       );
     });
   }, [participants, appliedFilters, selectedAges, categories, physicalRingMappings]);
