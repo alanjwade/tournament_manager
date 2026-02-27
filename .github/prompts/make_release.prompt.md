@@ -16,11 +16,13 @@ Execute a release with automatic patch version increment:
 
 1. Read the current version from `package.json`
 2. Read the latest git tag
-3. Auto-increment the patch version (e.g., 0.99.0 → 0.99.1)
+3. Auto-increment the patch version (e.g., 1.0.22 → 1.0.23)
 4. Update `package.json` with the new version
 5. Commit the change with message "Release vX.Y.Z"
 6. Create a git tag with the new version (v prefix)
 7. Push both the main branch and the tag to origin
+
+**Important:** Ensure the latest tag matches the current version in `package.json` to avoid redundant tags.
 
 ---
 
