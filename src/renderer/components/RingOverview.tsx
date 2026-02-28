@@ -1284,12 +1284,18 @@ function RingOverview({}: RingOverviewProps) {
                   {categories
                     .filter(c => c.type === 'forms' && c.division === currentFormsDivision)
                     .flatMap(c => 
-                      Array.from({ length: c.numPools }, (_, i) => ({
-                        categoryId: c.id,
-                        categoryName: c.name,
-                        pool: `P${i + 1}`,
-                        label: `${c.name} - Pool ${i + 1}`
-                      }))
+                      Array.from({ length: c.numPools }, (_, i) => {
+                        const pool = `P${i + 1}`;
+                        const matchingSparringCatId = c.id.replace(/^forms-/, 'sparring-');
+                        const fCount = participants.filter(p => p.competingForms && p.formsCategoryId === c.id && p.formsPool === pool).length;
+                        const sCount = participants.filter(p => p.competingSparring && p.sparringCategoryId === matchingSparringCatId && p.sparringPool === pool).length;
+                        return {
+                          categoryId: c.id,
+                          categoryName: c.name,
+                          pool,
+                          label: `${c.name} - Pool ${i + 1} (F:${fCount} S:${sCount})`
+                        };
+                      })
                     )
                     .map(item => (
                       <option key={`${item.categoryId}|||${item.pool}`} value={`${item.categoryId}|||${item.pool}`}>
@@ -1456,12 +1462,18 @@ function RingOverview({}: RingOverviewProps) {
                   {categories
                     .filter(c => c.type === 'sparring' && c.division === currentSparringDivision)
                     .flatMap(c => 
-                      Array.from({ length: c.numPools }, (_, i) => ({
-                        categoryId: c.id,
-                        categoryName: c.name,
-                        pool: `P${i + 1}`,
-                        label: `${c.name} - Pool ${i + 1}`
-                      }))
+                      Array.from({ length: c.numPools }, (_, i) => {
+                        const pool = `P${i + 1}`;
+                        const matchingFormsCatId = c.id.replace(/^sparring-/, 'forms-');
+                        const fCount = participants.filter(p => p.competingForms && p.formsCategoryId === matchingFormsCatId && p.formsPool === pool).length;
+                        const sCount = participants.filter(p => p.competingSparring && p.sparringCategoryId === c.id && p.sparringPool === pool).length;
+                        return {
+                          categoryId: c.id,
+                          categoryName: c.name,
+                          pool,
+                          label: `${c.name} - Pool ${i + 1} (F:${fCount} S:${sCount})`
+                        };
+                      })
                     )
                     .map(item => (
                       <option key={`${item.categoryId}|||${item.pool}`} value={`${item.categoryId}|||${item.pool}`}>
