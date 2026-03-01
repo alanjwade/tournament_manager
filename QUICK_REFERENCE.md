@@ -20,7 +20,7 @@ Required columns (exact names):
 - `height feet`
 - `height inches`
 - `school`
-- `Branch` (optional)
+- `branch`
 - `division`
 
 ## Workflow

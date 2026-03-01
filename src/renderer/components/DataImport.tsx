@@ -49,6 +49,10 @@ function DataImport() {
         errs.push('Missing gender (required)');
       }
       
+      if (!p.branch) {
+        errs.push('Missing branch (required)');
+      }
+      
       if (p.heightFeet === undefined || p.heightFeet === null || (p.heightFeet === 0 && (p.heightInches === undefined || p.heightInches === null || p.heightInches === 0))) {
         warns.push('Missing height information');
       }
@@ -258,7 +262,7 @@ function DataImport() {
           <li>Height Feet</li>
           <li>Height Inches</li>
           <li>School</li>
-          <li>Branch (optional)</li>
+          <li>Branch</li>
           <li>Division</li>
           <li>Form? (optional — default is "yes")</li>
           <li>Sparring? (yes / no — required)</li>

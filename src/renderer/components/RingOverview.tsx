@@ -2133,7 +2133,7 @@ function RingOverview({}: RingOverviewProps) {
   const shouldStack = contentWidth > 0 && contentWidth < 1000;
 
   return (
-    <div style={{ display: 'flex', gap: '15px', height: '100vh', overflow: 'hidden', position: 'relative', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', gap: '15px', height: '100%', overflow: 'hidden', position: 'relative', flexDirection: 'column' }}>
       {/* Main Content - Independent Scrollbar */}
       <div 
         ref={contentRef}

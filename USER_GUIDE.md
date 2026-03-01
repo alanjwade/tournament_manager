@@ -41,7 +41,6 @@ The application has the following tabs:
 
 **Optional Columns:**
 - form? (yes / no — default is "yes" when blank or omitted)
-- Branch (leave blank or omit if school has no branches)
 
 **Tips:**
 - Ensure your Excel file has a header row

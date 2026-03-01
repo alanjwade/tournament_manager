@@ -66,7 +66,7 @@ The input Excel file should have the following columns (case-insensitive):
 - **Height Feet**: Height in feet (numeric)
 - **Height Inches**: Height in inches (numeric)
 - **School**: School name
-- **Branch**: Branch name (optional)
+- **Branch**: Branch name
 - **Division**: Division name (e.g., "Black Belt", "Level 1", etc.)
 
 ## Usage Workflow

@@ -96,7 +96,7 @@ function PreTournamentGuide() {
           <tr><td style={tdStyle}>height feet</td><td style={tdStyle}>Yes</td><td style={tdStyle}>Numeric</td></tr>
           <tr><td style={tdStyle}>height inches</td><td style={tdStyle}>Yes</td><td style={tdStyle}>Numeric (0–11)</td></tr>
           <tr><td style={tdStyle}>school</td><td style={tdStyle}>Yes</td><td style={tdStyle}></td></tr>
-          <tr><td style={tdStyle}>Branch</td><td style={tdStyle}>No</td><td style={tdStyle}>Leave blank if N/A</td></tr>
+          <tr><td style={tdStyle}>Branch</td><td style={tdStyle}>Yes</td><td style={tdStyle}>Enter branch name or main school name</td></tr>
           <tr><td style={tdStyle}>division</td><td style={tdStyle}>Yes</td><td style={tdStyle}>Must match configured divisions</td></tr>
         </tbody>
       </table>
