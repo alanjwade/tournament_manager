@@ -66,6 +66,7 @@ function RingOverview({}: RingOverviewProps) {
   const [renamingCheckpointValue, setRenamingCheckpointValue] = useState('');
   const [expandedRings, setExpandedRings] = useState<Set<string>>(new Set());
   const [ringSort, setRingSort] = useState<'ring' | 'group' | 'category'>('ring');
+  const [expandedRingChanges, setExpandedRingChanges] = useState<Set<string>>(new Set());
   
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
@@ -596,6 +597,86 @@ function RingOverview({}: RingOverviewProps) {
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     )[0];
   }, [checkpoints]);
+
+  // Full diff against the latest checkpoint (for per-ring member changes)
+  const latestDiff = useMemo(() => {
+    if (!latestCheckpoint) return null;
+    return diffCheckpoint(latestCheckpoint.id);
+  }, [latestCheckpoint, participants, categories]);
+
+  // Per-ring member diff: maps ringId -> { added: string[], removed: string[] }
+  // ringId format: "Division - CategoryName Pool N_forms" or "..._sparring" or "..._sparring_a"
+  const ringMemberDiff = useMemo(() => {
+    const empty = new Map<string, { added: string[]; removed: string[] }>();
+    if (!latestDiff || !latestCheckpoint) return empty;
+
+    const result = new Map<string, { added: string[]; removed: string[] }>();
+    const getOrCreate = (rid: string) => {
+      if (!result.has(rid)) result.set(rid, { added: [], removed: [] });
+      return result.get(rid)!;
+    };
+
+    const checkpointParticipantMap = new Map(
+      latestCheckpoint.state.participants.map((p: Participant) => [p.id, p])
+    );
+    const checkpointCategories = latestCheckpoint.state.categories;
+
+    const buildDiffRingId = (
+      cat: any,
+      pool: string,
+      type: 'forms' | 'sparring',
+      altRing?: string
+    ): string | null => {
+      if (!cat) return null;
+      const poolDisplay = pool.replace(/^P(\d+)$/, 'Pool $1');
+      let id = `${cat.division} - ${cat.name} ${poolDisplay}_${type}`;
+      if (type === 'sparring' && altRing) id += `_${altRing}`;
+      return id;
+    };
+
+    const getRingIdsForParticipant = (p: Participant, catList: any[]): string[] => {
+      const ids: string[] = [];
+      if (p.competingForms && p.formsCategoryId) {
+        const cat = catList.find((c: any) => c.id === p.formsCategoryId);
+        const rid = buildDiffRingId(cat, p.formsPool || 'P1', 'forms');
+        if (rid) ids.push(rid);
+      }
+      if (p.competingSparring && p.sparringCategoryId) {
+        const cat = catList.find((c: any) => c.id === p.sparringCategoryId);
+        const rid = buildDiffRingId(cat, p.sparringPool || 'P1', 'sparring', p.sparringAltRing || undefined);
+        if (rid) ids.push(rid);
+      }
+      return ids;
+    };
+
+    // Newly added participants
+    latestDiff.participantsAdded.forEach((p: Participant) => {
+      getRingIdsForParticipant(p, categories).forEach(rid =>
+        getOrCreate(rid).added.push(`${p.firstName} ${p.lastName}`)
+      );
+    });
+
+    // Removed participants (use checkpoint categories to resolve their ring)
+    latestDiff.participantsRemoved.forEach((p: Participant) => {
+      getRingIdsForParticipant(p, checkpointCategories).forEach(rid =>
+        getOrCreate(rid).removed.push(`${p.firstName} ${p.lastName}`)
+      );
+    });
+
+    // Modified participants — compare before vs after ring membership
+    const modifiedIds = new Set(latestDiff.participantsModified.map((m: any) => m.participantId));
+    modifiedIds.forEach((pid: string) => {
+      const currentP = participants.find(p => p.id === pid);
+      const checkpointP = checkpointParticipantMap.get(pid);
+      if (!currentP || !checkpointP) return;
+      const wasBefore = new Set(getRingIdsForParticipant(checkpointP, checkpointCategories));
+      const isNow = new Set(getRingIdsForParticipant(currentP, categories));
+      isNow.forEach(rid => { if (!wasBefore.has(rid)) getOrCreate(rid).added.push(`${currentP.firstName} ${currentP.lastName}`); });
+      wasBefore.forEach(rid => { if (!isNow.has(rid)) getOrCreate(rid).removed.push(`${currentP.firstName} ${currentP.lastName}`); });
+    });
+
+    return result;
+  }, [latestDiff, latestCheckpoint, participants, categories]);
 
   // Count changed rings for display
   const changedRingsCounts = useMemo(() => {
@@ -2566,6 +2647,29 @@ function RingOverview({}: RingOverviewProps) {
                   {printing === 'all-changed' ? '⏳ Printing...' : `🖨️ Print Changed (${changedRingsCounts.total})`}
                 </button>
               )}
+
+              {/* Set Baseline button - always visible; creates a checkpoint to reset change indicators */}
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  const label = `Baseline ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                  createCheckpoint(label);
+                }}
+                style={{
+                  padding: '6px 14px',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Save current state as a new baseline checkpoint — change indicators will reset"
+              >
+                📍 Set Baseline
+              </button>
             </div>
           )}
         </div>
@@ -3337,6 +3441,117 @@ function RingOverview({}: RingOverviewProps) {
                 ▼
               </div>
             </h4>
+
+            {/* Per-ring changes strip — visible even when card is collapsed */}
+            {hasChanged && (() => {
+              const formsRingName = pair.formsRing?.name || pair.categoryPoolName;
+              const sparringRingName = pair.sparringRing?.name || pair.categoryPoolName;
+              const fChanges  = formsChanged   ? (ringMemberDiff.get(`${formsRingName}_forms`)    ?? null) : null;
+              const sBase     = sparringChanged ? (ringMemberDiff.get(`${sparringRingName}_sparring`)   ?? null) : null;
+              const sAltA     = sparringChanged ? (ringMemberDiff.get(`${sparringRingName}_sparring_a`) ?? null) : null;
+              const sAltB     = sparringChanged ? (ringMemberDiff.get(`${sparringRingName}_sparring_b`) ?? null) : null;
+
+              // Count for collapsed label
+              const totalAdded   = (fChanges?.added.length   ?? 0) + (sBase?.added.length   ?? 0) + (sAltA?.added.length   ?? 0) + (sAltB?.added.length   ?? 0);
+              const totalRemoved = (fChanges?.removed.length ?? 0) + (sBase?.removed.length ?? 0) + (sAltA?.removed.length ?? 0) + (sAltB?.removed.length ?? 0);
+
+              const changesOpen = expandedRingChanges.has(pair.categoryPoolName);
+              const toggleChanges = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                setExpandedRingChanges(prev => {
+                  const next = new Set(prev);
+                  next.has(pair.categoryPoolName) ? next.delete(pair.categoryPoolName) : next.add(pair.categoryPoolName);
+                  return next;
+                });
+              };
+
+              const hasSparringAltSplit = !!(sAltA || sAltB);
+
+              return (
+                <div style={{ borderTop: '1px solid rgba(220,53,69,0.3)', backgroundColor: 'var(--bg-secondary)' }}>
+                  {/* Collapsed header / toggle */}
+                  <button
+                    onClick={toggleChanges}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '5px 15px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: 'var(--text-secondary)',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ fontSize: '10px', display: 'inline-block', transition: 'transform 0.15s', transform: changesOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                    <span style={{ fontWeight: '600' }}>Changes since baseline</span>
+                    {totalAdded > 0 && <span style={{ color: '#28a745', fontWeight: '700' }}>+{totalAdded}</span>}
+                    {totalRemoved > 0 && <span style={{ color: '#dc3545', fontWeight: '700' }}>−{totalRemoved}</span>}
+                    {totalAdded === 0 && totalRemoved === 0 && <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>reordered only</span>}
+                  </button>
+
+                  {/* Expanded detail */}
+                  {changesOpen && (
+                    <div style={{ padding: '6px 15px 10px 15px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {/* Forms section */}
+                      {fChanges && (fChanges.added.length + fChanges.removed.length > 0) && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#007bff', marginRight: '4px', whiteSpace: 'nowrap' }}>Forms:</span>
+                          {fChanges.added.map(name => (
+                            <span key={`fa-${name}`} style={{ fontSize: '12px', color: '#28a745', backgroundColor: 'rgba(40,167,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>+{name}</span>
+                          ))}
+                          {fChanges.removed.map(name => (
+                            <span key={`fr-${name}`} style={{ fontSize: '12px', color: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>−{name}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Sparring — base (no alt ring split) */}
+                      {!hasSparringAltSplit && sBase && (sBase.added.length + sBase.removed.length > 0) && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#dc3545', marginRight: '4px', whiteSpace: 'nowrap' }}>Sparring:</span>
+                          {sBase.added.map(name => (
+                            <span key={`sa-${name}`} style={{ fontSize: '12px', color: '#28a745', backgroundColor: 'rgba(40,167,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>+{name}</span>
+                          ))}
+                          {sBase.removed.map(name => (
+                            <span key={`sr-${name}`} style={{ fontSize: '12px', color: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>−{name}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Sparring Alt A */}
+                      {sAltA && (sAltA.added.length + sAltA.removed.length > 0) && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#dc3545', marginRight: '4px', whiteSpace: 'nowrap' }}>Sparring Alt A:</span>
+                          {sAltA.added.map(name => (
+                            <span key={`saa-${name}`} style={{ fontSize: '12px', color: '#28a745', backgroundColor: 'rgba(40,167,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>+{name}</span>
+                          ))}
+                          {sAltA.removed.map(name => (
+                            <span key={`sar-${name}`} style={{ fontSize: '12px', color: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>−{name}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Sparring Alt B */}
+                      {sAltB && (sAltB.added.length + sAltB.removed.length > 0) && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#dc3545', marginRight: '4px', whiteSpace: 'nowrap' }}>Sparring Alt B:</span>
+                          {sAltB.added.map(name => (
+                            <span key={`sba-${name}`} style={{ fontSize: '12px', color: '#28a745', backgroundColor: 'rgba(40,167,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>+{name}</span>
+                          ))}
+                          {sAltB.removed.map(name => (
+                            <span key={`sbr-${name}`} style={{ fontSize: '12px', color: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>−{name}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Content - only show when expanded */}
             {isExpanded && (
