@@ -49,6 +49,7 @@ function RingOverview({}: RingOverviewProps) {
   const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
   const [copySparringFromForms, setCopySparringFromForms] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Partial<Participant>>({});
+  const [preWithdrawState, setPreWithdrawState] = useState<{ competingForms: boolean; competingSparring: boolean } | null>(null);
   const [printing, setPrinting] = useState<string | null>(null);
   const [participantSelectionModal, setParticipantSelectionModal] = useState<{
     ringId: string;
@@ -106,16 +107,19 @@ function RingOverview({}: RingOverviewProps) {
     setOpenQuickEditParticipantId(null);
   }, [openQuickEditParticipantId]);
 
-  // Reset copySparringFromForms and pendingChanges when quickEdit changes
+  // Reset copySparringFromForms, pendingChanges, and preWithdrawState when quickEdit changes
   useEffect(() => {
     if (quickEdit) {
       // Default to checked (true) - copy forms to sparring by default
       setCopySparringFromForms(true);
       // Reset pending changes
       setPendingChanges({});
+      // Reset withdraw state
+      setPreWithdrawState(null);
     } else {
       setCopySparringFromForms(false);
       setPendingChanges({});
+      setPreWithdrawState(null);
     }
   }, [quickEdit]);
 
@@ -1108,12 +1112,87 @@ function RingOverview({}: RingOverviewProps) {
             Quick Edit: {participant.firstName} {participant.lastName}
           </h3>
           
-          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
             <div><strong>Age:</strong> {participant.age} | <strong>Gender:</strong> {participant.gender}</div>
             {participant.heightFeet && (
               <div><strong>Height:</strong> {participant.heightFeet}'{participant.heightInches}"</div>
             )}
           </div>
+
+          {/* Withdraw / Restore row */}
+          {(() => {
+            const isWithdrawn = !currentCompetingForms && !currentCompetingSparring;
+            const handleWithdraw = () => {
+              setPreWithdrawState({
+                competingForms: currentCompetingForms ?? false,
+                competingSparring: currentCompetingSparring ?? false,
+              });
+              updatePending({ competingForms: false, competingSparring: false });
+            };
+            const handleRestoreFromWithdraw = () => {
+              const restore = preWithdrawState ?? { competingForms: true, competingSparring: true };
+              // If pre-withdraw state had both false (edge case), restore to true for both
+              const restoredForms = restore.competingForms;
+              const restoredSparring = restore.competingSparring;
+              updatePending({
+                competingForms: restoredForms || (!restoredForms && !restoredSparring) ? true : restoredForms,
+                competingSparring: restoredSparring || (!restoredForms && !restoredSparring) ? true : restoredSparring,
+              });
+              setPreWithdrawState(null);
+            };
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                {isWithdrawn ? (
+                  <>
+                    <div style={{
+                      padding: '6px 14px',
+                      backgroundColor: '#6c1e1e',
+                      border: '2px solid #dc3545',
+                      borderRadius: '6px',
+                      color: '#ff6b6b',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase' as const,
+                    }}>
+                      ⛔ Withdrawn
+                    </div>
+                    <button
+                      onClick={handleRestoreFromWithdraw}
+                      style={{
+                        padding: '6px 16px',
+                        backgroundColor: 'var(--success-bg)',
+                        border: '1px solid var(--success-border)',
+                        borderRadius: '6px',
+                        color: 'var(--success-text, #28a745)',
+                        fontWeight: '600',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ↩ Restore
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleWithdraw}
+                    style={{
+                      padding: '6px 16px',
+                      backgroundColor: 'transparent',
+                      border: '1px solid #dc3545',
+                      borderRadius: '6px',
+                      color: '#dc3545',
+                      fontWeight: '600',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Withdraw
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Copy from Forms checkbox - at the top */}
           {currentFormsDivision && currentFormsCategoryId && currentFormsPool && (
