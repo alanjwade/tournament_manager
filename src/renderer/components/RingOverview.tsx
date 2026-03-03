@@ -905,10 +905,9 @@ function RingOverview({}: RingOverviewProps) {
       if (updates.formsDivision !== undefined) {
         const value = updates.formsDivision;
         const isWithdrawing = value === null || value === '';
-        updates.competingForms = !isWithdrawing;
-        
-        // Clear category and pool when withdrawing
         if (isWithdrawing) {
+          // Withdrawing always wins — clear assignment and mark not competing
+          updates.competingForms = false;
           // Save current assignment for reinstatement
           updates.lastFormsCategoryId = participant.formsCategoryId;
           updates.lastFormsPool = participant.formsPool;
@@ -916,6 +915,9 @@ function RingOverview({}: RingOverviewProps) {
           updates.formsPool = undefined;
           updates.formsRankOrder = undefined;
           updates.formsDivision = null;
+        } else if (updates.competingForms === undefined) {
+          // Non-withdrawing division change: only infer competing=true if not explicitly set
+          updates.competingForms = true;
         }
       }
       
@@ -923,10 +925,9 @@ function RingOverview({}: RingOverviewProps) {
       if (updates.sparringDivision !== undefined) {
         const value = updates.sparringDivision;
         const isWithdrawing = value === null || value === '';
-        updates.competingSparring = !isWithdrawing;
-        
-        // Clear category and pool when withdrawing
         if (isWithdrawing) {
+          // Withdrawing always wins — clear assignment and mark not competing
+          updates.competingSparring = false;
           // Save current assignment for reinstatement
           updates.lastSparringCategoryId = participant.sparringCategoryId;
           updates.lastSparringPool = participant.sparringPool;
@@ -935,6 +936,9 @@ function RingOverview({}: RingOverviewProps) {
           updates.sparringRankOrder = undefined;
           updates.sparringAltRing = '';
           updates.sparringDivision = null;
+        } else if (updates.competingSparring === undefined) {
+          // Non-withdrawing division change: only infer competing=true if not explicitly set
+          updates.competingSparring = true;
         }
       }
       
@@ -1330,11 +1334,14 @@ function RingOverview({}: RingOverviewProps) {
                     
                     setCopySparringFromForms(isChecked);
                     if (isChecked) {
-                      // Copy forms assignment to sparring
+                      // Copy forms assignment to sparring, converting forms category ID to sparring category ID
                       console.log('[QuickEdit] Updating pending changes to copy forms to sparring');
+                      const sparringCategoryId = currentFormsCategoryId
+                        ? currentFormsCategoryId.replace(/^forms-/, 'sparring-')
+                        : currentFormsCategoryId;
                       updatePending({
                         sparringDivision: currentFormsDivision,
-                        sparringCategoryId: currentFormsCategoryId,
+                        sparringCategoryId: sparringCategoryId,
                         sparringPool: currentFormsPool,
                       });
                     } else {
