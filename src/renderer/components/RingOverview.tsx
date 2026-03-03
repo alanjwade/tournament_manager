@@ -1204,21 +1204,44 @@ function RingOverview({}: RingOverviewProps) {
           {(() => {
             const isWithdrawn = !currentCompetingForms && !currentCompetingSparring;
             const handleWithdraw = () => {
-              setPreWithdrawState({
-                competingForms: currentCompetingForms ?? false,
-                competingSparring: currentCompetingSparring ?? false,
+              const wasCompetingForms = currentCompetingForms ?? false;
+              const wasCompetingSparring = currentCompetingSparring ?? false;
+              setPreWithdrawState({ competingForms: wasCompetingForms, competingSparring: wasCompetingSparring });
+              // Persist pre-withdrawal flags on the participant so Restore works after modal close/reopen
+              updatePending({
+                competingForms: false,
+                competingSparring: false,
+                lastCompetingForms: wasCompetingForms,
+                lastCompetingSparring: wasCompetingSparring,
               });
-              updatePending({ competingForms: false, competingSparring: false });
             };
             const handleRestoreFromWithdraw = () => {
-              const restore = preWithdrawState ?? { competingForms: true, competingSparring: true };
-              // If pre-withdraw state had both false (edge case), restore to true for both
-              const restoredForms = restore.competingForms;
-              const restoredSparring = restore.competingSparring;
-              updatePending({
-                competingForms: restoredForms || (!restoredForms && !restoredSparring) ? true : restoredForms,
-                competingSparring: restoredSparring || (!restoredForms && !restoredSparring) ? true : restoredSparring,
-              });
+              // Prefer same-session preWithdrawState; fall back to values stored on the participant.
+              // Default: restore forms only (never blindly enable sparring the person wasn't competing in).
+              const restoredForms = preWithdrawState?.competingForms
+                ?? participant.lastCompetingForms
+                ?? true;
+              const restoredSparring = preWithdrawState?.competingSparring
+                ?? participant.lastCompetingSparring
+                ?? false;
+
+              const updates: Partial<Participant> = {
+                competingForms: restoredForms,
+                competingSparring: restoredSparring,
+              };
+
+              // If sparring is being restored but has no assignment, and copySparringFromForms
+              // is active with a valid forms assignment, auto-populate sparring from forms.
+              if (restoredSparring && copySparringFromForms
+                && currentFormsDivision && currentFormsCategoryId && currentFormsPool
+                && !currentSparringCategoryId) {
+                const sparringCategoryId = currentFormsCategoryId.replace(/^forms-/, 'sparring-');
+                updates.sparringDivision = currentFormsDivision;
+                updates.sparringCategoryId = sparringCategoryId;
+                updates.sparringPool = currentFormsPool;
+              }
+
+              updatePending(updates);
               setPreWithdrawState(null);
             };
             return (

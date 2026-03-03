@@ -34,7 +34,11 @@ export interface Participant {
   lastFormsPool?: string;
   lastSparringCategoryId?: string;
   lastSparringPool?: string;
-  
+
+  // Pre-withdrawal competing flags (persisted so Restore works after modal close/reopen)
+  lastCompetingForms?: boolean;
+  lastCompetingSparring?: boolean;
+
   // Withdrawal flag
   withdrawn?: boolean;
 }
