@@ -9,6 +9,7 @@ import { reorderAllRings } from '../utils/ringOrdering';
 const ASSIGNMENT_FIELDS: (keyof Participant)[] = [
   'formsCategoryId', 'formsPool', 'competingForms',
   'sparringCategoryId', 'sparringPool', 'competingSparring', 'sparringAltRing',
+  'withdrawn',
 ];
 
 /** Returns true if any participant has a changed ring-assignment field, or a new/removed participant carries ring assignments. */
@@ -324,19 +325,20 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
   withdrawParticipant: (id) => {
     get().pushHistory();
-    set((state) => ({
-      participants: state.participants.map((p) =>
-        p.id === id 
-          ? { 
-              ...p, 
-              withdrawn: true,
-              // Clear rank orders to avoid stale positions when un-withdrawn
-              formsRankOrder: undefined,
-              sparringRankOrder: undefined,
-            }
-          : p
-      ),
-    }));
+    const withdrawnParticipants = get().participants.map((p) =>
+      p.id === id
+        ? {
+            ...p,
+            withdrawn: true,
+            // Clear rank orders to avoid stale positions when un-withdrawn
+            formsRankOrder: undefined,
+            sparringRankOrder: undefined,
+          }
+        : p
+    );
+    const { categories, categoryPoolMappings, customOrderRings } = get();
+    // Reorder remaining participants so pool adjacency is recalculated
+    set({ participants: reorderAllRings(withdrawnParticipants, categories, categoryPoolMappings, new Set(customOrderRings)) });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 

@@ -225,7 +225,10 @@ export function orderFormsRing(
   pool?: string
 ): Participant[] {
   // Filter participants for this ring
+  // Exclude withdrawn participants and those no longer competing in forms,
+  // matching the same logic used by computeCompetitionRings.
   const ringParticipants = participants.filter((p) => {
+    if (p.withdrawn || !p.competingForms) return false;
     const effective = getEffectiveFormsInfo(p);
     // Use effective formsCategoryId and formsPool
     if (pool) {
@@ -284,7 +287,10 @@ export function orderSparringRing(
   pool?: string
 ): Participant[] {
   // Filter participants for this ring
+  // Exclude withdrawn participants and those no longer competing in sparring,
+  // matching the same logic used by computeCompetitionRings.
   const ringParticipants = participants.filter((p) => {
+    if (p.withdrawn || !p.competingSparring) return false;
     const effective = getEffectiveSparringInfo(p);
     // Use effective sparringCategoryId and sparringPool
     if (pool) {
