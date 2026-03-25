@@ -2500,25 +2500,18 @@ function RingOverview({}: RingOverviewProps) {
         </div>
       )}
       
-      {/* Division Filter and Quick Toggle Buttons */}
+      {/* Toolbar */}
       <div style={{ 
         position: 'sticky',
         top: 0,
         zIndex: 100,
         backgroundColor: 'var(--bg-primary)',
-        paddingTop: '10px',
-        paddingBottom: '10px',
         marginBottom: '15px', 
-        display: 'flex', 
-        gap: '15px', 
-        alignItems: 'center', 
-        flexWrap: 'wrap',
         borderBottom: '2px solid var(--border-color)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <label style={{ marginRight: '0px', fontWeight: 'bold' }}>
-            Filter by Division:
-          </label>
+        {/* Row 1: Navigation — always visible */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', padding: '10px 0' }}>
+          {/* Division filter */}
           <select
             value={divisionFilter}
             onChange={(e) => {
@@ -2531,6 +2524,8 @@ function RingOverview({}: RingOverviewProps) {
               fontSize: '14px',
               borderRadius: '4px',
               border: '1px solid var(--input-border)',
+              backgroundColor: 'var(--input-bg)',
+              color: 'var(--text-primary)',
             }}
           >
             <option value="all">All Divisions ({ringPairs.length} rings)</option>
@@ -2543,192 +2538,194 @@ function RingOverview({}: RingOverviewProps) {
               );
             })}
           </select>
-          
-          {/* Quick Overview button */}
-          <button
-            onClick={() => {
-              // Return to division overview (using persisted divisionFilter)
-              setSelectedDivision(divisionFilter);
-            }}
-            style={{
-              padding: '6px 12px',
-              fontSize: '14px',
-              backgroundColor: (selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints') ? '#28a745' : 'var(--bg-secondary)',
-              color: (selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints') ? 'white' : 'var(--text-primary)',
-              border: `2px solid ${(selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints') ? '#28a745' : 'var(--border-color)'}`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-            title="Show all divisions overview"
-          >
-            Overview
-          </button>
 
-          {/* Quick Checkpoints button */}
-          <button
-            onClick={() => setSelectedDivision(selectedDivision === 'checkpoints' ? divisionFilter : 'checkpoints')}
-            style={{
-              padding: '6px 12px',
-              fontSize: '14px',
-              backgroundColor: selectedDivision === 'checkpoints' ? '#007bff' : 'var(--bg-secondary)',
-              color: selectedDivision === 'checkpoints' ? 'white' : 'var(--text-primary)',
-              border: `2px solid ${selectedDivision === 'checkpoints' ? '#007bff' : 'var(--border-color)'}`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-            title="Toggle Checkpoints view"
-          >
-            📋 Checkpoint
-          </button>
-
-          {/* Quick Grand Champion button */}
-          <button
-            onClick={() => setSelectedDivision(selectedDivision === 'grand-champion' ? divisionFilter : 'grand-champion')}
-            style={{
-              padding: '6px 12px',
-              fontSize: '14px',
-              backgroundColor: selectedDivision === 'grand-champion' ? '#ffc107' : 'var(--bg-secondary)',
-              color: selectedDivision === 'grand-champion' ? '#000' : 'var(--text-primary)',
-              border: `2px solid ${selectedDivision === 'grand-champion' ? '#ffc107' : 'var(--border-color)'}`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-            title="Toggle Grand Champion view"
-          >
-            ⭐ GC
-          </button>
-
-          {/* Tournament Assistant Help button */}
-          <button
-            onClick={() => setShowAssistant(true)}
-            style={{
-              padding: '6px 12px',
-              fontSize: '14px',
-              backgroundColor: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              border: '2px solid var(--border-color)',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-            title="Tournament day how-to guide"
-          >
-            ❓ Help
-          </button>
-
-          {/* Collapse/Expand all buttons - only show in regular division view */}
-          {selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && (
-            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', alignItems: 'center' }}>
-              <button
-                onClick={handleCollapseAll}
-                disabled={expandedRings.size === 0}
-                style={{
-                  padding: '6px 12px',
-                  backgroundColor: expandedRings.size > 0 ? '#6c757d' : '#e0e0e0',
-                  color: expandedRings.size > 0 ? 'white' : '#999',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: expandedRings.size > 0 ? 'pointer' : 'not-allowed',
-                  fontSize: '13px',
-                }}
-              >
-                Collapse All
-              </button>
-              <button
-                onClick={handleExpandAll}
-                disabled={expandedRings.size === filteredRingPairs.length}
-                style={{
-                  padding: '6px 12px',
-                  backgroundColor: expandedRings.size < filteredRingPairs.length ? '#6c757d' : '#e0e0e0',
-                  color: expandedRings.size < filteredRingPairs.length ? 'white' : '#999',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: expandedRings.size < filteredRingPairs.length ? 'pointer' : 'not-allowed',
-                  fontSize: '13px',
-                }}
-              >
-                Expand All
-              </button>
-
-              {/* Sort By toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Sort by:</span>
-                {(['ring', 'group', 'category'] as const).map((mode) => {
-                  const labels: Record<string, string> = { ring: 'Ring', group: 'Group First', category: 'Category' };
-                  const active = ringSort === mode;
-                  return (
-                    <button
-                      key={mode}
-                      onClick={() => setRingSort(mode)}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: '12px',
-                        backgroundColor: active ? '#007bff' : 'var(--bg-secondary)',
-                        color: active ? 'white' : 'var(--text-primary)',
-                        border: `1px solid ${active ? '#007bff' : 'var(--border-color)'}`,
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: active ? '600' : '400',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {labels[mode]}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Print All Changed button - only show when there are changes */}
-              {checkpoints.length > 0 && changedRingsCounts.total > 0 && (
+          {/* Segmented view switcher */}
+          <div style={{ display: 'flex' }}>
+            {/* Overview segment */}
+            {(() => {
+              const isActive = selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints';
+              return (
                 <button
-                  onClick={handlePrintAllChanged}
-                  disabled={printing === 'all-changed'}
+                  onClick={() => setSelectedDivision(divisionFilter)}
+                  title="Show ring overview"
                   style={{
                     padding: '6px 14px',
-                    backgroundColor: '#ffc107',
-                    color: '#000',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: printing === 'all-changed' ? 'not-allowed' : 'pointer',
-                    fontSize: '13px',
-                    fontWeight: '600',
+                    fontSize: '14px',
+                    fontWeight: isActive ? 'bold' : '500',
+                    backgroundColor: isActive ? '#28a745' : 'var(--bg-secondary)',
+                    color: isActive ? 'white' : 'var(--text-primary)',
+                    border: '1px solid var(--input-border)',
+                    borderRight: 'none',
+                    borderRadius: '4px 0 0 4px',
+                    cursor: 'pointer',
                     whiteSpace: 'nowrap',
-                    opacity: printing === 'all-changed' ? 0.6 : 1,
                   }}
-                  title={`Print all ${changedRingsCounts.total} changed ring(s)`}
                 >
-                  {printing === 'all-changed' ? '⏳ Printing...' : `🖨️ Print Changed (${changedRingsCounts.total})`}
+                  Overview
                 </button>
-              )}
+              );
+            })()}
+            {/* Checkpoints segment */}
+            {(() => {
+              const isActive = selectedDivision === 'checkpoints';
+              return (
+                <button
+                  onClick={() => setSelectedDivision(isActive ? divisionFilter : 'checkpoints')}
+                  title="Show checkpoints"
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '14px',
+                    fontWeight: isActive ? 'bold' : '500',
+                    backgroundColor: isActive ? '#007bff' : 'var(--bg-secondary)',
+                    color: isActive ? 'white' : 'var(--text-primary)',
+                    border: '1px solid var(--input-border)',
+                    borderRight: 'none',
+                    borderRadius: '0',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  📋 Checkpoints
+                </button>
+              );
+            })()}
+            {/* Grand Champion segment */}
+            {(() => {
+              const isActive = selectedDivision === 'grand-champion';
+              return (
+                <button
+                  onClick={() => setSelectedDivision(isActive ? divisionFilter : 'grand-champion')}
+                  title="Show Grand Champion rings"
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '14px',
+                    fontWeight: isActive ? 'bold' : '500',
+                    backgroundColor: isActive ? '#ffc107' : 'var(--bg-secondary)',
+                    color: isActive ? '#000' : 'var(--text-primary)',
+                    border: '1px solid var(--input-border)',
+                    borderRadius: '0 4px 4px 0',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  ⭐ GC
+                </button>
+              );
+            })()}
+          </div>
 
-              {/* Set Baseline button - always visible; creates a checkpoint to reset change indicators */}
-              <button
-                onClick={() => {
-                  const now = new Date();
-                  const label = `Baseline ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                  createCheckpoint(label);
-                }}
-                style={{
-                  padding: '6px 14px',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  whiteSpace: 'nowrap',
-                }}
-                title="Save current state as a new baseline checkpoint — change indicators will reset"
-              >
-                📍 Set Baseline
-              </button>
-            </div>
-          )}
+          {/* Help — icon only */}
+          <button
+            onClick={() => setShowAssistant(true)}
+            title="Tournament day how-to guide"
+            style={{
+              padding: '6px 10px',
+              fontSize: '15px',
+              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--input-border)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              lineHeight: 1,
+            }}
+          >
+            ❓
+          </button>
         </div>
+
+        {/* Row 2: Tools — only visible in Overview mode */}
+        {selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && (
+          <div style={{
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            padding: '8px 0 10px 0',
+            borderTop: '1px solid var(--border-color)',
+          }}>
+            {/* Sort by — compact dropdown */}
+            <select
+              value={ringSort}
+              onChange={(e) => setRingSort(e.target.value as 'ring' | 'group' | 'category')}
+              style={{
+                padding: '5px 8px',
+                fontSize: '13px',
+                borderRadius: '4px',
+                border: '1px solid var(--input-border)',
+                backgroundColor: 'var(--input-bg)',
+                color: 'var(--text-primary)',
+              }}
+              title="Sort rings"
+            >
+              <option value="ring">Sort: Ring</option>
+              <option value="group">Sort: Group First</option>
+              <option value="category">Sort: Category</option>
+            </select>
+
+            {/* Collapse / Expand toggle */}
+            <button
+              onClick={expandedRings.size > 0 ? handleCollapseAll : handleExpandAll}
+              style={{
+                padding: '5px 12px',
+                fontSize: '13px',
+                backgroundColor: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--input-border)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+              title={expandedRings.size > 0 ? 'Collapse all rings' : 'Expand all rings'}
+            >
+              {expandedRings.size > 0 ? '⊟ Collapse All' : '⊞ Expand All'}
+            </button>
+
+            {/* Set Baseline — subdued, right-side action */}
+            <button
+              onClick={() => {
+                const now = new Date();
+                const label = `Baseline ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                createCheckpoint(label);
+              }}
+              style={{
+                padding: '5px 12px',
+                fontSize: '13px',
+                backgroundColor: 'transparent',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+              title="Save current state as a new baseline checkpoint — change indicators will reset"
+            >
+              📍 Set Baseline
+            </button>
+
+            {/* Print Changed — only appears when there are changes */}
+            {checkpoints.length > 0 && changedRingsCounts.total > 0 && (
+              <button
+                onClick={handlePrintAllChanged}
+                disabled={printing === 'all-changed'}
+                title={`Print all ${changedRingsCounts.total} changed ring(s)`}
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  backgroundColor: '#ffc107',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: printing === 'all-changed' ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  opacity: printing === 'all-changed' ? 0.6 : 1,
+                }}
+              >
+                {printing === 'all-changed' ? '⏳ Printing...' : `🖨️ Print Changed (${changedRingsCounts.total})`}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
 
