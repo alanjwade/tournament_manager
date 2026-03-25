@@ -11,6 +11,7 @@ import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket
 import { Participant, CompetitionRing, CustomRing } from '../types/tournament';
 import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
+import TournamentAssistantDialog from './TournamentAssistantDialog';
 
 interface RingPair {
   categoryPoolName: string;
@@ -67,6 +68,7 @@ function RingOverview({}: RingOverviewProps) {
   const [expandedRings, setExpandedRings] = useState<Set<string>>(new Set());
   const [ringSort, setRingSort] = useState<'ring' | 'group' | 'category'>('ring');
   const [expandedRingChanges, setExpandedRingChanges] = useState<Set<string>>(new Set());
+  const [showAssistant, setShowAssistant] = useState(false);
   
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
@@ -2339,6 +2341,12 @@ function RingOverview({}: RingOverviewProps) {
       {/* Quick Edit Modal — portaled to document.body so it shows over any active tab */}
       {quickEdit ? ReactDOM.createPortal(renderQuickEditModal()!, document.body) : null}
       
+      {/* Tournament Day Assistant */}
+      <TournamentAssistantDialog
+        isOpen={showAssistant}
+        onClose={() => setShowAssistant(false)}
+      />
+
       {/* Participant Selection Modal */}
       {participantSelectionModal && (
         <ParticipantSelectionModal
@@ -2591,6 +2599,24 @@ function RingOverview({}: RingOverviewProps) {
             title="Toggle Grand Champion view"
           >
             ⭐ GC
+          </button>
+
+          {/* Tournament Assistant Help button */}
+          <button
+            onClick={() => setShowAssistant(true)}
+            style={{
+              padding: '6px 12px',
+              fontSize: '14px',
+              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+              border: '2px solid var(--border-color)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Tournament day how-to guide"
+          >
+            ❓ Help
           </button>
 
           {/* Collapse/Expand all buttons - only show in regular division view */}
