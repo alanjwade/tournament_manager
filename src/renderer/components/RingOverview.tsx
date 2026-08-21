@@ -2645,7 +2645,6 @@ function RingOverview({}: RingOverviewProps) {
                 padding="5px 12px"
                 fontWeight="600"
                 labelSuffix={` (${changedRingsCounts.total})`}
-                storageKey="tournament-print-mode-all"
               />
             )}
           </div>
@@ -3111,7 +3110,6 @@ function RingOverview({}: RingOverviewProps) {
                 fontSize={14}
                 padding="8px 16px"
                 fontWeight="600"
-                storageKey="tournament-print-mode-all"
               />
             </div>
           )}

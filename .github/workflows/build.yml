@@ -68,3 +68,20 @@ jobs:
             Data persists across updates and can be exported/imported as needed.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Keep only the 10 latest releases
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # List releases newest-first, ignore drafts, and delete everything
+          # beyond the 10 most recent. Git tags are preserved so nothing is lost.
+          gh release list --limit 100 --json tagName,draft \
+            --jq '.[] | select(.draft == false) | .tagName' \
+            | tail -n +11 \
+            | while IFS= read -r tag; do
+                echo "Deleting old release: $tag"
+                gh release delete "$tag" --yes --cleanup-tag=false || true
+              done

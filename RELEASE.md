@@ -14,6 +14,7 @@
    - Build the Windows installer
    - Create a GitHub release
    - Upload the installer as a release asset
+   - Delete older releases beyond the 10 most recent (git tags are kept)
 
 3. Users can then download from the Releases page
 

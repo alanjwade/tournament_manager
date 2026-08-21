@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PrintMode, PRINT_MODE_LABELS } from '../utils/printPdf';
+import { getPrintMode, setPrintMode, subscribePrintMode } from '../utils/printModeStore';
 
 /**
  * A split "print" button used across the Tournament tab.
@@ -7,7 +8,8 @@ import { PrintMode, PRINT_MODE_LABELS } from '../utils/printPdf';
  * - The main button carries the label of the currently selected action
  *   ('Print...' for the print dialog, or 'Print Now' for a silent print).
  * - A caret dropdown on the right lets the user pick between the two actions.
- * - The selected action is remembered in localStorage so it persists.
+ * - All print buttons share a single app-wide mode (persisted in localStorage),
+ *   so changing one updates every button currently on screen in unison.
  */
 interface PrintButtonProps {
   /** Invoked when the main button is pressed, with the selected print mode. */
@@ -15,8 +17,6 @@ interface PrintButtonProps {
   disabled?: boolean;
   /** Tooltip for the whole control. */
   title?: string;
-  /** Optional storage key used to remember the selected mode (defaults to a shared key). */
-  storageKey?: string;
   /** Background color of the buttons. */
   color?: string;
   /** Text color of the buttons. */
@@ -38,7 +38,6 @@ function PrintButton({
   onPrint,
   disabled = false,
   title,
-  storageKey = 'tournament-print-mode',
   color = DEFAULT_COLOR,
   textColor = '#ffffff',
   fontSize = 13,
@@ -48,17 +47,14 @@ function PrintButton({
   labelSuffix = '',
   style,
 }: PrintButtonProps) {
-  const [mode, setMode] = useState<PrintMode>(() => {
-    const saved = localStorage.getItem(storageKey) as PrintMode | null;
-    return saved === 'dialog' || saved === 'now' ? saved : 'dialog';
-  });
+  const [mode, setMode] = useState<PrintMode>(getPrintMode);
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Persist the chosen mode.
+  // Keep this button in sync with the shared, app-wide print mode.
   useEffect(() => {
-    localStorage.setItem(storageKey, mode);
-  }, [mode, storageKey]);
+    return subscribePrintMode(setMode);
+  }, []);
 
   // Close the dropdown when clicking outside.
   useEffect(() => {
@@ -72,7 +68,7 @@ function PrintButton({
   }, []);
 
   const selectMode = (next: PrintMode) => {
-    setMode(next);
+    setPrintMode(next);
     setMenuOpen(false);
   };
 
