@@ -276,6 +276,74 @@ ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint
   }
 });
 
+// Silent print ("Print Now"): print an HTML document (containing images only)
+// to the default/last-used printer without showing the print dialog.
+//
+// The renderer rasterizes each PDF page to an image with pdfjs-dist and sends
+// a self-contained HTML page of those images. Printing plain HTML is reliable
+// in silent mode — unlike silently printing a PDF through Chromium's built-in
+// PDF viewer, which frequently produces a solid black page. Because the HTML
+// references no external resources, we can load it from a data URL in a hidden
+// window and print without any visible window or dialogs.
+ipcMain.handle('print-html', async (_event, html: string) => {
+  let win: BrowserWindow | null = null;
+
+  try {
+    win = new BrowserWindow({
+      show: false,
+      width: 612,
+      height: 792,
+      webPreferences: {
+        sandbox: true,
+      },
+    });
+
+    if (html.startsWith('data:')) {
+      await win.loadURL(html);
+    } else {
+      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    }
+
+    // Wait for the (inline) images to finish decoding so they are definitely
+    // available to the print capture.
+    await win.webContents.executeJavaScript(
+      `new Promise((resolve) => {
+        const imgs = Array.from(document.images);
+        if (imgs.length === 0) return resolve(true);
+        let pending = imgs.length;
+        const done = () => { if (--pending === 0) resolve(true); };
+        imgs.forEach((img) => {
+          if (img.complete && img.naturalWidth > 0) return done();
+          img.addEventListener('load', done, { once: true });
+          img.addEventListener('error', done, { once: true });
+        });
+      })`
+    );
+
+    return await new Promise<{ success: boolean; error?: string }>((resolve) => {
+      win!.webContents.print(
+        { silent: true, printBackground: true },
+        (success, failureReason) => {
+          resolve(
+            success
+              ? { success: true }
+              : { success: false, error: failureReason || 'Unknown print error' }
+          );
+        }
+      );
+    });
+  } catch (error) {
+    console.error('Error printing HTML:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    if (win) {
+      win.destroy();
+      win = null;
+    }
+  }
+});
+
+
 ipcMain.handle('get-file-locations', async () => {
   const dataPath = getDataPath();
   const backupDir = getBackupDir();
@@ -627,6 +695,14 @@ function createMenu() {
           click: () => {
             if (mainWindow) {
               mainWindow.webContents.send('show-help', 'quick-reference');
+            }
+          }
+        },
+        {
+          label: 'Day-Of Scenarios',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('show-help', 'day-of-reference');
             }
           }
         },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTournamentStore } from './store/tournamentStore';
 import { getEffectiveDivision } from './utils/excelParser';
 import { computeCompetitionRings } from './utils/computeRings';
@@ -15,7 +15,7 @@ import CheckpointManager from './components/CheckpointManager';
 import AddParticipantModal from './components/AddParticipantModal';
 import AboutDialog from './components/AboutDialog';
 import UpdateChecker from './components/UpdateChecker';
-import HelpDialog, { HelpTopic } from './components/HelpDialog';
+import HelpDialog, { HelpTopic, helpTopics } from './components/HelpDialog';
 
 type Tab = 'dashboard' | 'import' | 'configuration' | 'categories' | 'editor' | 'tournament' | 'ringmap' | 'export' | 'checkpoints';
 type Theme = 'light' | 'dark';
@@ -28,6 +28,9 @@ function App() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isUpdateCheckerOpen, setIsUpdateCheckerOpen] = useState(false);
   const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
+  const [helpMenuOpen, setHelpMenuOpen] = useState(false);
+  const [hoveredHelpTopic, setHoveredHelpTopic] = useState<string | null>(null);
+  const helpMenuRef = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<Theme>(() => {
     // Default to dark theme, but check localStorage for user preference
     const savedTheme = localStorage.getItem('tournament-theme') as Theme;
@@ -84,6 +87,18 @@ function App() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo]);
+
+  // Close help menu when clicking outside
+  useEffect(() => {
+    if (!helpMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (helpMenuRef.current && !helpMenuRef.current.contains(e.target as Node)) {
+        setHelpMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [helpMenuOpen]);
 
   // Search results
   const searchResults = useMemo(() => {
@@ -490,6 +505,72 @@ function App() {
           >
             {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
+
+          {/* Help Button */}
+          <div ref={helpMenuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setHelpMenuOpen(prev => !prev)}
+              style={{
+                padding: '8px 12px',
+                fontSize: '14px',
+                borderRadius: '4px',
+                border: '1px solid var(--border-color)',
+                backgroundColor: helpMenuOpen ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                color: helpMenuOpen ? '#fff' : 'var(--text-primary)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                lineHeight: 1,
+              }}
+              title="Help"
+              aria-label="Help"
+            >
+              ?
+            </button>
+            {helpMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  right: 0,
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  zIndex: 1100,
+                  minWidth: '180px',
+                  overflow: 'hidden',
+                }}
+              >
+                {helpTopics.map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => {
+                      setHelpTopic(t.key as HelpTopic);
+                      setHelpMenuOpen(false);
+                    }}
+                    onMouseEnter={() => setHoveredHelpTopic(t.key)}
+                    onMouseLeave={() => setHoveredHelpTopic(null)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '0.55rem 1rem',
+                      textAlign: 'left',
+                      backgroundColor: hoveredHelpTopic === t.key ? 'var(--bg-hover)' : 'transparent',
+                      border: 'none',
+                      borderBottom: '1px solid var(--border-color)',
+                      cursor: 'pointer',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      WebkitAppearance: 'none' as const,
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

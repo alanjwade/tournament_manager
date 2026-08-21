@@ -1,6 +1,7 @@
 export interface ElectronAPI {
   selectFile: () => Promise<{ path: string; data: number[] } | null>;
   savePDF: (data: { fileName: string; data: Uint8Array; outputDirectory?: string }) => Promise<{ success: boolean; path?: string; error?: string }>;
+  printHTML: (html: string) => Promise<{ success: boolean; error?: string }>;
   selectImage: () => Promise<{ path: string; data: number[] } | null>;
   selectDirectory: () => Promise<string | null>;
   openDirectory: (directoryPath: string) => Promise<{ success: boolean; error?: string }>;

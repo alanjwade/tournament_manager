@@ -8,6 +8,8 @@ import { formatPoolNameForDisplay, formatPoolOnly, isRingAffected, isRingAffecte
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
+import { printPdf, PrintMode } from '../utils/printPdf';
+import PrintButton from './PrintButton';
 import { Participant, CompetitionRing, CustomRing } from '../types/tournament';
 import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
@@ -153,7 +155,7 @@ function RingOverview({}: RingOverviewProps) {
     setNewCheckpointName('');
   };
 
-  const handlePrintGCRing = async (ring: CustomRing, ringParticipants: Participant[]) => {
+  const handlePrintGCRing = async (ring: CustomRing, ringParticipants: Participant[], mode: PrintMode) => {
     setPrinting(ring.id);
     try {
       // Create participants with rank order set based on position in ring
@@ -200,21 +202,7 @@ function RingOverview({}: RingOverviewProps) {
             true // isCustomRing
           );
       
-      const pdfBlob = pdf.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      const printWindow = window.open(pdfUrl);
-      if (printWindow) {
-        await new Promise<void>(resolve => {
-          printWindow.addEventListener('load', () => {
-            printWindow.addEventListener('afterprint', () => printWindow.close());
-            printWindow.print();
-            setTimeout(() => {
-              URL.revokeObjectURL(pdfUrl);
-              resolve();
-            }, 500);
-          });
-        });
-      }
+      await printPdf(pdf, mode);
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -222,7 +210,7 @@ function RingOverview({}: RingOverviewProps) {
     }
   };
 
-  const handlePrintSingleRing = async (ring: CompetitionRing, type: 'forms' | 'sparring', division: string) => {
+  const handlePrintSingleRing = async (ring: CompetitionRing, type: 'forms' | 'sparring', division: string, mode: PrintMode) => {
     setPrinting(`${ring.id}-${type}`);
     try {
       const pdf = type === 'forms'
@@ -247,21 +235,7 @@ function RingOverview({}: RingOverviewProps) {
             physicalRingMappings
           );
       
-      const pdfBlob = pdf.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      const printWindow = window.open(pdfUrl);
-      if (printWindow) {
-        await new Promise<void>(resolve => {
-          printWindow.addEventListener('load', () => {
-            printWindow.addEventListener('afterprint', () => printWindow.close());
-            printWindow.print();
-            setTimeout(() => {
-              URL.revokeObjectURL(pdfUrl);
-              resolve();
-            }, 500);
-          });
-        });
-      }
+      await printPdf(pdf, mode);
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -324,7 +298,7 @@ function RingOverview({}: RingOverviewProps) {
   };
 
   // Print all changed rings combined into one PDF
-  const handlePrintAllChanged = async () => {
+  const handlePrintAllChanged = async (mode: PrintMode) => {
     if (changedRingsCounts.total === 0) {
       alert('No rings have changed since the last checkpoint.');
       return;
@@ -432,23 +406,8 @@ function RingOverview({}: RingOverviewProps) {
         masterPdf.deletePage(masterPdf.getNumberOfPages());
       }
 
-      // Open the combined PDF in a single print dialog
-      const pdfBlob = masterPdf.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      const printWindow = window.open(pdfUrl);
-      if (printWindow) {
-        await new Promise<void>(resolve => {
-          printWindow.addEventListener('load', () => {
-            printWindow.print();
-            setTimeout(() => {
-              URL.revokeObjectURL(pdfUrl);
-              resolve();
-            }, 500);
-          });
-        });
-      } else {
-        URL.revokeObjectURL(pdfUrl);
-      }
+      // Print/export the combined PDF using the requested mode
+      await printPdf(masterPdf, mode);
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -1347,13 +1306,15 @@ function RingOverview({}: RingOverviewProps) {
                         sparringPool: currentFormsPool,
                       });
                     } else {
-                      // Unchecking - decouple sparring from forms by clearing the values
-                      console.log('[QuickEdit] Checkbox unchecked - decoupling sparring from forms');
-                      updatePending({
-                        sparringDivision: null,
-                        sparringCategoryId: undefined,
-                        sparringPool: undefined,
-                      });
+                      // Unchecking: if competing in sparring, keep existing (forms-derived) values
+                      // so the user can edit them independently. Only clear if not competing.
+                      if (!currentCompetingSparring) {
+                        updatePending({
+                          sparringDivision: null,
+                          sparringCategoryId: undefined,
+                          sparringPool: undefined,
+                        });
+                      }
                     }
                   }}
                   style={{ marginRight: '8px' }}
@@ -1925,23 +1886,13 @@ function RingOverview({}: RingOverviewProps) {
                   Alt Ring A ({participantsA.length} participants)
                 </h6>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => handlePrintSingleRing(ring, 'sparring', category?.division || 'Unknown')}
+                  <PrintButton
+                    onPrint={(mode) => handlePrintSingleRing(ring, 'sparring', category?.division || 'Unknown', mode)}
                     disabled={printing !== null}
-                    style={{
-                      padding: '4px 12px',
-                      fontSize: '12px',
-                      backgroundColor: '#17a2b8',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: printing !== null ? 'not-allowed' : 'pointer',
-                      opacity: printing !== null ? 0.6 : 1,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    🖨️ Print
-                  </button>
+                    color="#17a2b8"
+                    fontSize={12}
+                    padding="4px 12px"
+                  />
                   <label
                     style={{
                       display: 'flex',
@@ -2051,23 +2002,13 @@ function RingOverview({}: RingOverviewProps) {
                   Alt Ring B ({participantsB.length} participants)
                 </h6>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => handlePrintSingleRing(ring, 'sparring', category?.division || 'Unknown')}
+                  <PrintButton
+                    onPrint={(mode) => handlePrintSingleRing(ring, 'sparring', category?.division || 'Unknown', mode)}
                     disabled={printing !== null}
-                    style={{
-                      padding: '4px 12px',
-                      fontSize: '12px',
-                      backgroundColor: '#17a2b8',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: printing !== null ? 'not-allowed' : 'pointer',
-                      opacity: printing !== null ? 0.6 : 1,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    🖨️ Print
-                  </button>
+                    color="#17a2b8"
+                    fontSize={12}
+                    padding="4px 12px"
+                  />
                   <label
                     style={{
                       display: 'flex',
@@ -2190,23 +2131,13 @@ function RingOverview({}: RingOverviewProps) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => handlePrintSingleRing(ring, type, category?.division || 'Unknown')}
+            <PrintButton
+              onPrint={(mode) => handlePrintSingleRing(ring, type, category?.division || 'Unknown', mode)}
               disabled={printing !== null}
-              style={{
-                padding: '4px 12px',
-                fontSize: '12px',
-                backgroundColor: '#17a2b8',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: printing !== null ? 'not-allowed' : 'pointer',
-                opacity: printing !== null ? 0.6 : 1,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              🖨️ Print
-            </button>
+              color="#17a2b8"
+              fontSize={12}
+              padding="4px 12px"
+            />
             <label
               style={{
                 display: 'flex',
@@ -2704,25 +2635,18 @@ function RingOverview({}: RingOverviewProps) {
 
             {/* Print Changed — only appears when there are changes */}
             {checkpoints.length > 0 && changedRingsCounts.total > 0 && (
-              <button
-                onClick={handlePrintAllChanged}
+              <PrintButton
+                onPrint={(mode) => handlePrintAllChanged(mode)}
                 disabled={printing === 'all-changed'}
                 title={`Print all ${changedRingsCounts.total} changed ring(s)`}
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  backgroundColor: '#ffc107',
-                  color: '#000',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: printing === 'all-changed' ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap',
-                  opacity: printing === 'all-changed' ? 0.6 : 1,
-                }}
-              >
-                {printing === 'all-changed' ? '⏳ Printing...' : `🖨️ Print Changed (${changedRingsCounts.total})`}
-              </button>
+                color="#ffc107"
+                textColor="#000"
+                fontSize={13}
+                padding="5px 12px"
+                fontWeight="600"
+                labelSuffix={` (${changedRingsCounts.total})`}
+                storageKey="tournament-print-mode-all"
+              />
             )}
           </div>
         )}
@@ -2916,20 +2840,12 @@ function RingOverview({}: RingOverviewProps) {
                           >
                             ✏️ Edit
                           </button>
-                          <button
-                            onClick={() => handlePrintGCRing(ring, ringParticipants)}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#17a2b8',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                            }}
-                          >
-                            🖨️ Print
-                          </button>
+                          <PrintButton
+                            onPrint={(mode) => handlePrintGCRing(ring, ringParticipants, mode)}
+                            color="#17a2b8"
+                            fontSize={13}
+                            padding="6px 12px"
+                          />
                           <button
                             onClick={() => setParticipantSelectionModal({ ringId: ring.id })}
                             style={{
@@ -3183,25 +3099,20 @@ function RingOverview({}: RingOverviewProps) {
                   Print updated PDFs for rings that have been modified.
                 </p>
               </div>
-              <button
-                onClick={() => {
+              <PrintButton
+                onPrint={(mode) => {
                   if (changedRings.size > 0) {
-                    handlePrintAllChanged();
+                    handlePrintAllChanged(mode);
                   }
                 }}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#ffc107',
-                  color: '#000',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                }}
-              >
-                🖨️ Print All Changed Rings
-              </button>
+                disabled={changedRings.size === 0}
+                color="#ffc107"
+                textColor="#000"
+                fontSize={14}
+                padding="8px 16px"
+                fontWeight="600"
+                storageKey="tournament-print-mode-all"
+              />
             </div>
           )}
 

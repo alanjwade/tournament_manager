@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export type HelpTopic = 'overview' | 'pre-tournament' | 'tournament-day' | 'quick-reference';
+export type HelpTopic = 'overview' | 'pre-tournament' | 'tournament-day' | 'quick-reference' | 'day-of-reference';
 
 interface HelpDialogProps {
   isOpen: boolean;
@@ -8,11 +8,12 @@ interface HelpDialogProps {
   onClose: () => void;
 }
 
-const topics: { key: HelpTopic; label: string }[] = [
+export const helpTopics: { key: HelpTopic; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'pre-tournament', label: 'Pre-Tournament Guide' },
   { key: 'tournament-day', label: 'Tournament Day' },
   { key: 'quick-reference', label: 'Quick Reference' },
+  { key: 'day-of-reference', label: 'Day-Of Scenarios' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -229,95 +230,383 @@ function TournamentDayGuide() {
 function QuickReference() {
   return (
     <div>
-      <h3 style={{ marginTop: 0 }}>Quick Reference</h3>
-      <p>Common operations at a glance.</p>
+      {/* Header row with title + print button */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+        <div>
+          <h3 style={{ marginTop: 0, marginBottom: '0.2rem' }}>Quick Reference</h3>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+            Common setup and administrative operations.
+          </p>
+        </div>
+        <button
+          onClick={printQuickReferenceCookbook}
+          style={{
+            padding: '0.4rem 0.85rem',
+            fontSize: '0.85rem',
+            borderRadius: '4px',
+            border: '1px solid var(--border-color)',
+            backgroundColor: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            marginLeft: '1rem',
+          }}
+          title="Open a printable 1-page cookbook of this reference"
+        >
+          🖨 Print Cookbook
+        </button>
+      </div>
 
-      <h4>Adding a Participant</h4>
-      <p>Click <strong>+ Add Participant</strong> in the app header or use the Dashboard quick action.</p>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Adding a Walk-In Participant</p>
+        <p style={{ margin: '0 0 0.3rem' }}>
+          Click <strong>+ Add Participant</strong> in the app header (or use the Dashboard quick action).
+        </p>
+        <ul style={qrListStyle}>
+          <li style={qrListItemStyle}>After adding, open the <strong>Editor</strong> tab to assign their category and pool.</li>
+          <li style={qrListItemStyle}>Re-order the affected ring in <strong>Ring Map</strong>.</li>
+        </ul>
+      </div>
 
-      <h4>Re-Ordering a Forms Ring</h4>
-      <ul>
-        <li>Go to <strong>Ring Map</strong>.</li>
-        <li>Select the forms pool.</li>
-        <li>Click <strong>Order Forms Ring</strong>.</li>
-      </ul>
-      <p>This is safe to re-run and won't affect other data.</p>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Re-Order a Forms Ring</p>
+        <ol style={qrListStyle}>
+          <li style={qrListItemStyle}>Go to <strong>Ring Map</strong>.</li>
+          <li style={qrListItemStyle}>Select the forms pool from the list.</li>
+          <li style={qrListItemStyle}>Click <strong>Order Forms Ring</strong>.</li>
+        </ol>
+        <p style={{ margin: '0.2rem 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+          Safe to re-run — interleaves schools so same-school competitors don't compete back-to-back.
+        </p>
+      </div>
 
-      <h4>Re-Ordering a Sparring Ring</h4>
-      <ul>
-        <li>Go to <strong>Ring Map</strong>.</li>
-        <li>Select the sparring pool.</li>
-        <li>Click <strong>Order Sparring Ring</strong>.</li>
-      </ul>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Re-Order a Sparring Ring</p>
+        <ol style={qrListStyle}>
+          <li style={qrListItemStyle}>Go to <strong>Ring Map</strong>.</li>
+          <li style={qrListItemStyle}>Select the sparring pool.</li>
+          <li style={qrListItemStyle}>Click <strong>Order Sparring Ring</strong>.</li>
+        </ol>
+        <p style={{ margin: '0.2rem 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+          Sorts by height for fair bracket seeding.
+        </p>
+      </div>
 
-      <h4>Manual Rank Ordering</h4>
-      <p>
-        Use the <strong>Up</strong> and <strong>Down</strong> arrow buttons to adjust a competitor's rank order position.
-        Click the up arrow to move them higher in rank, or the down arrow to move them lower. Changes are saved automatically.
-      </p>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Fine-Tune Competitor Order</p>
+        <p style={{ margin: '0 0 0.25rem' }}>
+          In <strong>Ring Map</strong>, use the <strong>▲ Up</strong> and <strong>▼ Down</strong> arrow
+          buttons next to each competitor to adjust their position. Changes save automatically.
+        </p>
+      </div>
 
-      <h4>Saving &amp; Restoring Data</h4>
-      <ul>
-        <li><strong>Autosave</strong> — The app automatically saves your state periodically and on close.</li>
-        <li><strong>Checkpoints</strong> — Create named snapshots on the Checkpoints tab. Restore any time.</li>
-        <li><strong>Backups</strong> — Automatic backups are kept for 12 hours in your data directory.</li>
-      </ul>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Generate PDFs</p>
+        <p style={{ margin: '0 0 0.35rem' }}>Go to the <strong>Export</strong> tab and choose what to generate:</p>
+        <table style={{ ...tableStyle, fontSize: '0.875rem', marginBottom: 0 }}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Document</th>
+              <th style={thStyle}>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style={tdStyle}>Name Tags</td><td style={tdStyle}>2×4 grid per page, ring color coded</td></tr>
+            <tr><td style={tdStyle}>Check-In Sheets</td><td style={tdStyle}>Per division, alphabetical with checkboxes</td></tr>
+            <tr><td style={tdStyle}>Forms Scoring</td><td style={tdStyle}>Per forms ring with judge score columns</td></tr>
+            <tr><td style={tdStyle}>Sparring Brackets</td><td style={tdStyle}>16-person bracket per ring, seeded by height</td></tr>
+            <tr><td style={{ ...tdStyle, borderBottom: 'none' }}>Blank Forms / Brackets</td><td style={{ ...tdStyle, borderBottom: 'none' }}>Blank sheets for manual use (see Export tab)</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-      <h4>Generating PDFs</h4>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>Document</th>
-            <th style={thStyle}>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td style={tdStyle}>Name Tags</td><td style={tdStyle}>2×4 grid per page with name, division, school, ring color</td></tr>
-          <tr><td style={tdStyle}>Check-In Sheets</td><td style={tdStyle}>One per division, sorted alphabetically with a check box</td></tr>
-          <tr><td style={tdStyle}>Forms Scoring Sheets</td><td style={tdStyle}>One per forms ring with judge score columns and placements</td></tr>
-          <tr><td style={tdStyle}>Sparring Brackets</td><td style={tdStyle}>16-person bracket per sparring ring, seeded by height</td></tr>
-        </tbody>
-      </table>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Print Blank Scoring Sheets</p>
+        <p style={{ margin: 0 }}>
+          Go to <strong>Export</strong> → scroll to <strong>Blank Scoring Sheets</strong> at the bottom.
+          Click <em>Export Blank Forms Sheet</em> or <em>Export Blank Sparring Bracket</em> for
+          unmarked, reusable sheets.
+        </p>
+      </div>
 
-      <h4>Category Design Tips</h4>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>Age Group</th>
-            <th style={thStyle}>Suggested Range</th>
-            <th style={thStyle}>Gender</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td style={tdStyle}>Young children</td><td style={tdStyle}>2-year ranges (5-6, 7-8)</td><td style={tdStyle}>Mixed OK</td></tr>
-          <tr><td style={tdStyle}>Teens</td><td style={tdStyle}>3-4 year ranges (11-14)</td><td style={tdStyle}>Separate M / F</td></tr>
-          <tr><td style={tdStyle}>Adults</td><td style={tdStyle}>18+ (one group or 18-34, 35+)</td><td style={tdStyle}>Separate M / F</td></tr>
-        </tbody>
-      </table>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Save &amp; Restore Data</p>
+        <ul style={qrListStyle}>
+          <li style={qrListItemStyle}><strong>Autosave</strong> — saves automatically every few minutes and on close. No action needed.</li>
+          <li style={qrListItemStyle}><strong>Checkpoints</strong> — create named snapshots on the <strong>Checkpoints</strong> tab. Restore any time.</li>
+          <li style={qrListItemStyle}><strong>Backups</strong> — automatic rolling backups are kept for 12 hours in your data directory.</li>
+        </ul>
+      </div>
 
-      <h4>Pool Sizing Guide</h4>
-      <ul>
-        <li>1–8 participants → 1 pool</li>
-        <li>9–16 participants → 2 pools</li>
-        <li>17–24 participants → 3 pools</li>
-        <li>25+ participants → 4 pools</li>
-      </ul>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Category Design Tips</p>
+        <table style={{ ...tableStyle, fontSize: '0.875rem', marginBottom: 0 }}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Age Group</th>
+              <th style={thStyle}>Suggested Range</th>
+              <th style={thStyle}>Gender</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style={tdStyle}>Young children</td><td style={tdStyle}>2-yr ranges (5–6, 7–8)</td><td style={tdStyle}>Mixed OK</td></tr>
+            <tr><td style={tdStyle}>Teens</td><td style={tdStyle}>3–4 yr (11–14)</td><td style={tdStyle}>Separate M / F</td></tr>
+            <tr><td style={{ ...tdStyle, borderBottom: 'none' }}>Adults</td><td style={{ ...tdStyle, borderBottom: 'none' }}>18+ or 18–34, 35+</td><td style={{ ...tdStyle, borderBottom: 'none' }}>Separate M / F</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-      <h4>Troubleshooting</h4>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>Problem</th>
-            <th style={thStyle}>Solution</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td style={tdStyle}>Unassigned participants</td><td style={tdStyle}>Check category age/gender criteria or manually assign in the Data Editor.</td></tr>
-          <tr><td style={tdStyle}>Unbalanced rings</td><td style={tdStyle}>Move participants between pools in the Data Editor.</td></tr>
-          <tr><td style={tdStyle}>Same school back-to-back in forms</td><td style={tdStyle}>Re-run Order Forms Ring — the algorithm interleaves schools automatically.</td></tr>
-          <tr><td style={tdStyle}>PDF won't open</td><td style={tdStyle}>Ensure a PDF reader is installed; try a different file name.</td></tr>
-        </tbody>
-      </table>
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Pool Sizing Guide</p>
+        <ul style={qrListStyle}>
+          <li style={qrListItemStyle}>1–8 participants → 1 pool</li>
+          <li style={qrListItemStyle}>9–16 participants → 2 pools</li>
+          <li style={qrListItemStyle}>17–24 participants → 3 pools</li>
+          <li style={qrListItemStyle}>25+ participants → 4 pools</li>
+        </ul>
+      </div>
+
+      <div style={qrCardStyle}>
+        <p style={qrCardTitleStyle}>Troubleshooting</p>
+        <table style={{ ...tableStyle, fontSize: '0.875rem', marginBottom: 0 }}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Problem</th>
+              <th style={thStyle}>Fix</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style={tdStyle}>Unassigned participants</td><td style={tdStyle}>Check category age/gender criteria, or manually assign in the Editor tab.</td></tr>
+            <tr><td style={tdStyle}>Unbalanced rings</td><td style={tdStyle}>Move participants between pools via Quick Edit (search name → open Quick Edit).</td></tr>
+            <tr><td style={tdStyle}>Same school back-to-back in forms</td><td style={tdStyle}>Re-run Order Forms Ring — the algorithm interleaves schools automatically.</td></tr>
+            <tr><td style={{ ...tdStyle, borderBottom: 'none' }}>PDF won't open</td><td style={{ ...tdStyle, borderBottom: 'none' }}>Ensure a PDF reader is installed; try a different file name.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Day-Of Scenarios                                                   */
+/* ------------------------------------------------------------------ */
+
+function Scenario({ num, title, children }: { num: number; title: string; children: React.ReactNode }) {
+  return (
+    <div style={scenarioCardStyle}>
+      <div style={scenarioTitleRowStyle}>
+        <span style={scenarioBadgeStyle}>{num}</span>
+        <p style={scenarioTitleStyle}>{title}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DayOfReference() {
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+        <div>
+          <h3 style={{ marginTop: 0, marginBottom: '0.2rem' }}>Day-Of Scenarios</h3>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+            Step-by-step answers to common tournament day situations.
+            Most actions start by finding the person — type their name in the{' '}
+            <strong>Search Participants</strong> box at the top of the screen.
+          </p>
+        </div>
+        <button
+          onClick={printDayOfScenarios}
+          style={{
+            padding: '0.4rem 0.85rem',
+            fontSize: '0.85rem',
+            borderRadius: '4px',
+            border: '1px solid var(--border-color)',
+            backgroundColor: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            marginLeft: '1rem',
+          }}
+          title="Open a printable reference of all day-of scenarios"
+        >
+          🖨 Print Scenarios
+        </button>
+      </div>
+
+      <Scenario num={1} title={'"What ring is James in?" — Look Up a Participant'}>
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>
+            Type the participant's name (or partial name) in the <strong>Search Participants</strong> box at the top of the screen.
+          </li>
+          <li style={stepListItemStyle}>
+            Results appear instantly, showing their division, age, and ring assignments.
+          </li>
+          <li style={stepListItemStyle}>
+            Click their name to open <strong>Quick Edit</strong> for full details.
+          </li>
+        </ol>
+        <div style={tipStyle}>
+          <strong>Tip:</strong> The search result shows "F: Pool 1 (PR2) | S: Pool 2 (PR3)" — F = Forms ring, S = Sparring ring, the label in parentheses is the physical ring name.
+        </div>
+      </Scenario>
+
+      <Scenario num={2} title="Move a Participant to a Different Ring / Pool">
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>
+            Find them via <strong>Search Participants</strong> or click their name on the <strong>Tournament</strong> tab.
+          </li>
+          <li style={stepListItemStyle}>
+            In <strong>Quick Edit</strong>, change the <strong>Pool</strong> dropdown under Forms and/or Sparring to the desired pool.
+          </li>
+          <li style={stepListItemStyle}>
+            Click <strong>Save</strong>. The participant moves immediately and ring counts update.
+          </li>
+          <li style={stepListItemStyle}>
+            After moving, check the balance indicators on the Tournament tab (green = good, red = unbalanced).
+          </li>
+        </ol>
+        <div style={tipStyle}>
+          <strong>To move between categories/divisions:</strong> change the Division and Category dropdowns first, then pick the Pool.
+        </div>
+      </Scenario>
+
+      <Scenario num={3} title="Withdraw from Sparring Only">
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>
+            Find them via <strong>Search Participants</strong> or on the <strong>Tournament</strong> tab.
+          </li>
+          <li style={stepListItemStyle}>
+            In <strong>Quick Edit</strong>, uncheck <strong>Competing Sparring</strong> (in the Sparring section).
+          </li>
+          <li style={stepListItemStyle}>
+            Click <strong>Save</strong>. They're removed from sparring but remain in forms.
+          </li>
+        </ol>
+        <div style={tipStyle}>
+          Their sparring assignment is remembered — you can add them back at any time.
+        </div>
+      </Scenario>
+
+      <Scenario num={4} title="Add Sparring for a Participant">
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>
+            Find them via <strong>Search Participants</strong> or on the <strong>Tournament</strong> tab.
+          </li>
+          <li style={stepListItemStyle}>
+            In <strong>Quick Edit</strong>, check <strong>Competing Sparring</strong>.
+          </li>
+          <li style={stepListItemStyle}>
+            Select their <strong>Division</strong>, <strong>Category</strong>, and <strong>Pool</strong> from the dropdowns.
+          </li>
+          <li style={stepListItemStyle}>
+            Click <strong>Save</strong>. They appear in the selected sparring ring immediately.
+          </li>
+        </ol>
+        <div style={tipStyle}>
+          <strong>Tip:</strong> Enable <em>Copy sparring from forms</em> to auto-fill division and category — you just need to pick the pool.
+        </div>
+      </Scenario>
+
+      <Scenario num={5} title="Withdraw Completely (Forms + Sparring)">
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>
+            Find them via <strong>Search Participants</strong> or click their name on the <strong>Tournament</strong> tab.
+          </li>
+          <li style={stepListItemStyle}>
+            In <strong>Quick Edit</strong>, click the <strong>Withdraw</strong> button.
+          </li>
+          <li style={stepListItemStyle}>
+            Click <strong>Save</strong>. They disappear from all rings but remain in the system.
+          </li>
+        </ol>
+        <div style={tipStyle}>
+          Withdrawn participants appear grayed out in the <strong>Editor</strong> tab and can still be found via Search.
+        </div>
+      </Scenario>
+
+      <Scenario num={6} title="Come Back After Withdrawing (Re-Register)">
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>
+            Type their name in <strong>Search Participants</strong> (they won't appear on the Tournament tab while withdrawn, but Search still finds them).
+          </li>
+          <li style={stepListItemStyle}>
+            Click their name to open <strong>Quick Edit</strong>.
+          </li>
+          <li style={stepListItemStyle}>
+            Click <strong>Restore</strong> (or manually re-check <strong>Competing Forms</strong> and/or <strong>Competing Sparring</strong>).
+          </li>
+          <li style={stepListItemStyle}>
+            Verify their category and pool are correct, then click <strong>Save</strong>.
+          </li>
+        </ol>
+        <div style={tipStyle}>
+          The system remembers their last category and pool assignment — Restore typically puts them right back where they were.
+        </div>
+      </Scenario>
+
+      <Scenario num={7} title="Person Needs to Spar in a Different Division">
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>
+            Find them via <strong>Search Participants</strong> or on the <strong>Tournament</strong> tab.
+          </li>
+          <li style={stepListItemStyle}>
+            In <strong>Quick Edit</strong>, go to the <strong>Sparring</strong> section and make sure <strong>Competing Sparring</strong> is checked.
+          </li>
+          <li style={stepListItemStyle}>
+            Uncheck <em>Copy sparring from forms</em> so you can set sparring independently.
+          </li>
+          <li style={stepListItemStyle}>
+            Choose the target <strong>Division</strong>, <strong>Category</strong>, and <strong>Pool</strong> for sparring.
+          </li>
+          <li style={stepListItemStyle}>
+            Click <strong>Save</strong>. Their forms ring is unchanged; they compete in sparring under the new division.
+          </li>
+        </ol>
+        <div style={tipStyle}>
+          Common when a competitor's age or skill places them in a different sparring bracket than their forms division.
+        </div>
+      </Scenario>
+
+      <Scenario num={8} title="Create a Grand Champion Ring">
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>
+            Go to the <strong>Categories</strong> tab and create a new category (e.g., "Grand Champion") — set the type to <em>Forms</em> or <em>Sparring</em> as appropriate, with a wide age range to cover all divisions.
+          </li>
+          <li style={stepListItemStyle}>
+            Use <strong>Quick Edit</strong> or the <strong>Editor</strong> tab to manually assign each grand champion competitor to this category (Pool 1).
+          </li>
+          <li style={stepListItemStyle}>
+            Go to <strong>Ring Map</strong> and assign the Grand Champion pool to a physical ring.
+          </li>
+          <li style={stepListItemStyle}>
+            Run <strong>Order Forms Ring</strong> (or Sparring) to finalize the order.
+          </li>
+          <li style={stepListItemStyle}>
+            Go to <strong>Export</strong> to generate the scoring sheet or bracket for this ring.
+          </li>
+        </ol>
+        <div style={tipStyle}>
+          <strong>Tip:</strong> Grand Champion competitors can be in their regular ring <em>and</em> the Grand Champion ring simultaneously — assigning the new category does not remove them from their original ring.
+        </div>
+      </Scenario>
+
+      <Scenario num={9} title="Print Blank Sparring or Forms Sheets">
+        <ol style={stepListStyle}>
+          <li style={stepListItemStyle}>Go to the <strong>Export</strong> tab.</li>
+          <li style={stepListItemStyle}>Scroll to the <strong>Blank Scoring Sheets</strong> section at the bottom.</li>
+          <li style={stepListItemStyle}>
+            Click <em>Export Blank Forms Sheet</em> for a blank forms scoring sheet, or
+            {' '}<em>Export Blank Sparring Bracket</em> for a blank bracket.
+          </li>
+          <li style={stepListItemStyle}>The PDF will be saved to your configured output folder.</li>
+        </ol>
+        <div style={tipStyle}>
+          Blank sheets are useful for same-day add-on events or as a physical backup.
+        </div>
+      </Scenario>
     </div>
   );
 }
@@ -348,14 +637,432 @@ const tdStyle: React.CSSProperties = {
 };
 
 const tipStyle: React.CSSProperties = {
-  padding: '0.75rem 1rem',
-  backgroundColor: 'var(--info-bg)',
-  border: '1px solid var(--info-border)',
+  padding: '0.65rem 0.9rem',
+  backgroundColor: 'var(--info-bg, #e8f4fd)',
+  border: '1px solid var(--info-border, #bee3f8)',
   borderRadius: '4px',
-  color: 'var(--info-text)',
-  marginBottom: '1rem',
-  fontSize: '0.9rem',
+  color: 'var(--info-text, #1a5276)',
+  marginBottom: '0.75rem',
+  fontSize: '0.88rem',
 };
+
+// Quick Reference section card
+const qrCardStyle: React.CSSProperties = {
+  marginBottom: '0.85rem',
+  padding: '0.65rem 0.9rem 0.5rem',
+  backgroundColor: 'var(--bg-tertiary)',
+  borderRadius: '6px',
+  borderLeft: '4px solid var(--accent-primary)',
+};
+
+const qrCardTitleStyle: React.CSSProperties = {
+  fontSize: '0.95rem',
+  fontWeight: 700,
+  margin: '0 0 0.4rem',
+  color: 'var(--text-primary)',
+};
+
+const qrListStyle: React.CSSProperties = {
+  paddingLeft: '1.6rem',
+  margin: '0.2rem 0 0.3rem',
+};
+
+const qrListItemStyle: React.CSSProperties = {
+  marginBottom: '0.25rem',
+  lineHeight: 1.45,
+};
+
+// Day-Of scenario card
+const scenarioCardStyle: React.CSSProperties = {
+  marginBottom: '0.85rem',
+  padding: '0.65rem 0.9rem 0.4rem',
+  backgroundColor: 'var(--bg-tertiary)',
+  borderRadius: '6px',
+  border: '1px solid var(--border-color)',
+};
+
+const scenarioTitleRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  marginBottom: '0.4rem',
+};
+
+const scenarioBadgeStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '1.5rem',
+  height: '1.5rem',
+  borderRadius: '50%',
+  backgroundColor: 'var(--accent-primary)',
+  color: '#fff',
+  fontWeight: 700,
+  fontSize: '0.78rem',
+  marginRight: '0.5rem',
+  flexShrink: 0,
+};
+
+const scenarioTitleStyle: React.CSSProperties = {
+  fontSize: '0.95rem',
+  fontWeight: 700,
+  color: 'var(--text-primary)',
+  margin: 0,
+};
+
+const stepListStyle: React.CSSProperties = {
+  paddingLeft: '1.6rem',
+  margin: '0.2rem 0 0.35rem',
+};
+
+const stepListItemStyle: React.CSSProperties = {
+  marginBottom: '0.25rem',
+  lineHeight: 1.45,
+};
+
+/* ------------------------------------------------------------------ */
+/*  Print cookbook                                                     */
+/* ------------------------------------------------------------------ */
+
+function printQuickReferenceCookbook() {
+  const printStyles = `
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5pt;
+      color: #111;
+      background: #fff;
+      margin: 0;
+      padding: 1.2cm 1.5cm;
+    }
+    h1 {
+      font-size: 13pt;
+      margin: 0 0 2px;
+      border-bottom: 2px solid #444;
+      padding-bottom: 5px;
+    }
+    h1 .date { font-size: 8pt; font-weight: normal; color: #666; float: right; }
+    p.subtitle { font-size: 8.5pt; color: #555; margin: 3px 0 10px; }
+    .columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .card {
+      margin-bottom: 8px;
+      padding: 5px 8px 4px;
+      background: #f4f4f4;
+      border-left: 3px solid #555;
+      border-radius: 3px;
+    }
+    .card h2 {
+      font-size: 9.5pt;
+      font-weight: bold;
+      margin: 0 0 3px;
+      color: #222;
+    }
+    p { margin: 0 0 3px; line-height: 1.3; }
+    ul, ol { margin: 2px 0 3px; padding-left: 16px; }
+    li { margin-bottom: 2px; line-height: 1.3; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-top: 3px; }
+    th { background: #e0e0e0; border: 1px solid #aaa; padding: 2px 5px; text-align: left; font-weight: bold; }
+    td { border: 1px solid #ccc; padding: 2px 5px; vertical-align: top; }
+    .tip {
+      background: #e8f4fd;
+      border: 1px solid #bee3f8;
+      padding: 3px 6px;
+      margin: 3px 0;
+      border-radius: 2px;
+      font-style: italic;
+      font-size: 8.5pt;
+      color: #1a5276;
+    }
+    @media print { @page { size: letter; margin: 1cm; } body { padding: 0; } }
+  `;
+
+  const dateStr = new Date().toLocaleDateString();
+
+  const html = `
+  <h1>Tournament Manager — Quick Reference <span class="date">${dateStr}</span></h1>
+  <p class="subtitle">Common setup and administrative operations. For tournament-day scenarios, see the Day-Of Scenarios tab.</p>
+  <div class="columns">
+    <div>
+      <div class="card">
+        <h2>Adding a Walk-In Participant</h2>
+        <p>Click <strong>+ Add Participant</strong> in the app header (or Dashboard quick action).</p>
+        <ul>
+          <li>After adding, assign their category in the <strong>Editor</strong> tab.</li>
+          <li>Re-order the affected ring in <strong>Ring Map</strong>.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Re-Order a Forms Ring</h2>
+        <ol>
+          <li>Go to <strong>Ring Map</strong>.</li>
+          <li>Select the forms pool.</li>
+          <li>Click <strong>Order Forms Ring</strong>.</li>
+        </ol>
+        <p>Interleaves schools so same-school competitors don't go back-to-back.</p>
+      </div>
+      <div class="card">
+        <h2>Re-Order a Sparring Ring</h2>
+        <ol>
+          <li>Go to <strong>Ring Map</strong>.</li>
+          <li>Select the sparring pool.</li>
+          <li>Click <strong>Order Sparring Ring</strong>.</li>
+        </ol>
+        <p>Sorts by height for fair bracket seeding.</p>
+      </div>
+      <div class="card">
+        <h2>Fine-Tune Competitor Order</h2>
+        <p>In <strong>Ring Map</strong>, use the ▲ Up / ▼ Down arrows next to each competitor to adjust position. Changes save automatically.</p>
+      </div>
+      <div class="card">
+        <h2>Print Blank Sheets</h2>
+        <p>Go to <strong>Export</strong> → scroll to <strong>Blank Scoring Sheets</strong>. Click <em>Export Blank Forms Sheet</em> or <em>Export Blank Sparring Bracket</em>.</p>
+      </div>
+      <div class="card">
+        <h2>Save &amp; Restore Data</h2>
+        <ul>
+          <li><strong>Autosave</strong> — saves every few minutes and on close.</li>
+          <li><strong>Checkpoints</strong> — named snapshots on the Checkpoints tab.</li>
+          <li><strong>Backups</strong> — rolling backups kept for 12 hours.</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2>Generate PDFs (Export tab)</h2>
+        <table>
+          <thead><tr><th>Document</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>Name Tags</td><td>2×4 per page, ring color coded</td></tr>
+            <tr><td>Check-In Sheets</td><td>Per division, alphabetical + checkboxes</td></tr>
+            <tr><td>Forms Scoring</td><td>Per forms ring, judge score columns</td></tr>
+            <tr><td>Sparring Brackets</td><td>16-person bracket, seeded by height</td></tr>
+            <tr><td>Blank Forms / Bracket</td><td>Blank sheets for manual use</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Category Design Tips</h2>
+        <table>
+          <thead><tr><th>Age Group</th><th>Range</th><th>Gender</th></tr></thead>
+          <tbody>
+            <tr><td>Young children</td><td>2-yr (5–6, 7–8)</td><td>Mixed OK</td></tr>
+            <tr><td>Teens</td><td>3–4 yr (11–14)</td><td>Separate M/F</td></tr>
+            <tr><td>Adults</td><td>18+ or 18–34, 35+</td><td>Separate M/F</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Pool Sizing Guide</h2>
+        <ul>
+          <li>1–8 participants → 1 pool</li>
+          <li>9–16 participants → 2 pools</li>
+          <li>17–24 participants → 3 pools</li>
+          <li>25+ participants → 4 pools</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Troubleshooting</h2>
+        <table>
+          <thead><tr><th>Problem</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>Unassigned participants</td><td>Check category age/gender criteria or assign manually in Editor</td></tr>
+            <tr><td>Unbalanced rings</td><td>Move participants between pools via Quick Edit</td></tr>
+            <tr><td>Same school back-to-back</td><td>Re-run Order Forms Ring</td></tr>
+            <tr><td>PDF won't open</td><td>Ensure a PDF reader is installed</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  const win = window.open('', '_blank', 'width=920,height=720,scrollbars=yes');
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>Quick Reference — Tournament Manager</title>
+    <style>${printStyles}</style>
+  </head><body>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 400);
+}
+
+function printDayOfScenarios() {
+  const printStyles = `
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9pt;
+      color: #111;
+      background: #fff;
+      margin: 0;
+      padding: 1.2cm 1.5cm;
+    }
+    h1 {
+      font-size: 13pt;
+      margin: 0 0 2px;
+      border-bottom: 2px solid #444;
+      padding-bottom: 5px;
+    }
+    h1 .date { font-size: 8pt; font-weight: normal; color: #666; float: right; }
+    p.subtitle { font-size: 8.5pt; color: #555; margin: 3px 0 10px; }
+    .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .scenario {
+      margin-bottom: 8px;
+      padding: 5px 8px 4px;
+      background: #f4f4f4;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+    }
+    .scenario h2 {
+      font-size: 9pt;
+      font-weight: bold;
+      margin: 0 0 3px;
+      color: #222;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #555;
+      color: #fff;
+      font-size: 7.5pt;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    p { margin: 0 0 3px; line-height: 1.3; }
+    ol { margin: 2px 0 3px; padding-left: 16px; }
+    li { margin-bottom: 2px; line-height: 1.3; }
+    .tip {
+      background: #e8f4fd;
+      border: 1px solid #bee3f8;
+      padding: 2px 5px;
+      margin: 3px 0 0;
+      border-radius: 2px;
+      font-style: italic;
+      font-size: 8pt;
+      color: #1a5276;
+    }
+    @media print { @page { size: letter; margin: 1cm; } body { padding: 0; } }
+  `;
+
+  const dateStr = new Date().toLocaleDateString();
+
+  const html = `
+  <h1>Day-Of Scenarios <span class="date">${dateStr}</span></h1>
+  <p class="subtitle">Step-by-step answers to common tournament day situations. Find anyone using the Search box at the top of the screen.</p>
+  <div class="columns">
+    <div>
+      <div class="scenario">
+        <h2><span class="num">1</span> Look up what ring someone is in</h2>
+        <ol>
+          <li>Type their name in <strong>Search Participants</strong> (top of screen).</li>
+          <li>Results show instantly with ring info (F = forms, S = sparring).</li>
+          <li>Click their name to open Quick Edit for full details.</li>
+        </ol>
+      </div>
+      <div class="scenario">
+        <h2><span class="num">2</span> Move to a different ring / pool</h2>
+        <ol>
+          <li>Find them via Search or click name on Tournament tab.</li>
+          <li>In Quick Edit, change the Pool dropdown (Forms and/or Sparring).</li>
+          <li>Click Save. Ring counts update immediately.</li>
+        </ol>
+        <p class="tip">To move divisions: change Division + Category first, then Pool.</p>
+      </div>
+      <div class="scenario">
+        <h2><span class="num">3</span> Withdraw from sparring only</h2>
+        <ol>
+          <li>Find them via Search or Tournament tab.</li>
+          <li>In Quick Edit, uncheck <strong>Competing Sparring</strong>.</li>
+          <li>Click Save. They stay in forms.</li>
+        </ol>
+        <p class="tip">Their sparring assignment is saved — can re-add any time.</p>
+      </div>
+      <div class="scenario">
+        <h2><span class="num">4</span> Add sparring for a participant</h2>
+        <ol>
+          <li>Find them via Search or Tournament tab.</li>
+          <li>In Quick Edit, check <strong>Competing Sparring</strong>.</li>
+          <li>Select Division, Category, and Pool.</li>
+          <li>Click Save.</li>
+        </ol>
+        <p class="tip">Enable <em>Copy sparring from forms</em> to auto-fill division/category.</p>
+      </div>
+      <div class="scenario">
+        <h2><span class="num">5</span> Withdraw completely (forms + sparring)</h2>
+        <ol>
+          <li>Find them via Search or Tournament tab.</li>
+          <li>In Quick Edit, click <strong>Withdraw</strong>.</li>
+          <li>Click Save. Hidden from rings but still in system.</li>
+        </ol>
+        <p class="tip">Withdrawn participants appear grayed out in the Editor tab.</p>
+      </div>
+    </div>
+    <div>
+      <div class="scenario">
+        <h2><span class="num">6</span> Come back after withdrawing</h2>
+        <ol>
+          <li>Type their name in <strong>Search Participants</strong> (Search finds withdrawn people).</li>
+          <li>Click name to open Quick Edit.</li>
+          <li>Click <strong>Restore</strong> (or re-check Competing Forms/Sparring manually).</li>
+          <li>Verify category and pool, then click Save.</li>
+        </ol>
+        <p class="tip">Restore puts them back in their last category and pool.</p>
+      </div>
+      <div class="scenario">
+        <h2><span class="num">7</span> Spar in a different division</h2>
+        <ol>
+          <li>Find them via Search or Tournament tab.</li>
+          <li>In Quick Edit, ensure <strong>Competing Sparring</strong> is checked.</li>
+          <li>Uncheck <em>Copy sparring from forms</em>.</li>
+          <li>Select the different Division, Category, and Pool for sparring.</li>
+          <li>Click Save. Forms ring is unchanged.</li>
+        </ol>
+      </div>
+      <div class="scenario">
+        <h2><span class="num">8</span> Create a Grand Champion ring</h2>
+        <ol>
+          <li>Categories tab → create a new category (e.g. &ldquo;Grand Champion&rdquo;), wide age range.</li>
+          <li>Use Quick Edit or Editor to assign each champion to this category, Pool 1.</li>
+          <li>Ring Map → assign Grand Champion pool to a physical ring.</li>
+          <li>Run Order Forms/Sparring Ring to set order.</li>
+          <li>Export → generate scoring sheet or bracket.</li>
+        </ol>
+        <p class="tip">Competitors can be in their regular ring AND the Grand Champion ring.</p>
+      </div>
+      <div class="scenario">
+        <h2><span class="num">9</span> Print blank sparring or forms sheets</h2>
+        <ol>
+          <li>Go to <strong>Export</strong> tab.</li>
+          <li>Scroll to <strong>Blank Scoring Sheets</strong> at the bottom.</li>
+          <li>Click <em>Export Blank Forms Sheet</em> or <em>Export Blank Sparring Bracket</em>.</li>
+        </ol>
+        <p class="tip">PDF saved to your configured output folder.</p>
+      </div>
+    </div>
+  </div>`;
+
+  const win = window.open('', '_blank', 'width=920,height=720,scrollbars=yes');
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>Day-Of Scenarios — Tournament Manager</title>
+    <style>${printStyles}</style>
+  </head><body>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 400);
+}
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
@@ -375,14 +1082,11 @@ const HelpDialog: React.FC<HelpDialogProps> = ({ isOpen, initialTopic, onClose }
 
   const renderContent = () => {
     switch (activeTopic) {
-      case 'overview':
-        return <Overview />;
-      case 'pre-tournament':
-        return <PreTournamentGuide />;
-      case 'tournament-day':
-        return <TournamentDayGuide />;
-      case 'quick-reference':
-        return <QuickReference />;
+      case 'overview':          return <Overview />;
+      case 'pre-tournament':    return <PreTournamentGuide />;
+      case 'tournament-day':    return <TournamentDayGuide />;
+      case 'quick-reference':   return <QuickReference />;
+      case 'day-of-reference':  return <DayOfReference />;
     }
   };
 
@@ -411,6 +1115,7 @@ const HelpDialog: React.FC<HelpDialogProps> = ({ isOpen, initialTopic, onClose }
           maxHeight: '85vh',
           display: 'flex',
           flexDirection: 'column',
+          overflow: 'hidden',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
         }}
       >
@@ -422,6 +1127,7 @@ const HelpDialog: React.FC<HelpDialogProps> = ({ isOpen, initialTopic, onClose }
             justifyContent: 'space-between',
             padding: '1rem 1.5rem',
             borderBottom: '1px solid var(--border-color)',
+            flexShrink: 0,
           }}
         >
           <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>Help</h2>
@@ -449,9 +1155,11 @@ const HelpDialog: React.FC<HelpDialogProps> = ({ isOpen, initialTopic, onClose }
             gap: '0.25rem',
             padding: '0.5rem 1.5rem 0',
             borderBottom: '1px solid var(--border-color)',
+            overflowX: 'auto',
+            flexShrink: 0,
           }}
         >
-          {topics.map((t) => (
+          {helpTopics.map((t) => (
             <button
               key={t.key}
               onClick={() => setActiveTopic(t.key)}
@@ -477,6 +1185,7 @@ const HelpDialog: React.FC<HelpDialogProps> = ({ isOpen, initialTopic, onClose }
         <div
           style={{
             flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
             padding: '1.25rem 1.5rem',
             color: 'var(--text-primary)',
