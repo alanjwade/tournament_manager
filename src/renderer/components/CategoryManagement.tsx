@@ -10,6 +10,12 @@ function generateCategoryId(type: 'forms' | 'sparring', division: string, gender
   return `${type}-${division}-${gender}-${minAge}-${maxAge}`;
 }
 
+// Ages can be null/undefined in imported or legacy databases. Treat those as
+// "no age" so they never match an age bucket (and never crash on p.age.toString()).
+function hasValidAge(age: unknown): age is number {
+  return typeof age === 'number' && Number.isFinite(age) && age > 0;
+}
+
 interface CategoryManagementProps {}
 
 function CategoryManagement({}: CategoryManagementProps) {
@@ -50,10 +56,9 @@ function CategoryManagement({}: CategoryManagementProps) {
         const unassignedInSparring = p.competingSparring && !p.sparringCategoryId;
         
         if (unassignedInForms || unassignedInSparring) {
-          const age = p.age;
-          // Only add valid numeric ages
-          if (typeof age === 'number' && !isNaN(age) && age > 0) {
-            agesInDivision.add(age);
+          // Only add valid numeric ages (null/undefined ages are skipped)
+          if (hasValidAge(p.age)) {
+            agesInDivision.add(p.age);
           }
         }
       }
@@ -98,13 +103,15 @@ function CategoryManagement({}: CategoryManagementProps) {
       
       const genderMatch = selectedGender === 'mixed' || p.gender.toLowerCase() === selectedGender;
       
-      // Age matching with checkbox logic
+      // Age matching with checkbox logic (participants with no/invalid age never match)
       let ageMatch = false;
-      if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
-        ageMatch = true;
-      }
-      if (selectedAges.has(p.age.toString())) {
-        ageMatch = true;
+      if (hasValidAge(p.age)) {
+        if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
+          ageMatch = true;
+        }
+        if (selectedAges.has(p.age.toString())) {
+          ageMatch = true;
+        }
       }
       
       if (!ageMatch || !genderMatch) return;
@@ -181,11 +188,13 @@ function CategoryManagement({}: CategoryManagementProps) {
       const unassigned = !p.formsCategoryId;
 
       let ageMatch = false;
-      if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
-        ageMatch = true;
-      }
-      if (selectedAges.has(p.age.toString())) {
-        ageMatch = true;
+      if (hasValidAge(p.age)) {
+        if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
+          ageMatch = true;
+        }
+        if (selectedAges.has(p.age.toString())) {
+          ageMatch = true;
+        }
       }
       
       return ageMatch && genderMatch && divisionMatch && unassigned && p.competingForms;
@@ -199,11 +208,13 @@ function CategoryManagement({}: CategoryManagementProps) {
       const unassigned = !p.sparringCategoryId;
 
       let ageMatch = false;
-      if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
-        ageMatch = true;
-      }
-      if (selectedAges.has(p.age.toString())) {
-        ageMatch = true;
+      if (hasValidAge(p.age)) {
+        if (selectedAges.has('18 and Up') && p.age >= AGE_THRESHOLDS.ADULT) {
+          ageMatch = true;
+        }
+        if (selectedAges.has(p.age.toString())) {
+          ageMatch = true;
+        }
       }
       
       return ageMatch && genderMatch && divisionMatch && unassigned && p.competingSparring;
@@ -411,7 +422,7 @@ function CategoryManagement({}: CategoryManagementProps) {
       const divisionMatch = category.type === 'sparring'
         ? getEffectiveDivision(p, 'sparring') === category.division
         : getEffectiveDivision(p, 'forms') === category.division;
-      const ageMatch = p.age >= category.minAge && p.age <= category.maxAge;
+      const ageMatch = hasValidAge(p.age) && p.age >= category.minAge && p.age <= category.maxAge;
       const competingMatch = category.type === 'sparring' ? p.competingSparring : p.competingForms;
 
       return genderMatch && divisionMatch && ageMatch && competingMatch;
