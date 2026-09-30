@@ -46,6 +46,7 @@ function Overview() {
           <tr><td style={tdStyle}><strong>Categories</strong></td><td style={tdStyle}>Create competition categories and assign participants to them</td></tr>
           <tr><td style={tdStyle}><strong>Ring Map</strong></td><td style={tdStyle}>Map logical pools to physical rings and order competitors</td></tr>
           <tr><td style={tdStyle}><strong>Data Editor</strong></td><td style={tdStyle}>View and manually edit individual participant records</td></tr>
+          <tr><td style={tdStyle}><strong>Sanity Check</strong></td><td style={tdStyle}>Totals per division (Forms / Sparring) and a breakdown of anyone not counted</td></tr>
           <tr><td style={tdStyle}><strong>Overview</strong></td><td style={tdStyle}>Full read-only view of all rings, divisions, and assignments</td></tr>
           <tr><td style={tdStyle}><strong>Export</strong></td><td style={tdStyle}>Generate PDFs — name tags, check-in sheets, scoring sheets, brackets</td></tr>
           <tr><td style={tdStyle}><strong>Checkpoints</strong></td><td style={tdStyle}>Save and restore snapshots of your tournament data</td></tr>

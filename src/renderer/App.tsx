@@ -3,12 +3,14 @@ import { useTournamentStore } from './store/tournamentStore';
 import { getEffectiveDivision } from './utils/excelParser';
 import { computeCompetitionRings } from './utils/computeRings';
 import { buildCategoryPoolName } from './utils/ringNameFormatter';
+import { computeConfigIssues } from './utils/sanityStats';
 import Dashboard from './components/Dashboard';
 import DataImport from './components/DataImport';
 import CategoryManagement from './components/CategoryManagement';
 import RingOverview from './components/RingOverview';
 import PDFExport from './components/PDFExport';
 import DataViewer from './components/DataViewer';
+import SanityCheck from './components/SanityCheck';
 import RingMapEditor from './components/RingMapEditor';
 import Configuration from './components/Configuration';
 import CheckpointManager from './components/CheckpointManager';
@@ -17,7 +19,7 @@ import AboutDialog from './components/AboutDialog';
 import UpdateChecker from './components/UpdateChecker';
 import HelpDialog, { HelpTopic, helpTopics } from './components/HelpDialog';
 
-type Tab = 'dashboard' | 'import' | 'configuration' | 'categories' | 'editor' | 'tournament' | 'ringmap' | 'export' | 'checkpoints';
+type Tab = 'dashboard' | 'import' | 'configuration' | 'categories' | 'editor' | 'sanity' | 'tournament' | 'ringmap' | 'export' | 'checkpoints';
 type Theme = 'light' | 'dark';
 
 function App() {
@@ -193,27 +195,8 @@ function App() {
       }
     }
 
-    // Count configuration errors
-    let configErrors = 0;
-    
-    // Check each division for pools exceeding physical rings
-    config.divisions.forEach(division => {
-      const divisionFormsRings = categories
-        .filter(c => c.division === division.name && c.type === 'forms')
-        .reduce((sum, c) => sum + (c.numPools || 1), 0);
-      const divisionSparringRings = categories
-        .filter(c => c.division === division.name && c.type === 'sparring')
-        .reduce((sum, c) => sum + (c.numPools || 1), 0);
-      const physicalRings = division.numRings || 0;
-      
-      if (divisionFormsRings > physicalRings) configErrors++;
-      if (divisionSparringRings > physicalRings) configErrors++;
-      
-      // Check if division has categories but no physical rings
-      if ((divisionFormsRings > 0 || divisionSparringRings > 0) && physicalRings === 0) {
-        configErrors++;
-      }
-    });
+    // Count configuration errors (shared with the Sanity Check tab)
+    const configErrors = computeConfigIssues(config.divisions, categories).length;
 
     return {
       categories: unassignedCategories,
@@ -570,6 +553,12 @@ function App() {
           Editor
         </button>
         <button
+          className={`tab ${activeTab === 'sanity' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sanity')}
+        >
+          Sanity Check
+        </button>
+        <button
           className={`tab ${activeTab === 'tournament' ? 'active' : ''}`}
           onClick={() => setActiveTab('tournament')}
           disabled={participants.length === 0}
@@ -612,6 +601,7 @@ function App() {
           </div>
         )}
         {activeTab === 'export' && <PDFExport />}
+        {activeTab === 'sanity' && <SanityCheck />}
         {activeTab === 'checkpoints' && <CheckpointManager />}
       </div>
 

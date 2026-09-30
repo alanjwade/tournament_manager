@@ -83,6 +83,11 @@ function Configuration() {
     setDivisions(config.divisions.filter((d) => d.name !== name));
   };
 
+  const handleSetDivisionRings = (name: string, rings: number) => {
+    const safe = Number.isFinite(rings) ? Math.max(0, Math.floor(rings)) : 0;
+    setDivisions(config.divisions.map((d) => (d.name === name ? { ...d, numRings: safe } : d)));
+  };
+
   const handleWatermarkSelect = async () => {
     const result = await window.electronAPI.selectImage();
     if (result) {
@@ -212,6 +217,7 @@ function Configuration() {
               <tr>
                 <th>Division</th>
                 <th>Order</th>
+                <th>Rings</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -220,6 +226,17 @@ function Configuration() {
                 <tr key={div.name}>
                   <td>{div.name}</td>
                   <td>{div.order}</td>
+                  <td>
+                    <input
+                      type="number"
+                      min={0}
+                      className="form-control"
+                      value={div.numRings ?? 0}
+                      onChange={(e) => handleSetDivisionRings(div.name, parseInt(e.target.value, 10))}
+                      style={{ width: '80px', padding: '4px' }}
+                      title="Number of physical rings available for this division"
+                    />
+                  </td>
                   <td>
                     <button
                       className="btn btn-danger"
