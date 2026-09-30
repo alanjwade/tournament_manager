@@ -710,6 +710,34 @@ describe('Tournament Store', () => {
     });
   });
 
+  describe('deleteParticipant', () => {
+    it('removes the participant and their custom-ring references', () => {
+      const p1 = createTestParticipant({ id: 'p1' });
+      const p2 = createTestParticipant({ id: 'p2' });
+      useTournamentStore.getState().setParticipants([p1, p2]);
+
+      const ring = useTournamentStore.getState().addCustomRing('Test Ring', 'forms');
+      useTournamentStore.getState().addParticipantToCustomRing(ring.id, 'p1');
+      useTournamentStore.getState().addParticipantToCustomRing(ring.id, 'p2');
+
+      useTournamentStore.getState().deleteParticipant('p1');
+
+      const state = useTournamentStore.getState();
+      expect(state.participants.map(p => p.id)).toEqual(['p2']);
+      expect(state.customRings.find(r => r.id === ring.id)?.participantIds).toEqual(['p2']);
+    });
+
+    it('is undoable', () => {
+      useTournamentStore.getState().setParticipants([createTestParticipant({ id: 'p1' })]);
+
+      useTournamentStore.getState().deleteParticipant('p1');
+      expect(useTournamentStore.getState().participants).toHaveLength(0);
+
+      useTournamentStore.getState().undo();
+      expect(useTournamentStore.getState().participants.map(p => p.id)).toEqual(['p1']);
+    });
+  });
+
 
 
 });

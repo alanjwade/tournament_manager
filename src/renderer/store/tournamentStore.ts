@@ -75,6 +75,7 @@ interface TournamentState {
   updateParticipant: (id: string, updates: Partial<Participant>) => void;
   batchUpdateParticipants: (updates: Array<{ id: string; updates: Partial<Participant> }>) => void;
   withdrawParticipant: (id: string) => void;
+  deleteParticipant: (id: string) => void;
   setCategories: (categories: Category[]) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
   setPhysicalRingMappings: (mappings: PhysicalRingMapping[]) => void;
@@ -154,12 +155,58 @@ const initialConfig: TournamentConfig = {
 };
 
 /**
+ * Older datasets stored a single `division` name plus `competesInForms` /
+ * `competesInSparring` booleans. The current model uses per-event
+ * `formsDivision`/`sparringDivision` with `competingForms`/`competingSparring`.
+ *
+ * Normalize the legacy shape in place so every consumer (Categories, Ring Map,
+ * exports, …) sees the current fields. Without this, legacy participants look
+ * like they belong to no division and are filtered out everywhere.
+ */
+function migrateLegacyParticipant(p: Participant): Participant {
+  const legacy = p as Participant & {
+    division?: string | null;
+    competesInForms?: boolean;
+    competesInSparring?: boolean;
+  };
+
+  const legacyDivision = legacy.division ?? null;
+  const competingForms = legacy.competingForms ?? legacy.competesInForms ?? false;
+  const competingSparring = legacy.competingSparring ?? legacy.competesInSparring ?? false;
+
+  const migrated: Participant = {
+    ...p,
+    // Only derive from the legacy fields when the new fields are absent, so a
+    // participant that already uses the current schema is left untouched.
+    formsDivision:
+      legacy.formsDivision !== undefined
+        ? legacy.formsDivision
+        : competingForms ? legacyDivision : null,
+    sparringDivision:
+      legacy.sparringDivision !== undefined
+        ? legacy.sparringDivision
+        : competingSparring ? legacyDivision : null,
+    competingForms,
+    competingSparring,
+    sparringAltRing: p.sparringAltRing || '',
+  };
+
+  // Drop the legacy keys so they don't linger in persisted state.
+  delete (migrated as any).division;
+  delete (migrated as any).competesInForms;
+  delete (migrated as any).competesInSparring;
+
+  return migrated;
+}
+
+/**
  * Normalize a persisted tournament state into the slices stored by the app.
  *
  * Shared by autosave hydration, file load and checkpoint restore so every entry
  * point applies the same repairs:
  *  - divisions keep their default abbreviations
  *  - legacy "PR1" physical-ring names are migrated to "Ring 1"
+ *  - legacy per-participant division/competing fields are migrated
  *  - participant references to categories that no longer exist are cleared
  *  - custom rings AND customOrderRings are always carried over (never dropped)
  *
@@ -193,7 +240,7 @@ function buildHydratedState(savedState: SavedState): Snapshot {
   const validCategoryIds = new Set(categories.map(c => c.id));
   let orphanCount = 0;
   const participants = (state.participants || []).map(p => {
-    const cleaned: Participant = { ...p, sparringAltRing: p.sparringAltRing || '' };
+    const cleaned = migrateLegacyParticipant(p);
     if (cleaned.formsCategoryId && !validCategoryIds.has(cleaned.formsCategoryId)) {
       logger.warn(`Cleaning orphaned formsCategoryId "${cleaned.formsCategoryId}" from ${p.firstName} ${p.lastName}`);
       cleaned.formsCategoryId = undefined;
@@ -412,6 +459,23 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const { categories, categoryPoolMappings, customOrderRings } = get();
     // Reorder remaining participants so pool adjacency is recalculated
     set({ participants: reorderAllRings(withdrawnParticipants, categories, categoryPoolMappings, new Set(customOrderRings)) });
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+  },
+
+  deleteParticipant: (id) => {
+    get().pushHistory();
+    const remaining = get().participants.filter((p) => p.id !== id);
+    const { categories, categoryPoolMappings, customOrderRings, customRings } = get();
+    // Reorder the survivors so pool adjacency is recalculated, and drop any
+    // orphaned references from Grand Champion / side rings.
+    set({
+      participants: reorderAllRings(remaining, categories, categoryPoolMappings, new Set(customOrderRings)),
+      customRings: customRings.map((ring) =>
+        ring.participantIds.includes(id)
+          ? { ...ring, participantIds: ring.participantIds.filter((pid) => pid !== id) }
+          : ring
+      ),
+    });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
 

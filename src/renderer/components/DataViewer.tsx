@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { formatPoolOnly, buildCategoryPoolName } from '../utils/ringNameFormatter';
+import { assignSparringFromForms } from '../utils/categoryUtils';
 import { Participant } from '../types/tournament';
 import AddParticipantModal from './AddParticipantModal';
 
@@ -12,6 +13,10 @@ function DataViewer({}: DataViewerProps) {
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
+  const setCategories = useTournamentStore((state) => state.setCategories);
+  const setPhysicalRingMappings = useTournamentStore((state) => state.setPhysicalRingMappings);
+  const updateParticipant = useTournamentStore((state) => state.updateParticipant);
+  const deleteParticipantAction = useTournamentStore((state) => state.deleteParticipant);
   const highlightedParticipantId = useTournamentStore((state) => state.highlightedParticipantId);
   const setHighlightedParticipantId = useTournamentStore((state) => state.setHighlightedParticipantId);
   
@@ -368,6 +373,16 @@ function DataViewer({}: DataViewerProps) {
       return p;
     });
     setParticipants(updatedParticipants);
+  };
+
+  // Permanently remove a participant (e.g. to clean up duplicate imports).
+  // The store action pushes an undo snapshot, so this is recoverable via Undo.
+  const deleteParticipant = (participantId: string) => {
+    const target = participants.find(p => p.id === participantId);
+    if (!target) return;
+    const name = `${target.firstName ?? ''} ${target.lastName ?? ''}`.trim() || 'this participant';
+    if (!window.confirm(`Delete ${name}? This removes them from the tournament (Undo is available).`)) return;
+    deleteParticipantAction(participantId);
   };
 
   // Update participant pool
@@ -1020,6 +1035,9 @@ function DataViewer({}: DataViewerProps) {
                   style={{ width: '100%', marginTop: '5px', padding: '4px' }}
                 />
               </th>
+              <th style={{ padding: '10px', border: '1px solid var(--border-color)', minWidth: '80px' }}>
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -1301,27 +1319,21 @@ function DataViewer({}: DataViewerProps) {
                     onChange={(e) => {
                       const enabling = e.target.checked;
                       if (enabling && !p.competingSparring) {
-                        // Find corresponding sparring category by matching name AND division to forms category
-                        const formsCategory = categories.find(c => c.id === p.formsCategoryId);
-                        const matchingSparringCategory = formsCategory
-                          ? categories.find(c =>
-                              c.type === 'sparring' &&
-                              c.name === formsCategory.name &&
-                              c.division === formsCategory.division
-                            )
-                          : undefined;
-                        const updatedParticipants = participants.map(participant =>
-                          participant.id === p.id
-                            ? {
-                                ...participant,
-                                competingSparring: true,
-                                sparringDivision: participant.formsDivision,
-                                sparringCategoryId: matchingSparringCategory?.id,
-                                sparringPool: matchingSparringCategory ? participant.formsPool : undefined,
-                              }
-                            : participant
-                        );
-                        setParticipants(updatedParticipants);
+                        // Pair the participant with the Sparring twin of their Forms
+                        // category (creating it if needed) and copy the forms pool
+                        // and physical-ring assignment.
+                        const {
+                          categories: nextCategories,
+                          physicalRingMappings: nextMappings,
+                          updates,
+                        } = assignSparringFromForms(p, categories, physicalRingMappings);
+                        if (nextCategories !== categories) {
+                          setCategories(nextCategories);
+                        }
+                        if (nextMappings !== physicalRingMappings) {
+                          setPhysicalRingMappings(nextMappings);
+                        }
+                        updateParticipant(p.id, updates);
                       } else {
                         updateParticipantField(p.id, 'competingSparring', enabling);
                       }
@@ -1455,6 +1467,24 @@ function DataViewer({}: DataViewerProps) {
                       }}
                     />
                   ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>}
+                </td>
+                <td className="actions-column" style={{ padding: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => deleteParticipant(p.id)}
+                    title="Delete this participant"
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                      border: '1px solid #dc3545',
+                      borderRadius: '3px',
+                      backgroundColor: 'transparent',
+                      color: '#dc3545',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
               );

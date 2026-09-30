@@ -66,4 +66,49 @@ describe('CategoryManagement', () => {
     expect(container.textContent).toContain('Category Management');
     expect(container.textContent).toContain('No categories created yet');
   });
+
+  it('migrates the legacy division/competesIn* schema so ages are selectable', () => {
+    // Old databases stored a single `division` plus competesInForms/competesInSparring.
+    const state = {
+      participants: [
+        {
+          id: 'p1',
+          firstName: 'John',
+          lastName: 'Doe',
+          age: 12,
+          gender: 'Male',
+          heightFeet: 4,
+          heightInches: 6,
+          school: 'Test School',
+          division: 'Black Belt',
+          competesInForms: true,
+          competesInSparring: true,
+          totalHeightInches: 54,
+        },
+      ],
+      categories: [],
+      config: {
+        divisions: [{ name: 'Black Belt', order: 1, numRings: 2 }],
+        physicalRings: [],
+      },
+      physicalRingMappings: [],
+      categoryPoolMappings: [],
+    } as unknown as TournamentState;
+
+    useTournamentStore.getState().loadStateFromData(state);
+
+    const migrated = useTournamentStore.getState().participants[0];
+    expect(migrated.formsDivision).toBe('Black Belt');
+    expect(migrated.sparringDivision).toBe('Black Belt');
+    expect(migrated.competingForms).toBe(true);
+    expect(migrated.competingSparring).toBe(true);
+
+    const { container } = render(React.createElement(CategoryManagement));
+
+    // The legacy participant should now show up as a selectable age.
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    expect(checkboxes.length).toBeGreaterThan(0);
+    expect(container.textContent).not.toContain('No participants in this division');
+    expect(container.textContent).toContain('Matching participants:');
+  });
 });
