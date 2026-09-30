@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import jsPDF from 'jspdf';
+import { useState } from 'react';
 import { Participant, CompetitionRing, CustomRing, TournamentConfig } from '../types/tournament';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
@@ -29,7 +28,6 @@ function GrandChampionSection({
   onAddCustomRing,
   onDeleteCustomRing,
   onUpdateCustomRing,
-  onAddParticipantToRing,
   onRemoveParticipantFromRing,
   onMoveParticipantInRing,
   onOpenParticipantSelectionModal,

@@ -70,7 +70,6 @@ export function createTestCategory(overrides: Partial<Category> = {}): Category 
     gender: 'male',
     minAge: 8,
     maxAge: 12,
-    participantIds: [],
     numPools: 1,
     ...overrides,
   };

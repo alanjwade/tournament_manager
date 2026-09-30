@@ -1,47 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
-import { PhysicalRing, Division } from '../types/tournament';
+import { Division } from '../types/tournament';
 import defaultWatermark from '../assets/logos/watermark.png';
-
-// Color map from your original Google Sheets script
-const RING_COLOR_MAP: { [key: number]: string } = {
-  1: '#ff0000',
-  2: '#ffa500',
-  3: '#ffff00',
-  4: '#34a853',
-  5: '#0000ff',
-  6: '#fd2670',
-  7: '#8441be',
-  8: '#999999',
-  9: '#000000',
-  10: '#b68a46',
-  11: '#f78db3',
-  12: '#6fa8dc',
-  13: '#b6d7a8',
-  14: '#b4a7d6',
-};
-
-const RING_COLOR_NAMES: { [key: number]: string } = {
-  1: 'Red',
-  2: 'Orange',
-  3: 'Yellow',
-  4: 'Green',
-  5: 'Blue',
-  6: 'Pink',
-  7: 'Purple',
-  8: 'Gray',
-  9: 'Black',
-  10: 'Brown',
-  11: 'Light Pink',
-  12: 'Light Blue',
-  13: 'Light Green',
-  14: 'Light Purple',
-};
 
 function Configuration() {
   const config = useTournamentStore((state) => state.config);
   const setDivisions = useTournamentStore((state) => state.setDivisions);
-  const setPhysicalRings = useTournamentStore((state) => state.setPhysicalRings);
   const setWatermark = useTournamentStore((state) => state.setWatermark);
   const setSchoolAbbreviations = useTournamentStore((state) => state.setSchoolAbbreviations);
   const saveState = useTournamentStore((state) => state.saveState);

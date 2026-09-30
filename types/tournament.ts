@@ -54,11 +54,10 @@ export interface Category {
   id: string;
   name: string;
   division: string;
-  type?: 'forms' | 'sparring'; // Optional for backward compatibility
+  type: 'forms' | 'sparring'; // Every category belongs to exactly one competition type
   gender: 'male' | 'female' | 'mixed';
   minAge: number;
   maxAge: number;
-  participantIds: string[];
   numPools: number;
 }
 

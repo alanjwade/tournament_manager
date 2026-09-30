@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
-import { Participant, CompetitionRing, PhysicalRing, PhysicalRingMapping, Category } from '../../types/tournament';
-import { getExpandedRingName, formatPdfTimestamp, buildCategoryPoolName } from '../ringNameFormatter';
+import { Participant, PhysicalRing, PhysicalRingMapping, Category } from '../../types/tournament';
+import { formatPdfTimestamp, buildCategoryPoolName } from '../ringNameFormatter';
 import { getSchoolAbbreviation } from '../schoolAbbreviations';
 import { getEffectiveFormsInfo } from '../computeRings';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
@@ -20,7 +20,7 @@ function addTimestampFooter(doc: jsPDF): void {
 export function generateCheckInSheet(
   participants: Participant[],
   division: string,
-  physicalRings: PhysicalRing[],
+  _physicalRings: PhysicalRing[],
   physicalRingMappings?: PhysicalRingMapping[],
   categories?: Category[],
   schoolAbbreviations?: { [schoolName: string]: string }
@@ -141,11 +141,6 @@ export function generateCheckInSheet(
           const ringNumberMatch = physicalRingName.match(/(?:PR|Ring\s*)(\d+)/i);
           
           if (ringNumberMatch) {
-            const baseRingNumber = ringNumberMatch[1];
-            
-            // Find the physical ring by the base number - any physical ring should have a color
-            const ring = physicalRings.find((r) => r.id === `ring-${baseRingNumber}`);
-            
             // Extract full ring identifier (e.g., "6a" from "PR6a")
             const fullRingMatch = physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/i);
             if (fullRingMatch) {

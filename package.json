@@ -6,8 +6,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "concurrently \"npm run build:watch\" \"wait-on dist/src/main/index.js && electron .\"",
-    "build": "tsc && vite build",
-    "build:watch": "tsc && concurrently \"tsc --watch\" \"vite build --watch\"",
+    "typecheck": "tsc && tsc -p tsconfig.renderer.json",
+    "build": "npm run typecheck && vite build",
+    "build:watch": "tsc && concurrently \"tsc --watch\" \"tsc -p tsconfig.renderer.json --watch\" \"vite build --watch\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

@@ -4,12 +4,6 @@ import { getPhysicalRingId, getFullyQualifiedRingName, formatPdfTimestamp, forma
 import { checkSparringAltRingStatus } from '../ringOrdering';
 import { getRingColorFromName, getForegroundColor, hexToRgb } from '../ringColors';
 
-interface BracketSlot {
-  participantId?: string;
-  isBye: boolean;
-  matchNumber?: number;
-}
-
 interface Match {
   number: number;
   round: number;
@@ -336,7 +330,6 @@ function calculateBracketPlacements(participants: Participant[], maxRounds: numb
   let startRound = 1;
   for (let round = 1; round <= maxRounds; round++) {
     const slotsInRound = Math.pow(2, maxRounds - round + 1);
-    const slotsInPrevRound = slotsInRound * 2;
     if (totalPeople > slotsInRound / 2 && totalPeople <= slotsInRound) {
       startRound = round;
       break;
@@ -541,9 +534,8 @@ function drawBracket(
   doc: jsPDF,
   matches: Match[],
   participants: Participant[],
-  watermark?: string
+  _watermark?: string
 ) {
-  const pageWidth = 8.5; // Letter width in inches
   const startX = 0.5;
   const startY = 2.0; // Moved down 0.5" for more spacing at top
   const roundSpacing = 1.69; // 1.44" box + 0.25" gap (maximize space, 1st place line reaches right margin)

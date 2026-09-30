@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { assignRingsForAllCategories, mapSparringToForms } from '../utils/ringAssignment';
 import { CompetitionRing } from '../types/tournament';
@@ -81,6 +81,17 @@ function RingManagement({ globalDivision }: RingManagementProps) {
       return aNum - bNum;
     });
   };
+  // Count directly from participants, the single source of truth for category membership.
+  const getCategoryParticipantCount = (categoryId: string, type: 'forms' | 'sparring'): number => {
+    return participants.filter(p => {
+      if (p.withdrawn) return false;
+      return type === 'forms'
+        ? p.formsCategoryId === categoryId
+        : p.sparringCategoryId === categoryId;
+    }).length;
+  };
+
+
 
   const handleAssignRings = (type: 'forms' | 'sparring') => {
     console.log('=== handleAssignRings called ===');
@@ -283,7 +294,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                         return (
                           <tr key={category.id} style={{ borderBottom: '1px solid #dee2e6' }}>
                             <td style={{ padding: '8px' }}>{category.name}</td>
-                            <td style={{ padding: '8px', textAlign: 'center' }}>{category.participantIds.length}</td>
+                            <td style={{ padding: '8px', textAlign: 'center' }}>{getCategoryParticipantCount(category.id, 'forms')}</td>
                             <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{category.numPools}</td>
                             <td style={{ padding: '8px', fontSize: '12px' }}>
                               {rings.length > 0 ? (
@@ -302,7 +313,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                       <tr style={{ borderTop: '2px solid #dee2e6', fontWeight: 'bold' }}>
                         <td style={{ padding: '8px' }}>TOTAL</td>
                         <td style={{ padding: '8px', textAlign: 'center' }}>
-                          {formsCategories.reduce((sum, c) => sum + c.participantIds.length, 0)}
+                          {formsCategories.reduce((sum, c) => sum + getCategoryParticipantCount(c.id, 'forms'), 0)}
                         </td>
                         <td style={{ 
                           padding: '8px', 
@@ -385,7 +396,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                         return (
                           <tr key={category.id} style={{ borderBottom: '1px solid #dee2e6' }}>
                             <td style={{ padding: '8px' }}>{category.name}</td>
-                            <td style={{ padding: '8px', textAlign: 'center' }}>{category.participantIds.length}</td>
+                            <td style={{ padding: '8px', textAlign: 'center' }}>{getCategoryParticipantCount(category.id, 'sparring')}</td>
                             <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{category.numPools}</td>
                             <td style={{ padding: '8px', fontSize: '12px' }}>
                               {rings.length > 0 ? (
@@ -404,7 +415,7 @@ function RingManagement({ globalDivision }: RingManagementProps) {
                       <tr style={{ borderTop: '2px solid #dee2e6', fontWeight: 'bold' }}>
                         <td style={{ padding: '8px' }}>TOTAL</td>
                         <td style={{ padding: '8px', textAlign: 'center' }}>
-                          {sparringCategories.reduce((sum, c) => sum + c.participantIds.length, 0)}
+                          {sparringCategories.reduce((sum, c) => sum + getCategoryParticipantCount(c.id, 'sparring'), 0)}
                         </td>
                         <td style={{ 
                           padding: '8px', 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Checkpoint, CustomRing, TournamentConfig, Participant } from '../types/tournament';
 import GrandChampionSection from './GrandChampionSection';
 

@@ -293,7 +293,19 @@ function ResultSummary({ result }: { result: ColumnImportResult }) {
         <Stat label="Updated" value={result.updated} color="#28a745" />
         <Stat label="Already same" value={result.unchanged} color="var(--text-muted)" />
         <Stat label="No match in data" value={result.notMatched.length} color="#ffc107" />
+        <Stat label="Skipped" value={result.notFound.length} color="#dc3545" />
       </div>
+
+      {result.notFound.length > 0 && (
+        <div
+          className="warning"
+          style={{ marginBottom: '12px', fontSize: '12px' }}
+        >
+          <strong>⚠ Rows skipped ({result.notFound.length}):</strong>{' '}
+          {result.notFound.slice(0, 8).join(', ')}
+          {result.notFound.length > 8 && ` …and ${result.notFound.length - 8} more`}
+        </div>
+      )}
 
       {result.notMatched.length > 0 && (
         <div

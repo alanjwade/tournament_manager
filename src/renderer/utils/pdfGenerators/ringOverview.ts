@@ -66,7 +66,7 @@ function drawTable(
 }
 
 // Helper function to add timestamp footer
-function addFooter(doc: jsPDF, timestamp: string, pageWidth: number, pageHeight: number) {
+function addFooter(doc: jsPDF, timestamp: string, _pageWidth: number, pageHeight: number) {
   const margin = 10; // Standard margin in mm
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
@@ -105,7 +105,7 @@ export function generateRingOverviewPDF(
   const divisions = Array.from(ringsByDivision.keys()).sort();
   let isFirstPage = true;
 
-  divisions.forEach((division, divIndex) => {
+  divisions.forEach((division, _divIndex) => {
     const divisionRings = ringsByDivision.get(division)!;
     
     // Sort by category name first (with age-aware sorting), then by pool number
@@ -583,7 +583,7 @@ export function generateRingOverviewPDF(
       return match ? match[1] : name;
     };
 
-    sortedDivisionRings.forEach((pair, ringIndex) => {
+    sortedDivisionRings.forEach((pair, _ringIndex) => {
       const thisCategory = extractCategory(pair.categoryPoolName);
       
       // Start new page when category changes (if not already at top of page)

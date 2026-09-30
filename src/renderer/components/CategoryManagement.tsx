@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
-import { Category } from '../types/tournament';
+import { Category, Participant } from '../types/tournament';
 import { getEffectiveDivision } from '../utils/excelParser';
 import { autoAssignAndOrderCategory } from '../utils/autoAssignAndOrder';
 import { AGE_THRESHOLDS, DEFAULT_DIVISION_ORDER } from '../utils/constants';
@@ -253,7 +253,6 @@ function CategoryManagement({}: CategoryManagementProps) {
         gender: selectedGender,
         minAge: minAgeValue,
         maxAge: maxAgeValue,
-        participantIds: formsParticipants.map((p) => p.id),
         numPools,
         type: 'forms',
       };
@@ -281,7 +280,6 @@ function CategoryManagement({}: CategoryManagementProps) {
         gender: selectedGender,
         minAge: minAgeValue,
         maxAge: maxAgeValue,
-        participantIds: sparringParticipants.map((p) => p.id),
         numPools,
         type: 'sparring',
       };
@@ -396,69 +394,48 @@ function CategoryManagement({}: CategoryManagementProps) {
     if (!confirmed) return;
 
     // Start with cleared pool assignments
-    let reassignedParticipants = participants.map((p) => ({
+    let reassignedParticipants: Participant[] = participants.map((p) => ({
       ...p,
       formsPool: undefined,
       formsRankOrder: undefined,
       sparringPool: undefined,
       sparringRankOrder: undefined,
-      sparringAltRing: '',
+      sparringAltRing: '' as const,
       physicalRingId: undefined,
     }));
 
-    // Re-populate each category's participant list and reassign
-    const updatedCategories = categories.map((category) => {
-      // Find participants that match this category's criteria
-      const categoryParticipants = reassignedParticipants.filter((p) => {
-        const genderMatch = p.gender.toLowerCase() === category.gender || category.gender === 'mixed';
-        const divisionMatch = category.type === 'forms' 
-          ? getEffectiveDivision(p, 'forms') === category.division
-          : getEffectiveDivision(p, 'sparring') === category.division;
-        const ageMatch = p.age >= category.minAge && p.age <= category.maxAge;
-        const competingMatch = category.type === 'forms' ? p.competingForms : p.competingSparring;
-        
-        return genderMatch && divisionMatch && ageMatch && competingMatch;
-      });
+    // Match a participant to a category by its criteria. Membership is derived
+    // from participant data, so categories no longer store a participant list.
+    const matchesCategory = (p: Participant, category: Category): boolean => {
+      const genderMatch = p.gender.toLowerCase() === category.gender || category.gender === 'mixed';
+      const divisionMatch = category.type === 'sparring'
+        ? getEffectiveDivision(p, 'sparring') === category.division
+        : getEffectiveDivision(p, 'forms') === category.division;
+      const ageMatch = p.age >= category.minAge && p.age <= category.maxAge;
+      const competingMatch = category.type === 'sparring' ? p.competingSparring : p.competingForms;
+
+      return genderMatch && divisionMatch && ageMatch && competingMatch;
+    };
+
+    // Update participant category IDs to match the (unchanged) category definitions
+    reassignedParticipants = reassignedParticipants.map((p) => {
+      const formsCategory = categories.find(
+        (c) => c.type === 'forms' && matchesCategory(p, c)
+      );
+      const sparringCategory = categories.find(
+        (c) => c.type === 'sparring' && matchesCategory(p, c)
+      );
 
       return {
-        ...category,
-        participantIds: categoryParticipants.map((p) => p.id),
+        ...p,
+        formsCategoryId: formsCategory?.id,
+        sparringCategoryId: sparringCategory?.id,
       };
     });
 
-    // Update participant category IDs to match new categories
-    reassignedParticipants = reassignedParticipants.map((p) => {
-      let updated = { ...p };
-      
-      // Find forms category for this participant
-      const formsCategory = updatedCategories.find(
-        (c) => c.type === 'forms' && c.participantIds.includes(p.id)
-      );
-      if (formsCategory) {
-        updated.formsCategoryId = formsCategory.id;
-      } else {
-        updated.formsCategoryId = undefined;
-      }
-
-      // Find sparring category for this participant
-      const sparringCategory = updatedCategories.find(
-        (c) => c.type === 'sparring' && c.participantIds.includes(p.id)
-      );
-      if (sparringCategory) {
-        updated.sparringCategoryId = sparringCategory.id;
-      } else {
-        updated.sparringCategoryId = undefined;
-      }
-      
-      return updated;
-    });
-
-    // Update categories with new participant lists
-    setCategories(updatedCategories);
-
     // Auto-assign and order participants for each category
     let finalParticipants = reassignedParticipants;
-    for (const category of updatedCategories) {
+    for (const category of categories) {
       finalParticipants = autoAssignAndOrderCategory(category, finalParticipants);
     }
 
@@ -619,7 +596,7 @@ function CategoryManagement({}: CategoryManagementProps) {
 
           <button 
             className="btn btn-primary" 
-            onClick={(e) => {
+            onClick={() => {
               console.log('Add Category clicked', { 
                 selectedDivision, 
                 selectedAgesSize: selectedAges.size, 
@@ -674,12 +651,19 @@ function CategoryManagement({}: CategoryManagementProps) {
                       c.type !== category.type
                     );
 
-                    // Combine participant counts from both forms and sparring
-                    const allParticipantIds = new Set([
-                      ...category.participantIds,
-                      ...(oppositeCategory?.participantIds || [])
-                    ]);
-                    const participantCount = allParticipantIds.size;
+                    // Combine participant counts from both forms and sparring,
+                    // derived from participation so the count is always current
+                    const matchingCategories = oppositeCategory
+                      ? [category, oppositeCategory]
+                      : [category];
+                    const participantCount = participants.filter(p => {
+                      if (p.withdrawn) return false;
+                      return matchingCategories.some(c =>
+                        c.type === 'sparring'
+                          ? p.sparringCategoryId === c.id
+                          : p.formsCategoryId === c.id
+                      );
+                    }).length;
                     
                     return (
                       <tr key={category.id}>

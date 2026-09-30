@@ -6,8 +6,44 @@ import * as https from 'https';
 let mainWindow: BrowserWindow | null = null;
 let backupInterval: NodeJS.Timeout | null = null;
 
+/**
+ * Load the renderer into `win`, retrying until the bundle is available.
+ *
+ * `npm run dev` starts the Vite watcher and Electron in parallel, and Vite
+ * empties `dist/renderer` at the start of every build. The previous
+ * `index.html` can therefore be missing (or deleted mid-load) when Electron
+ * asks for it, which fails with ERR_FILE_NOT_FOUND and leaves a blank window.
+ * Waiting/retrying makes startup independent of which process wins the race.
+ */
+async function loadRenderer(win: BrowserWindow) {
+  if (process.env.NODE_ENV === 'development') {
+    await win.loadURL('http://localhost:5173');
+    return;
+  }
+
+  const rendererFile = path.join(__dirname, '../../renderer/index.html');
+  const retryDelayMs = 500;
+  const maxAttempts = 60; // ~30 seconds
+
+  for (let attempt = 1; attempt <= maxAttempts && !win.isDestroyed(); attempt++) {
+    if (fs.existsSync(rendererFile)) {
+      try {
+        await win.loadFile(rendererFile);
+        return;
+      } catch (error) {
+        console.error(`Failed to load renderer (attempt ${attempt}/${maxAttempts}):`, error);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+  }
+
+  if (!win.isDestroyed()) {
+    console.error(`Renderer still unavailable after ${maxAttempts} attempts: ${rendererFile}`);
+  }
+}
+
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     webPreferences: {
@@ -15,23 +51,36 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    show: false, // Don't show until ready
+    show: false, // Don't show until the renderer has loaded
   });
+  mainWindow = win;
 
-  // Show only once the renderer is ready (avoids blank/white flash on startup)
-  mainWindow.once('ready-to-show', () => {
-    mainWindow!.maximize();
-    mainWindow!.show();
-  });
+  let rendererLoaded = false;
 
-  // Load the renderer
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173');
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'));
-  }
+  // Show only once the renderer has both loaded and painted. Guarding on
+  // `rendererLoaded` prevents a failed load from showing an empty window.
+  const showWhenReady = () => {
+    if (!rendererLoaded || win.isDestroyed()) return;
+    win.removeListener('ready-to-show', showWhenReady);
+    win.maximize();
+    win.show();
+  };
+  win.on('ready-to-show', showWhenReady);
 
-  mainWindow.on('closed', () => {
+  loadRenderer(win)
+    .then(() => {
+      rendererLoaded = true;
+      showWhenReady();
+    })
+    .catch((error) => {
+      console.error('Failed to load renderer:', error);
+      // Show the window anyway so the failure is at least visible.
+      if (!win.isDestroyed()) {
+        win.show();
+      }
+    });
+
+  win.on('closed', () => {
     mainWindow = null;
   });
 }
@@ -103,6 +152,27 @@ function getBackupDir(): string {
 function formatBackupTimestamp(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
+/**
+ * Write a file atomically: write to a temporary sibling and then rename it over
+ * the destination. rename() is atomic on the same volume, so a crash or power
+ * loss mid-write can never leave a truncated/corrupt file behind (which would
+ * otherwise silently discard the whole tournament on the next load).
+ */
+function writeFileAtomic(filePath: string, data: string): void {
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, data, 'utf8');
+  try {
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    try {
+      fs.unlinkSync(tempPath);
+    } catch {
+      // ignore cleanup failure
+    }
+    throw error;
+  }
 }
 
 function cleanupOldBackups(backupDir: string) {
@@ -178,7 +248,7 @@ ipcMain.handle('save-autosave', async (event, data: string) => {
     }
     
     const autosavePath = path.join(dataPath, 'tournament-autosave.json');
-    fs.writeFileSync(autosavePath, data, 'utf8');
+    writeFileAtomic(autosavePath, data);
     console.log('Saved tournament data to:', autosavePath);
     return { success: true, path: autosavePath };
   } catch (error) {
@@ -447,7 +517,7 @@ ipcMain.handle('save-tournament-state', async (event, state: any) => {
   }
 
   try {
-    fs.writeFileSync(result.filePath, JSON.stringify(state, null, 2));
+    writeFileAtomic(result.filePath, JSON.stringify(state, null, 2));
     return { success: true, path: result.filePath };
   } catch (error) {
     console.error('Error saving state:', error);
@@ -492,7 +562,7 @@ ipcMain.handle('save-checkpoint', async (event, checkpoint: any) => {
     }
     
     const filePath = path.join(checkpointsDir, `${checkpoint.id}.json`);
-    fs.writeFileSync(filePath, JSON.stringify(checkpoint, null, 2), 'utf8');
+    writeFileAtomic(filePath, JSON.stringify(checkpoint, null, 2));
     
     return { success: true, path: filePath };
   } catch (error) {

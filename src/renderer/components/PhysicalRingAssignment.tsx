@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 
@@ -23,7 +23,7 @@ function PhysicalRingAssignment() {
     [participants, categories, categoryPoolMappings]
   );
   
-  const [numPhysicalRings, setNumPhysicalRings] = useState<number>(14);
+  const [numPhysicalRings] = useState<number>(14);
   const [assignments, setAssignments] = useState<PhysicalRingAssignment[]>([]);
 
   // Get all individual pools (e.g., Mixed 8-10_R1, Mixed 8-10_R2, etc.)

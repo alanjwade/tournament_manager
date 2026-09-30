@@ -9,10 +9,10 @@ import { buildCategoryPoolName } from '../ringNameFormatter';
 function fitTextInBox(
   doc: jsPDF,
   text: string,
-  x: number,
-  y: number,
+  _x: number,
+  _y: number,
   maxWidth: number,
-  maxHeight: number,
+  _maxHeight: number,
   startFontSize: number = 24,
   minFontSize: number = 8
 ): number {
@@ -57,8 +57,8 @@ const DEFAULT_NAME_TAG_CONFIG: NameTagConfig = {
 export function generateNameTags(
   participants: Participant[],
   division: string,
-  physicalRings: PhysicalRing[],
-  watermark?: string,
+  _physicalRings: PhysicalRing[],
+  _watermark?: string,
   config: NameTagConfig = DEFAULT_NAME_TAG_CONFIG,
   physicalRingMappings?: PhysicalRingMapping[],
   schoolAbbreviations?: { [schoolName: string]: string },
@@ -71,8 +71,6 @@ export function generateNameTags(
     format: 'letter',
   });
 
-  const pageWidth = 215.9; // Letter width in mm
-  const pageHeight = 279.4; // Letter height in mm
   const cols = 2;
   const rows = 4;
   
@@ -96,7 +94,7 @@ export function generateNameTags(
   let currentPage = 0;
   let currentPosition = 0;
 
-  divisionParticipants.forEach((participant, index) => {
+  divisionParticipants.forEach((participant, _index) => {
     const col = currentPosition % cols;
     const row = Math.floor(currentPosition / cols) % rows;
 

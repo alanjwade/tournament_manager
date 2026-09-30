@@ -1,9 +1,7 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
-import { getEffectiveDivision } from '../utils/excelParser';
 import { formatPoolOnly, buildCategoryPoolName } from '../utils/ringNameFormatter';
 import { Participant } from '../types/tournament';
-import { computeCompetitionRings } from '../utils/computeRings';
 import AddParticipantModal from './AddParticipantModal';
 
 interface DataViewerProps {}
@@ -11,7 +9,6 @@ interface DataViewerProps {}
 function DataViewer({}: DataViewerProps) {
   const participants = useTournamentStore((state) => state.participants);
   const categories = useTournamentStore((state) => state.categories);
-  const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
@@ -50,12 +47,6 @@ function DataViewer({}: DataViewerProps) {
   });
   
   const [showColumnSelector, setShowColumnSelector] = useState(false);
-
-  // Compute competition rings from participant data
-  const competitionRings = useMemo(() => 
-    computeCompetitionRings(participants, categories, categoryPoolMappings),
-    [participants, categories, categoryPoolMappings]
-  );
 
   // Duplicate first+last name detection
   const duplicateNames = useMemo(() => {
@@ -260,101 +251,6 @@ function DataViewer({}: DataViewerProps) {
     return Array.from(ages).sort((a, b) => a - b);
   }, [participants]);
 
-  // Get all unique physical ring names from mappings (simple list)
-  const physicalRingOptions = useMemo(() => {
-    const ringNames = new Set<string>();
-    physicalRingMappings.forEach(m => {
-      if (m.physicalRingName) {
-        ringNames.add(m.physicalRingName);
-      }
-    });
-    const sorted = Array.from(ringNames).sort((a, b) => {
-      // Sort by ring number, then suffix (Ring 1, Ring 1a, Ring 1b, Ring 2, Ring 2a, etc.)
-      const aMatch = a.match(/^PR(\d+)([a-z]*)$/);
-      const bMatch = b.match(/^PR(\d+)([a-z]*)$/);
-      if (aMatch && bMatch) {
-        const aNum = parseInt(aMatch[1]);
-        const bNum = parseInt(bMatch[1]);
-        if (aNum !== bNum) return aNum - bNum;
-        return (aMatch[2] || '').localeCompare(bMatch[2] || '');
-      }
-      return a.localeCompare(b);
-    });
-    return sorted;
-  }, [physicalRingMappings]);
-
-  // Get physical ring options with division designators for dropdowns
-  const physicalRingOptionsWithDivision = useMemo(() => {
-    // Map physical ring to divisions that use it
-    const ringToDivisions = new Map<string, Set<string>>();
-    
-    physicalRingMappings.forEach(mapping => {
-      const categoryPoolName = mapping.categoryPoolName;
-      if (!categoryPoolName) return;
-      
-      // Extract division from categoryPoolName (new format: "Division - CategoryName Pool N")
-      const divisionMatch = categoryPoolName.match(/^(.+?) - /);
-      const division = divisionMatch ? divisionMatch[1] : null;
-      
-      if (division && mapping.physicalRingName) {
-        if (!ringToDivisions.has(mapping.physicalRingName)) {
-          ringToDivisions.set(mapping.physicalRingName, new Set());
-        }
-        ringToDivisions.get(mapping.physicalRingName)!.add(division);
-      }
-    });
-    
-    // Build list of ring options with division abbreviations
-    const options: Array<{ value: string; label: string; division: string; divisionOrder: number }> = [];
-    
-    ringToDivisions.forEach((divisions, physicalRing) => {
-      divisions.forEach(division => {
-        const divisionConfig = config.divisions.find(d => d.name === division);
-        // Use abbreviation from config, or fallback to uppercase first 4 chars
-        const abbr = (divisionConfig && divisionConfig.abbreviation) 
-          ? divisionConfig.abbreviation 
-          : division.substring(0, 4).toUpperCase();
-        const order = divisionConfig?.order || 999;
-        
-        options.push({
-          value: physicalRing,
-          label: `${abbr} ${physicalRing}`,
-          division,
-          divisionOrder: order
-        });
-      });
-    });
-    
-    // Sort by division order, then by physical ring
-    return options.sort((a, b) => {
-      if (a.divisionOrder !== b.divisionOrder) {
-        return a.divisionOrder - b.divisionOrder;
-      }
-      
-      // Sort by ring number and suffix
-      const aMatch = a.value.match(/^PR(\d+)([a-z]*)$/);
-      const bMatch = b.value.match(/^PR(\d+)([a-z]*)$/);
-      if (aMatch && bMatch) {
-        const aNum = parseInt(aMatch[1]);
-        const bNum = parseInt(bMatch[1]);
-        if (aNum !== bNum) return aNum - bNum;
-        return (aMatch[2] || '').localeCompare(bMatch[2] || '');
-      }
-      return a.value.localeCompare(b.value);
-    });
-  }, [physicalRingMappings, categories, config.divisions]);
-
-  // Get all category names for dropdowns
-  const formsCategoryOptions = useMemo(() => {
-    const formsCategories = categories.filter(c => c.type === 'forms');
-    return formsCategories.map(c => ({ id: c.id, name: c.name }));
-  }, [categories]);
-
-  const sparringCategoryOptions = useMemo(() => {
-    const sparringCategories = categories.filter(c => c.type === 'sparring');
-    return sparringCategories.map(c => ({ id: c.id, name: c.name }));
-  }, [categories]);
-
   // Build pool options for a given category
   const getPoolOptionsForCategory = (categoryId: string | undefined) => {
     if (!categoryId) return [];
@@ -485,90 +381,6 @@ function DataViewer({}: DataViewerProps) {
     setParticipants(updatedParticipants);
   };
 
-  // Update participant physical ring - this will update division, category, and pool based on ring map
-  // NOTE: This function reassigns the participant to a DIFFERENT category/pool based on the
-  // physical ring mapping. It does NOT just change which physical ring they're assigned to.
-  // The participant will be moved to whatever category/pool is mapped to the selected physical ring.
-  const updateParticipantPhysicalRing = (participantId: string, type: 'forms' | 'sparring', physicalRingName: string) => {
-    const participant = participants.find(p => p.id === participantId);
-    if (!participant) return;
-
-    // If clearing the selection
-    if (!physicalRingName) {
-      const updatedParticipants = participants.map(p => {
-        if (p.id === participantId) {
-          if (type === 'forms') {
-            return { ...p, formsCategoryId: undefined, formsPool: undefined };
-          } else {
-            return { ...p, sparringCategoryId: undefined, sparringPool: undefined };
-          }
-        }
-        return p;
-      });
-      setParticipants(updatedParticipants);
-      return;
-    }
-
-    // Find the pool mapping for this physical ring
-    const mapping = physicalRingMappings.find(m => m.physicalRingName === physicalRingName);
-    const categoryPoolName = mapping?.categoryPoolName;
-    if (!mapping || !categoryPoolName) {
-      console.warn('No mapping found for physical ring:', physicalRingName);
-      return;
-    }
-
-    // Parse from new format: "Division - CategoryName Pool N"
-    const poolMatch = categoryPoolName.match(/Pool (\d+)$/);
-    if (!poolMatch) {
-      console.warn('Could not parse pool from categoryPoolName:', categoryPoolName);
-      return;
-    }
-    
-    const pool = `P${poolMatch[1]}`; // e.g., "P1"
-    
-    // Extract division and category name from new format
-    const formatMatch = categoryPoolName.match(/^(.+?) - (.+?) Pool \d+$/);
-    if (!formatMatch) {
-      console.warn('Could not parse categoryPoolName format:', categoryPoolName);
-      return;
-    }
-    
-    const division = formatMatch[1];
-    const categoryName = formatMatch[2];
-
-    // Find the category by name, type, and division
-    const category = categories.find(c => 
-      c.name === categoryName && c.type === type && c.division === division
-    );
-    
-    if (!category) {
-      console.warn('Could not find category:', categoryName, 'type:', type);
-      return;
-    }
-
-    // Update the participant
-    const updatedParticipants = participants.map(p => {
-      if (p.id === participantId) {
-        if (type === 'forms') {
-          return { 
-            ...p, 
-            formsCategoryId: category.id,
-            formsPool: pool,
-            formsDivision: category.division
-          };
-        } else {
-          return { 
-            ...p, 
-            sparringCategoryId: category.id,
-            sparringPool: pool,
-            sparringDivision: category.division
-          };
-        }
-      }
-      return p;
-    });
-    setParticipants(updatedParticipants);
-  };
 
   // Filter participants based on all filter criteria
   const filteredParticipants = useMemo(() => {

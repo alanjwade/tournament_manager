@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { parseExcelFile } from '../utils/excelParser';
-import { Division } from '../types/tournament';
 import { ColumnImport } from './ColumnImport';
 
 interface ImportPreview {
@@ -53,7 +52,8 @@ function DataImport() {
         errs.push('Missing branch (required)');
       }
       
-      if (p.heightFeet === undefined || p.heightFeet === null || (p.heightFeet === 0 && (p.heightInches === undefined || p.heightInches === null || p.heightInches === 0))) {
+      if (!Number.isFinite(p.heightFeet) || !Number.isFinite(p.heightInches) ||
+          (p.heightFeet === 0 && (p.heightInches === undefined || p.heightInches === null || p.heightInches === 0))) {
         warns.push('Missing height information');
       }
       if (!p.formsDivision && !p.sparringDivision) {

@@ -5,7 +5,7 @@ export interface ColumnImportResult {
   updated: number;
   unchanged: number;
   notMatched: string[]; // rows in spreadsheet that didn't match any participant
-  notFound: string[]; // participants whose names matched but couldn't be processed
+  notFound: string[]; // rows that matched but were skipped (ambiguous name or invalid value)
   fieldName: string;
   details: Array<{
     name: string;
@@ -77,6 +77,11 @@ export function applyColumnImport(
     return undefined;
   }
 
+  // Helper: normalize a participant name for case/whitespace-insensitive matching
+  function normalizeName(firstName: string, lastName: string): string {
+    return `${firstName} ${lastName}`.toLowerCase().trim().replace(/\s+/g, ' ');
+  }
+
   const result: ColumnImportResult = {
     updated: 0,
     unchanged: 0,
@@ -86,11 +91,19 @@ export function applyColumnImport(
     details: [],
   };
 
-  // Build a lookup map of normalized full name → participant index for fast matching
-  const participantMap = new Map<string, number>();
+  // Build a lookup map of normalized full name -> participant indices for fast matching.
+  // A name can legitimately appear more than once, so every matching index is retained;
+  // ambiguous rows are skipped below instead of silently overwriting one arbitrary record.
+  const participantMap = new Map<string, number[]>();
   participants.forEach((p, idx) => {
-    const key = `${p.firstName} ${p.lastName}`.toLowerCase().trim().replace(/\s+/g, ' ');
-    participantMap.set(key, idx);
+    const key = normalizeName(p.firstName, p.lastName);
+    if (!key.trim()) return;
+    const existing = participantMap.get(key);
+    if (existing) {
+      existing.push(idx);
+    } else {
+      participantMap.set(key, [idx]);
+    }
   });
 
   // Clone the participant array so we can mutate immutably
@@ -110,25 +123,48 @@ export function applyColumnImport(
     if (!firstName && !lastName) continue; // skip blank rows
 
     const rawValue = row[selectedHeader];
-    const lookupKey = `${firstName} ${lastName}`.toLowerCase().trim().replace(/\s+/g, ' ');
+    const lookupKey = normalizeName(firstName, lastName);
+    const matchedIndices = lookupKey ? participantMap.get(lookupKey) : undefined;
+    const displayName = `${firstName} ${lastName}`.trim();
 
-    const idx = participantMap.get(lookupKey);
-    if (idx === undefined) {
-      const fullName = `${firstName} ${lastName}`.trim();
-      if (fullName) {
-        result.notMatched.push(fullName);
-        result.details.push({ name: fullName, oldValue: undefined, newValue: rawValue as never, status: 'not_matched' });
+    // No participant with this name
+    if (!matchedIndices) {
+      if (displayName) {
+        result.notMatched.push(displayName);
+        result.details.push({ name: displayName, oldValue: undefined, newValue: rawValue as never, status: 'not_matched' });
       }
       continue;
     }
 
+    // Ambiguous name: several participants share it, so a name-only match cannot
+    // tell them apart. Skip the row rather than silently overwriting an arbitrary
+    // participant (which would corrupt data).
+    if (matchedIndices.length > 1) {
+      result.notFound.push(`${displayName} (${matchedIndices.length} participants share this name)`);
+      result.details.push({ name: displayName, oldValue: undefined, newValue: rawValue as never, status: 'not_matched' });
+      continue;
+    }
+
+    const idx = matchedIndices[0];
     const participant = updatedParticipants[idx];
     const oldValue = participant[targetField];
 
     // Coerce the value to the appropriate type based on the existing field type
     let newValue: unknown = rawValue;
     if (typeof oldValue === 'number' || targetField === 'age' || targetField === 'heightFeet' || targetField === 'heightInches') {
-      newValue = rawValue !== '' && rawValue !== null && rawValue !== undefined ? Number(rawValue) : oldValue;
+      if (rawValue === '' || rawValue === null || rawValue === undefined) {
+        // Blank cell: leave the existing value untouched
+        newValue = oldValue;
+      } else {
+        const numeric = Number(rawValue);
+        if (!Number.isFinite(numeric)) {
+          // Never write NaN into the data model - report and skip the row
+          result.notFound.push(`${displayName} (invalid number "${String(rawValue)}")`);
+          result.details.push({ name: displayName, oldValue, newValue: rawValue as never, status: 'not_matched' });
+          continue;
+        }
+        newValue = numeric;
+      }
     } else if (typeof oldValue === 'boolean') {
       const s = String(rawValue).toLowerCase().trim();
       newValue = s === 'true' || s === 'yes' || s === '1';
@@ -136,15 +172,20 @@ export function applyColumnImport(
       newValue = rawValue !== null && rawValue !== undefined ? String(rawValue).trim() : '';
     }
 
-    const fullName = `${participant.firstName} ${participant.lastName}`;
-
     if (String(oldValue) === String(newValue)) {
       result.unchanged++;
-      result.details.push({ name: fullName, oldValue, newValue: newValue as never, status: 'unchanged' });
+      result.details.push({ name: displayName, oldValue, newValue: newValue as never, status: 'unchanged' });
     } else {
       (updatedParticipants[idx] as unknown as Record<string, unknown>)[targetField as string] = newValue;
+
+      // Keep the derived total height in sync whenever a height component changes
+      if (targetField === 'heightFeet' || targetField === 'heightInches') {
+        const updated = updatedParticipants[idx];
+        updated.totalHeightInches = updated.heightFeet * 12 + updated.heightInches;
+      }
+
       result.updated++;
-      result.details.push({ name: fullName, oldValue, newValue: newValue as never, status: 'updated' });
+      result.details.push({ name: displayName, oldValue, newValue: newValue as never, status: 'updated' });
     }
   }
 

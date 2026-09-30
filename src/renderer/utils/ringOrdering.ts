@@ -48,24 +48,6 @@ function hashNameAge(firstName: string, lastName: string, age: number): number {
 }
 
 /**
- * Get the school abbreviation (first letter of each word, max 4 letters)
- */
-function getSchoolAbbreviation(schoolName: string): string {
-  return schoolName
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase())
-    .join('')
-    .substring(0, 4);
-}
-
-/**
- * Get the branch abbreviation (first letter, uppercase)
- */
-function getBranchAbbreviation(branchName: string | undefined): string {
-  return branchName ? branchName.charAt(0).toUpperCase() : '';
-}
-
-/**
  * Distribute branches of a school evenly
  * E.g., if 4 in branch A and 1 in branch B, order would be AABAA
  */

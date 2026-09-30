@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTournamentStore } from './store/tournamentStore';
 import { getEffectiveDivision } from './utils/excelParser';
 import { computeCompetitionRings } from './utils/computeRings';
@@ -113,13 +113,6 @@ function App() {
       )
       .slice(0, 10); // Limit to 10 results
   }, [searchQuery, participants]);
-
-  // Get category name by ID
-  const getCategoryName = (categoryId?: string) => {
-    if (!categoryId) return null;
-    const category = categories.find(c => c.id === categoryId);
-    return category?.name || null;
-  };
 
   // Get ring name for a participant
   const getParticipantRingInfo = (p: typeof participants[0]) => {
@@ -268,57 +261,9 @@ function App() {
         
         if (result?.success && result.data) {
           const state = JSON.parse(result.data);
-          const defaultConfig = useTournamentStore.getState().config;
-          console.log(`✓ Loaded ${state.participants?.length || 0} participants from: ${result.path}`);
-          
-          // Merge divisions to preserve abbreviations from default config
-          const mergedDivisions = (state.config?.divisions || []).map((savedDiv: any) => {
-            const defaultDiv = defaultConfig.divisions.find(d => d.name === savedDiv.name);
-            return {
-              ...savedDiv,
-              // Preserve abbreviation from default config if not in saved state
-              abbreviation: savedDiv.abbreviation || defaultDiv?.abbreviation
-            };
-          });
-          
-          // Clean up orphaned category references (category IDs that no longer exist)
-          // Note: With deterministic category IDs, this should rarely be needed
-          const validCategoryIds = new Set((state.categories || []).map((c: any) => c.id));
-          let cleanupCount = 0;
-          const cleanedParticipants = (state.participants || []).map((p: any) => {
-            const cleaned = { ...p, sparringAltRing: p.sparringAltRing || '' };
-            
-            if (cleaned.formsCategoryId && !validCategoryIds.has(cleaned.formsCategoryId)) {
-              console.warn(`Cleaning orphaned formsCategoryId "${cleaned.formsCategoryId}" from ${p.firstName} ${p.lastName}`);
-              cleaned.formsCategoryId = undefined;
-              cleanupCount++;
-            }
-            
-            if (cleaned.sparringCategoryId && !validCategoryIds.has(cleaned.sparringCategoryId)) {
-              console.warn(`Cleaning orphaned sparringCategoryId "${cleaned.sparringCategoryId}" from ${p.firstName} ${p.lastName}`);
-              cleaned.sparringCategoryId = undefined;
-              cleanupCount++;
-            }
-            
-            return cleaned;
-          });
-          
-          if (cleanupCount > 0) {
-            console.log(`✓ Cleaned up ${cleanupCount} orphaned category references`);
-          }
-          
-          useTournamentStore.setState({
-            participants: cleanedParticipants,
-            categories: state.categories || [],
-            config: { 
-              ...defaultConfig, 
-              ...state.config,
-              divisions: mergedDivisions
-            },
-            physicalRingMappings: state.physicalRingMappings || [],
-            categoryPoolMappings: state.categoryPoolMappings || [],
-            customRings: state.customRings || [],
-          });
+          // Restore every persisted slice (including customOrderRings) and repair
+          // stale references in one place - see hydrateFromAutosave.
+          useTournamentStore.getState().hydrateFromAutosave(state);
         } else if (!result?.data) {
           console.log('No autosave data found. Save path will be: ' + (result?.path || 'unknown'));
         }

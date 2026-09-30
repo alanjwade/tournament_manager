@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { generateNameTags } from '../utils/pdfGenerators/nameTags';
 import { generateCheckInSheet } from '../utils/pdfGenerators/checkInSheet';
@@ -524,7 +524,6 @@ function PDFExport({}: PDFExportProps) {
         // Export PDFs for each division
         for (const division of Array.from(divisionsWithParticipants).sort()) {
           // Temporarily set division and export
-          const previousDivision = selectedDivision;
           setSelectedDivision(division);
           
           // Export all 5 PDFs for this division
@@ -549,12 +548,6 @@ function PDFExport({}: PDFExportProps) {
 
     if (divisionParticipants.length === 0) return;
 
-    // Temporarily set division and export
-    const currentDivision = selectedDivision;
-    
-    // Create temporary state for export
-    const tempDiv = division;
-    
     // Export name tags
     const namePdf = generateNameTags(
       participants,

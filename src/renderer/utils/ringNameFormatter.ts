@@ -136,7 +136,7 @@ export function getPhysicalRingId(
  */
 export function getExpandedRingName(
   physicalRingId: string | null,
-  physicalRings?: PhysicalRing[]
+  _physicalRings?: PhysicalRing[]
 ): string {
   if (!physicalRingId) return 'Unknown Ring';
   
@@ -155,7 +155,7 @@ export function getExpandedRingName(
 export function getFullyQualifiedRingName(
   division: string,
   physicalRingId: string | null,
-  physicalRings?: PhysicalRing[]
+  _physicalRings?: PhysicalRing[]
 ): string {
   if (!physicalRingId) return `${division} Unknown Ring`;
   

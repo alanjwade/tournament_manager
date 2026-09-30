@@ -58,6 +58,17 @@ export function normalizeDivision(rawDivision: string | null, validDivisions: st
   return null;
 }
 
+/**
+ * Coerce a spreadsheet cell to a finite number, falling back to `fallback`
+ * when the value is blank or non-numeric (e.g. "N/A"). This prevents NaN from
+ * leaking into Participant fields such as heightFeet/totalHeightInches.
+ */
+function toFiniteNumber(value: unknown, fallback: number): number {
+  if (value === null || value === undefined || value === '') return fallback;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 export function parseExcelFile(data: number[], validDivisions: string[] = []): Participant[] {
   const uint8Array = new Uint8Array(data);
   const workbook = XLSX.read(uint8Array, { type: 'array' });
@@ -71,8 +82,8 @@ export function parseExcelFile(data: number[], validDivisions: string[] = []): P
   console.log('======================================');
 
   return jsonData.map((row, index) => {
-    const heightFeet = Number(row['height feet'] || row['Height Feet'] || row['Feet'] || 0);
-    const heightInches = Number(row['height inches'] || row['Height Inches'] || row['Inches'] || 0);
+    const heightFeet = toFiniteNumber(row['height feet'] || row['Height Feet'] || row['Feet'], 0);
+    const heightInches = toFiniteNumber(row['height inches'] || row['Height Inches'] || row['Inches'], 0);
     
     // Handle age - check for "18 and Up" string
     let age = 0;

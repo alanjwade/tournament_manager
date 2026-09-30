@@ -22,10 +22,6 @@ export function generateFormsScoringSheets(
     format: 'letter',
   });
   
-  // When using masterPdf, we need to track pages carefully
-  // jsPDF starts with 1 blank page
-  const startingPageCount = doc.getNumberOfPages();
-
   const pageWidth = 8.5; // Letter width in inches
   const pageHeight = 11; // Letter height in inches
   const margin = 0.5; // 1/2 inch margins

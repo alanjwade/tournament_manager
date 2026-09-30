@@ -1,9 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { getEffectiveDivision } from '../utils/excelParser';
 import { formatPoolNameForDisplay } from '../utils/ringNameFormatter';
-import { PhysicalRing } from '../types/tournament';
 
 interface RingAssignmentRow {
   categoryPoolName: string;
@@ -13,24 +12,6 @@ interface RingAssignmentRow {
   physicalRingName: string;
 }
 
-// Color map for physical rings (matching Configuration component)
-const RING_COLOR_MAP: { [key: number]: string } = {
-  1: '#ff0000',  // Red
-  2: '#ffa500',  // Orange
-  3: '#ffff00',  // Yellow
-  4: '#34a853',  // Green
-  5: '#0000ff',  // Blue
-  6: '#fd2670',  // Pink
-  7: '#8441be',  // Purple
-  8: '#999999',  // Gray
-  9: '#000000',  // Black
-  10: '#b68a46', // Brown
-  11: '#f78db3', // Light Pink
-  12: '#6fa8dc', // Light Blue
-  13: '#b6d7a8', // Light Green
-  14: '#b4a7d6', // Light Purple
-};
-
 interface RingMapEditorProps {}
 
 function RingMapEditor({}: RingMapEditorProps) {
@@ -39,8 +20,6 @@ function RingMapEditor({}: RingMapEditorProps) {
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const setPhysicalRingMappings = useTournamentStore((state) => state.setPhysicalRingMappings);
-  const updatePhysicalRingMapping = useTournamentStore((state) => state.updatePhysicalRingMapping);
-  const setPhysicalRings = useTournamentStore((state) => state.setPhysicalRings);
   const config = useTournamentStore((state) => state.config);
   
   // Compute competition rings from participant data
@@ -203,7 +182,7 @@ function RingMapEditor({}: RingMapEditorProps) {
         categoryPoolName: ring.ringName,
         division: ring.division,
         minAge: ring.minAge,
-        participantCount: ring.participantCount,
+        participantCount: ring.participantIds.size,
         physicalRingName,
       };
     });

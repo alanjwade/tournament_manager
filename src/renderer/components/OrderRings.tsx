@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { orderFormsRing, orderSparringRing, checkSparringAltRingStatus } from '../utils/ringOrdering';
 import { computeCompetitionRings } from '../utils/computeRings';

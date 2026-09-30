@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Participant, Category, CompetitionRing, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CategoryPoolMapping, TournamentState as SavedState, Checkpoint, CheckpointDiff, ParticipantChange, CustomRing } from '../types/tournament';
+import { Participant, Category, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CategoryPoolMapping, TournamentState as SavedState, Checkpoint, CheckpointDiff, ParticipantChange, CustomRing } from '../types/tournament';
 import { debounce } from '../utils/debounce';
 import { AUTOSAVE_DELAY_MS } from '../utils/constants';
 import { logger } from '../utils/logger';
@@ -87,13 +87,14 @@ interface TournamentState {
   saveState: () => Promise<void>;
   loadState: () => Promise<void>;
   loadStateFromData: (data: SavedState) => void;
+  hydrateFromAutosave: (data: SavedState) => void;
   autoSave: () => void;
   reset: () => void;
   
   // Checkpoint actions
   createCheckpoint: (name?: string) => Promise<Checkpoint>;
-  renameCheckpoint: (checkpointId: string, newName: string) => void;
-  deleteCheckpoint: (checkpointId: string) => void;
+  renameCheckpoint: (checkpointId: string, newName: string) => Promise<void>;
+  deleteCheckpoint: (checkpointId: string) => Promise<void>;
   diffCheckpoint: (checkpointId: string) => CheckpointDiff | null;
   loadCheckpoint: (checkpointId: string) => void;
   
@@ -151,6 +152,78 @@ const initialConfig: TournamentConfig = {
     'Success Martial Arts': 'SMA',
   },
 };
+
+/**
+ * Normalize a persisted tournament state into the slices stored by the app.
+ *
+ * Shared by autosave hydration, file load and checkpoint restore so every entry
+ * point applies the same repairs:
+ *  - divisions keep their default abbreviations
+ *  - legacy "PR1" physical-ring names are migrated to "Ring 1"
+ *  - participant references to categories that no longer exist are cleared
+ *  - custom rings AND customOrderRings are always carried over (never dropped)
+ *
+ * The input is deep-cloned so the store never aliases a checkpoint's saved state.
+ */
+function buildHydratedState(savedState: SavedState): Snapshot {
+  const state = structuredClone(savedState);
+
+  const mergedDivisions = (state.config?.divisions || []).map((savedDiv) => {
+    const defaultDiv = initialConfig.divisions.find(d => d.name === savedDiv.name);
+    return {
+      ...savedDiv,
+      abbreviation: savedDiv.abbreviation || defaultDiv?.abbreviation,
+    };
+  });
+
+  const migratedPhysicalRingMappings = (state.physicalRingMappings || []).map(m => {
+    const physicalRingName = m.physicalRingName;
+    if (physicalRingName.match(/^PR\d/i)) {
+      return { ...m, physicalRingName: physicalRingName.replace(/^PR(\d+)([a-z])?$/i, 'Ring $1$2') };
+    }
+    return m;
+  });
+
+  const categories = (state.categories || []).map(c => ({
+    ...c,
+    // Legacy saves may omit `type`; default it to 'forms' (the historical model)
+    // so no consumer ever has to guess what a missing type means.
+    type: c.type ?? 'forms',
+  }));
+  const validCategoryIds = new Set(categories.map(c => c.id));
+  let orphanCount = 0;
+  const participants = (state.participants || []).map(p => {
+    const cleaned: Participant = { ...p, sparringAltRing: p.sparringAltRing || '' };
+    if (cleaned.formsCategoryId && !validCategoryIds.has(cleaned.formsCategoryId)) {
+      logger.warn(`Cleaning orphaned formsCategoryId "${cleaned.formsCategoryId}" from ${p.firstName} ${p.lastName}`);
+      cleaned.formsCategoryId = undefined;
+      orphanCount++;
+    }
+    if (cleaned.sparringCategoryId && !validCategoryIds.has(cleaned.sparringCategoryId)) {
+      logger.warn(`Cleaning orphaned sparringCategoryId "${cleaned.sparringCategoryId}" from ${p.firstName} ${p.lastName}`);
+      cleaned.sparringCategoryId = undefined;
+      orphanCount++;
+    }
+    return cleaned;
+  });
+  if (orphanCount > 0) {
+    logger.info(`Cleaned up ${orphanCount} orphaned category references`);
+  }
+
+  return {
+    participants,
+    categories,
+    config: {
+      ...initialConfig,
+      ...(state.config || {}),
+      divisions: mergedDivisions,
+    },
+    physicalRingMappings: migratedPhysicalRingMappings,
+    categoryPoolMappings: state.categoryPoolMappings || [],
+    customRings: state.customRings || [],
+    customOrderRings: state.customOrderRings || [],
+  };
+}
 
 export const useTournamentStore = create<TournamentState>((set, get) => ({
   participants: [],
@@ -353,7 +426,10 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       const categoryId = parts.slice(1, -1).join('-');
       return validCategoryIds.has(categoryId);
     });
-    set({ categories, customOrderRings: prunedCustomOrderRings });
+    set({
+      categories: categories.map(c => ({ ...c, type: c.type ?? 'forms' })),
+      customOrderRings: prunedCustomOrderRings,
+    });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },
   
@@ -481,42 +557,13 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 
   loadStateFromData: (state) => {
-    // Merge divisions to preserve abbreviations from initial config
-    const mergedDivisions = (state.config?.divisions || []).map((savedDiv) => {
-      const defaultDiv = initialConfig.divisions.find(d => d.name === savedDiv.name);
-      return {
-        ...savedDiv,
-        // Preserve abbreviation from default config if not in saved state
-        abbreviation: savedDiv.abbreviation || defaultDiv?.abbreviation
-      };
-    });
+    set({ ...buildHydratedState(state), undoStack: [], redoStack: [] });
+  },
 
-    // Migrate physical ring mappings from old "PR1" format to new "Ring 1" format
-    const migratedPhysicalRingMappings = (state.physicalRingMappings || []).map(m => {
-      const physicalRingName = m.physicalRingName;
-      // Check if it starts with "PR" (old format)
-      if (physicalRingName.match(/^PR\d/i)) {
-        // Convert "PR1" to "Ring 1", "PR1a" to "Ring 1a", etc.
-        const converted = physicalRingName.replace(/^PR(\d+)([a-z])?$/i, 'Ring $1$2');
-        return { ...m, physicalRingName: converted };
-      }
-      return m;
-    });
-
-    set({
-      participants: state.participants || [],
-      categories: state.categories || [],
-      config: {
-        ...(state.config || initialConfig),
-        divisions: mergedDivisions
-      },
-      physicalRingMappings: migratedPhysicalRingMappings,
-      categoryPoolMappings: state.categoryPoolMappings || [],
-      customRings: state.customRings || [],
-      customOrderRings: state.customOrderRings || [],
-      undoStack: [],
-      redoStack: [],
-    });
+  hydrateFromAutosave: (state) => {
+    // Restores every persisted slice (including customOrderRings) and repairs
+    // stale references in one place - see buildHydratedState.
+    set({ ...buildHydratedState(state), undoStack: [], redoStack: [] });
   },
 
   autoSave: async () => {
@@ -562,7 +609,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const checkpointName = name || `Checkpoint ${new Date().toLocaleString()}`;
     
     const checkpoint: Checkpoint = {
-      id: `checkpoint-${Date.now()}`,
+      id: `checkpoint-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: checkpointName,
       timestamp,
       state: {
@@ -596,32 +643,49 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     return checkpoint;
   },
 
-  renameCheckpoint: (checkpointId: string, newName: string) => {
+  renameCheckpoint: async (checkpointId: string, newName: string) => {
     set((state) => ({
       checkpoints: state.checkpoints.map(cp =>
         cp.id === checkpointId ? { ...cp, name: newName } : cp
       ),
     }));
-    
-    // Update checkpoint on disk
-    const state = get();
-    const checkpoint = state.checkpoints.find(cp => cp.id === checkpointId);
-    if (checkpoint) {
-      window.electronAPI.saveCheckpoint(checkpoint).catch(err => {
-        logger.error('Failed to update checkpoint name:', err);
-      });
+
+    // Persist the rename. If the write fails the in-memory and on-disk copies
+    // silently diverge (the rename is lost on restart), so surface it.
+    const checkpoint = get().checkpoints.find(cp => cp.id === checkpointId);
+    if (!checkpoint) return;
+
+    try {
+      const result = await window.electronAPI.saveCheckpoint(checkpoint);
+      if (!result?.success) {
+        logger.error('Failed to update checkpoint name:', result?.error);
+        alert(`Failed to rename checkpoint on disk: ${result?.error || 'unknown error'}`);
+      }
+    } catch (error) {
+      logger.error('Failed to update checkpoint name:', error);
+      alert(`Failed to rename checkpoint on disk: ${error instanceof Error ? error.message : String(error)}`);
     }
   },
 
-  deleteCheckpoint: (checkpointId: string) => {
+  deleteCheckpoint: async (checkpointId: string) => {
+    // Delete from disk first: if this fails the checkpoint stays in the UI so the
+    // list never claims it is gone while it still exists on disk.
+    try {
+      const result = await window.electronAPI.deleteCheckpoint(checkpointId);
+      if (!result?.success) {
+        logger.error('Failed to delete checkpoint:', result?.error);
+        alert(`Failed to delete checkpoint: ${result?.error || 'unknown error'}`);
+        return;
+      }
+    } catch (error) {
+      logger.error('Failed to delete checkpoint:', error);
+      alert(`Failed to delete checkpoint: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+
     set((state) => ({
       checkpoints: state.checkpoints.filter(cp => cp.id !== checkpointId),
     }));
-
-    // Delete from disk
-    window.electronAPI.deleteCheckpoint(checkpointId).catch(err => {
-      logger.error('Failed to delete checkpoint:', err);
-    });
   },
 
   diffCheckpoint: (checkpointId: string): CheckpointDiff | null => {
@@ -816,15 +880,9 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
     if (confirm(`Load checkpoint "${checkpoint.name}"? This will replace your current state.`)) {
       get().pushHistory();
-      set({
-        participants: structuredClone(checkpoint.state.participants),
-        categories: structuredClone(checkpoint.state.categories),
-        config: structuredClone(checkpoint.state.config),
-        physicalRingMappings: structuredClone(checkpoint.state.physicalRingMappings),
-        categoryPoolMappings: structuredClone(checkpoint.state.categoryPoolMappings),
-        customRings: checkpoint.state.customRings ? structuredClone(checkpoint.state.customRings) : [],
-        customOrderRings: checkpoint.state.customOrderRings ? [...checkpoint.state.customOrderRings] : [],
-      });
+      // Normalize/migrate exactly like autosave + file load (orphan references,
+      // legacy ring names, defaults) instead of restoring raw checkpoint data.
+      set(buildHydratedState(checkpoint.state));
       // Immediately persist the restored state so autosave reflects the checkpoint data.
       // Without this, closing the app before any subsequent mutation would reload the
       // pre-restore autosave on next startup (silently discarding the checkpoint restore).

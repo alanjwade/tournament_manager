@@ -261,11 +261,32 @@ describe('Tournament Store', () => {
 
     it('should delete a checkpoint', async () => {
       const checkpoint = await useTournamentStore.getState().createCheckpoint('Test');
-      
-      useTournamentStore.getState().deleteCheckpoint(checkpoint.id);
-      
+
+      await useTournamentStore.getState().deleteCheckpoint(checkpoint.id);
+
       const state = useTournamentStore.getState();
       expect(state.checkpoints.length).toBe(0);
+    });
+
+    it('should keep the checkpoint when the disk delete fails', async () => {
+      const checkpoint = await useTournamentStore.getState().createCheckpoint('Test');
+
+      mockElectronAPI.deleteCheckpoint.mockResolvedValueOnce({ success: false, error: 'disk error' });
+      await useTournamentStore.getState().deleteCheckpoint(checkpoint.id);
+
+      // The list must not claim the checkpoint is gone while it still exists on disk
+      expect(useTournamentStore.getState().checkpoints.map(cp => cp.id)).toContain(checkpoint.id);
+    });
+
+    it('should generate unique ids for checkpoints created in the same millisecond', async () => {
+      const spy = vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
+      try {
+        const a = await useTournamentStore.getState().createCheckpoint('A');
+        const b = await useTournamentStore.getState().createCheckpoint('B');
+        expect(a.id).not.toBe(b.id);
+      } finally {
+        spy.mockRestore();
+      }
     });
 
     it('should rename a checkpoint', async () => {
@@ -625,4 +646,70 @@ describe('Tournament Store', () => {
       expect(shouldExportSparring).toBe(false); // Should NOT export sparring
     });
   });
+
+  describe('hydrateFromAutosave', () => {
+    it('restores customOrderRings so manual ring ordering survives a restart', () => {
+      useTournamentStore.getState().hydrateFromAutosave({
+        participants: [createTestParticipant({ id: 'p1' })],
+        categories: [],
+        config: { divisions: [], physicalRings: [] },
+        physicalRingMappings: [],
+        categoryPoolMappings: [],
+        customOrderRings: ['forms-cat1-P1'],
+      });
+
+      expect(useTournamentStore.getState().customOrderRings).toEqual(['forms-cat1-P1']);
+    });
+
+    it('clears orphaned category references and preserves division abbreviations', () => {
+      useTournamentStore.getState().hydrateFromAutosave({
+        participants: [
+          createTestParticipant({
+            id: 'p1',
+            formsCategoryId: 'missing-category',
+            sparringCategoryId: 'cat1',
+          }),
+        ],
+        categories: [createTestCategory({ id: 'cat1' })],
+        // Saved division omits its abbreviation, so the default must be re-used
+        config: { divisions: [{ name: 'Black Belt', order: 1 }], physicalRings: [] },
+        physicalRingMappings: [{ categoryPoolName: 'X', physicalRingName: 'PR1' }],
+        categoryPoolMappings: [],
+      });
+
+      const state = useTournamentStore.getState();
+      expect(state.participants[0].formsCategoryId).toBeUndefined();
+      expect(state.participants[0].sparringCategoryId).toBe('cat1');
+      expect(state.config.divisions[0].abbreviation).toBe('BLKB');
+      // Legacy physical ring names are migrated
+      expect(state.physicalRingMappings[0].physicalRingName).toBe('Ring 1');
+    });
+  });
+  describe('loadCheckpoint normalization', () => {
+    it('clears orphaned category references when a checkpoint is restored', async () => {
+      const participant = createTestParticipant({ id: 'p1', formsCategoryId: 'ghost-category' });
+      useTournamentStore.getState().setParticipants([participant]);
+
+      const checkpoint = await useTournamentStore.getState().createCheckpoint('Orphaned');
+      useTournamentStore.getState().loadCheckpoint(checkpoint.id);
+
+      expect(useTournamentStore.getState().participants[0].formsCategoryId).toBeUndefined();
+    });
+
+    it('restores customOrderRings from a checkpoint', async () => {
+      const participant = createTestParticipant({ id: 'p1' });
+      useTournamentStore.getState().setParticipants([participant]);
+      useTournamentStore.setState({ customOrderRings: ['forms-cat1-P1'] });
+
+      const checkpoint = await useTournamentStore.getState().createCheckpoint('Manual order');
+
+      useTournamentStore.setState({ customOrderRings: [] });
+      useTournamentStore.getState().loadCheckpoint(checkpoint.id);
+
+      expect(useTournamentStore.getState().customOrderRings).toEqual(['forms-cat1-P1']);
+    });
+  });
+
+
+
 });

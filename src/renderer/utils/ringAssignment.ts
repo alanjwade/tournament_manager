@@ -1,5 +1,4 @@
 import { Participant, Category, CompetitionRing, PhysicalRing } from '../types/tournament';
-import { v4 as uuidv4 } from 'uuid';
 
 export function assignRingsWithinCategory(
   category: Category,
@@ -8,7 +7,9 @@ export function assignRingsWithinCategory(
   type: 'forms' | 'sparring'
 ): { updatedParticipants: Participant[]; competitionRings: CompetitionRing[] } {
   const categoryParticipants = participants.filter((p) =>
-    category.participantIds.includes(p.id)
+    type === 'forms'
+      ? p.formsCategoryId === category.id
+      : p.sparringCategoryId === category.id
   );
 
   if (categoryParticipants.length === 0) {

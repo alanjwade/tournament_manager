@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
 import { checkSparringAltRingStatus } from '../utils/ringOrdering';
-import { formatPoolNameForDisplay, formatPoolOnly, isRingAffected, isRingAffectedSimple, buildCategoryPoolName, extractPoolId } from '../utils/ringNameFormatter';
+import { formatPoolNameForDisplay, isRingAffected, isRingAffectedSimple, buildCategoryPoolName, extractPoolId } from '../utils/ringNameFormatter';
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
@@ -77,7 +77,6 @@ function RingOverview({}: RingOverviewProps) {
   const categories = useTournamentStore((state) => state.categories);
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
-  const updateParticipant = useTournamentStore((state) => state.updateParticipant);
   const batchUpdateParticipants = useTournamentStore((state) => state.batchUpdateParticipants);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const checkpoints = useTournamentStore((state) => state.checkpoints);
@@ -454,16 +453,6 @@ function RingOverview({}: RingOverviewProps) {
     [participants, categories, categoryPoolMappings]
   );
 
-  const formsRings = competitionRings.filter((r) => r.type === 'forms');
-  const sparringRings = competitionRings.filter((r) => r.type === 'sparring');
-
-  // Count unassigned participants
-  const assignedParticipantIds = new Set<string>();
-  competitionRings.forEach(ring => {
-    ring.participantIds.forEach((id: string) => assignedParticipantIds.add(id));
-  });
-  const unassignedCount = participants.filter(p => !assignedParticipantIds.has(p.id)).length;
-
   // Group Forms and Sparring rings by their ring name AND division AND physical ring
   // Forms and Sparring rings are paired if they have the same name AND same physical ring
   const ringPairs = useMemo(() => {
@@ -729,50 +718,6 @@ function RingOverview({}: RingOverviewProps) {
     setQuickEdit({ participant, ringType, ringName });
   };
 
-  // Get available physical rings for the current quick edit (if any)
-  const availablePhysicalRings = useMemo(() => {
-    if (!quickEdit) return [];
-    
-    const { participant, ringType } = quickEdit;
-    const currentDivision = ringType === 'forms' 
-      ? participant.formsDivision
-      : participant.sparringDivision;
-    
-    if (!currentDivision) return [];
-    
-    // Get all pools for this division and type
-    const divisionCategories = categories.filter(c => 
-      c.division === currentDivision && 
-      c.type === ringType
-    );
-    
-    // Get all unique physical rings used in this division
-    const physicalRingSet = new Set<string>();
-    divisionCategories.forEach(category => {
-      // Find mappings for this category (new format: "Division - CategoryName Pool N")
-      const categoryMappings = physicalRingMappings.filter(m => 
-        m.categoryPoolName?.startsWith(`${category.division} - ${category.name} Pool`)
-      );
-      categoryMappings.forEach(mapping => {
-        if (mapping.physicalRingName) {
-          physicalRingSet.add(mapping.physicalRingName);
-        }
-      });
-    });
-    
-    return Array.from(physicalRingSet).sort((a, b) => {
-      // Sort by ring number (PR1, PR1a, PR2, etc.)
-      const aMatch = a.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/);
-      const bMatch = b.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/);
-      if (aMatch && bMatch) {
-        const aNum = parseInt(aMatch[1]);
-        const bNum = parseInt(bMatch[1]);
-        if (aNum !== bNum) return aNum - bNum;
-        return (aMatch[2] || '').localeCompare(bMatch[2] || '');
-      }
-      return a.localeCompare(b);
-    });
-  }, [quickEdit, categories, physicalRingMappings]);
 
   // Render clickable participant name (without school abbreviation - that's now in its own column)
   const renderParticipantName = (p: Participant, ringType: 'forms' | 'sparring', ringName: string) => {
@@ -1051,79 +996,7 @@ function RingOverview({}: RingOverviewProps) {
       setQuickEdit(null);
     };
 
-    // Build physical ring options filtered by division
-    const buildPhysicalRingOptions = (division: string | null | undefined) => {
-      if (!division) return [];
-      
-      // Find all categories for this division
-      const categoriesForDivision = categories.filter(c => c.division === division);
-      
-      if (categoriesForDivision.length === 0) return [];
-      
-      // Get all mappings for these categories (new format: "Division - CategoryName Pool N")
-      const mappingsForDivision = physicalRingMappings.filter(m => {
-        // Check if mapping belongs to this division
-        return categoriesForDivision.some(c => 
-          m.categoryPoolName?.startsWith(`${c.division} - ${c.name} Pool`)
-        );
-      });
 
-      return mappingsForDivision
-        .filter(m => m.physicalRingName)
-        .map(m => ({
-          physicalRingName: m.physicalRingName,
-          categoryPoolName: m.categoryPoolName || '',
-          label: `${m.physicalRingName} (${m.categoryPoolName || ''})`
-        }))
-        .sort((a, b) => {
-          // Sort by ring number (Ring 1, Ring 1a, Ring 2, etc.)
-          const aMatch = a.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/);
-          const bMatch = b.physicalRingName.match(/(?:PR|Ring\s*)(\d+)([a-z]?)/);
-          if (aMatch && bMatch) {
-            const aNum = parseInt(aMatch[1]);
-            const bNum = parseInt(bMatch[1]);
-            if (aNum !== bNum) return aNum - bNum;
-            return (aMatch[2] || '').localeCompare(bMatch[2] || '');
-          }
-          return a.physicalRingName.localeCompare(b.physicalRingName);
-        });
-    };
-
-    const handlePhysicalRingChange = (type: 'forms' | 'sparring', newPhysicalRing: string) => {
-      if (type === 'forms' && formsPoolName && newPhysicalRing) {
-        const existingMapping = physicalRingMappings.find(m => m.categoryPoolName === formsPoolName);
-        if (existingMapping) {
-          const updatedMappings = physicalRingMappings.map(m => 
-            m.categoryPoolName === formsPoolName 
-              ? { ...m, physicalRingName: newPhysicalRing }
-              : m
-          );
-          useTournamentStore.getState().setPhysicalRingMappings(updatedMappings);
-        } else {
-          useTournamentStore.getState().setPhysicalRingMappings([
-            ...physicalRingMappings,
-            { categoryPoolName: formsPoolName, physicalRingName: newPhysicalRing }
-          ]);
-        }
-        setQuickEdit({ ...quickEdit });
-      } else if (type === 'sparring' && sparringPoolName && newPhysicalRing) {
-        const existingMapping = physicalRingMappings.find(m => m.categoryPoolName === sparringPoolName);
-        if (existingMapping) {
-          const updatedMappings = physicalRingMappings.map(m => 
-            m.categoryPoolName === sparringPoolName 
-              ? { ...m, physicalRingName: newPhysicalRing }
-              : m
-          );
-          useTournamentStore.getState().setPhysicalRingMappings(updatedMappings);
-        } else {
-          useTournamentStore.getState().setPhysicalRingMappings([
-            ...physicalRingMappings,
-            { categoryPoolName: sparringPoolName, physicalRingName: newPhysicalRing }
-          ]);
-        }
-        setQuickEdit({ ...quickEdit });
-      }
-    };
 
     return (
       <div
@@ -2539,7 +2412,7 @@ function RingOverview({}: RingOverviewProps) {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  ⭐ GC
+                  ⭐ Grand Champion Ring
                 </button>
               );
             })()}
