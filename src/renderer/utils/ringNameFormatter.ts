@@ -259,7 +259,7 @@ export function parseRingId(ringId: string): ParsedRingId | null {
 }
 
 /**
- * Check if a ring is affected based on the changedRings set from checkpoint diff.
+ * Check if a ring is affected based on the changedRings set from the state diff.
  * 
  * The ring ID format is: Division - CategoryName Pool N_type[_altRing]
  * Examples:
@@ -269,7 +269,7 @@ export function parseRingId(ringId: string): ParsedRingId | null {
  * 
  * @param ringName - The base ring name from CompetitionRing (e.g., "Beginner - Mixed 8-10 Pool 1")
  * @param ringType - The type of ring ('forms' or 'sparring')
- * @param changedRings - The set of changed ring IDs from diffCheckpoint
+ * @param changedRings - The set of changed ring IDs from computeStateDiff
  * @returns Object with isAffected flag and optional altRing filter
  */
 export function isRingAffected(

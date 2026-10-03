@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { Division } from '../types/tournament';
+import { ColumnImport } from './ColumnImport';
 import defaultWatermark from '../assets/logos/watermark.png';
 
 function Configuration() {
@@ -8,38 +9,19 @@ function Configuration() {
   const setDivisions = useTournamentStore((state) => state.setDivisions);
   const setWatermark = useTournamentStore((state) => state.setWatermark);
   const setSchoolAbbreviations = useTournamentStore((state) => state.setSchoolAbbreviations);
-  const saveState = useTournamentStore((state) => state.saveState);
-  const loadState = useTournamentStore((state) => state.loadState);
-  const loadStateFromData = useTournamentStore((state) => state.loadStateFromData);
+  const participants = useTournamentStore((state) => state.participants);
+  const reset = useTournamentStore((state) => state.reset);
 
   const [divisionName, setDivisionName] = useState('');
   const [newSchoolName, setNewSchoolName] = useState('');
   const [newAbbreviation, setNewAbbreviation] = useState('');
   const [showAbbreviations, setShowAbbreviations] = useState(false);
-  const [backups, setBackups] = useState<{ fileName: string; path: string; mtimeMs: number }[]>([]);
-  const [selectedBackup, setSelectedBackup] = useState<string>('');
-  const [loadingBackup, setLoadingBackup] = useState(false);
   const [fileLocations, setFileLocations] = useState<{
     dataPath: string;
-    backupDir: string;
     autosavePath: string;
     defaultPdfOutputDir: string;
     exePath: string;
   } | null>(null);
-
-  const refreshBackups = async () => {
-    try {
-      const result = await window.electronAPI.listBackups();
-      if (result.success && result.data) {
-        setBackups(result.data);
-        if (!selectedBackup && result.data.length > 0) {
-          setSelectedBackup(result.data[0].fileName);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to list backups:', error);
-    }
-  };
 
   // Load default watermark if none is set
   useEffect(() => {
@@ -62,7 +44,6 @@ function Configuration() {
   }, []); // Only run once on mount
 
   useEffect(() => {
-    refreshBackups();
     // Load file locations
     window.electronAPI.getFileLocations().then(setFileLocations).catch(console.error);
   }, []);
@@ -88,6 +69,21 @@ function Configuration() {
     setDivisions(config.divisions.map((d) => (d.name === name ? { ...d, numRings: safe } : d)));
   };
 
+  const handleMoveDivision = (name: string, direction: 'up' | 'down') => {
+    const sorted = [...config.divisions].sort((a, b) => a.order - b.order);
+    const index = sorted.findIndex((d) => d.name === name);
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (index === -1 || newIndex < 0 || newIndex >= sorted.length) return;
+    [sorted[index], sorted[newIndex]] = [sorted[newIndex], sorted[index]];
+    setDivisions(sorted.map((d, idx) => ({ ...d, order: idx + 1 })));
+  };
+
+  const handleResetAllData = () => {
+    if (confirm('Are you sure you want to reset ALL data? This cannot be undone (recent History commits may still be restorable).')) {
+      reset();
+    }
+  };
+
   const handleWatermarkSelect = async () => {
     const result = await window.electronAPI.selectImage();
     if (result) {
@@ -95,32 +91,6 @@ function Configuration() {
         String.fromCharCode.apply(null, result.data as any)
       );
       setWatermark(`data:image/png;base64,${base64}`);
-    }
-  };
-
-  const handleLoadBackup = async () => {
-    if (!selectedBackup) {
-      return;
-    }
-    const confirmLoad = window.confirm(
-      'Load this backup? This will replace the current tournament data.'
-    );
-    if (!confirmLoad) {
-      return;
-    }
-    setLoadingBackup(true);
-    try {
-      const result = await window.electronAPI.loadBackup(selectedBackup);
-      if (result.success && result.data) {
-        loadStateFromData(result.data as any);
-        alert('Backup loaded successfully.');
-      } else {
-        alert(`Failed to load backup: ${result.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      alert(`Failed to load backup: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setLoadingBackup(false);
     }
   };
 
@@ -146,54 +116,12 @@ function Configuration() {
     <div className="card">
       <h2 className="card-title">Tournament Configuration</h2>
 
-      {/* Save/Load Buttons */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-        <button className="btn btn-primary" onClick={saveState}>
-          💾 Save Tournament
-        </button>
-        <button className="btn btn-secondary" onClick={loadState}>
-          📂 Load Tournament
-        </button>
-      </div>
+      <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '20px' }}>
+        Use the <strong>File</strong> menu to import the initial Excel file, or to export / import the database.
+      </p>
 
-      <div style={{ marginBottom: '20px' }}>
-        <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>Backups (Recovery)</h3>
-        <p style={{ color: '#666', marginBottom: '10px', fontSize: '14px' }}>
-          Backups are saved every 20 minutes while the app is running and kept for 12 hours (at least one backup is retained).
-        </p>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <select
-            className="form-control"
-            style={{ minWidth: '320px' }}
-            value={selectedBackup}
-            onChange={(e) => setSelectedBackup(e.target.value)}
-          >
-            {backups.length === 0 ? (
-              <option value="">No backups available</option>
-            ) : (
-              backups.map((backup) => (
-                <option key={backup.fileName} value={backup.fileName}>
-                  {backup.fileName}
-                </option>
-              ))
-            )}
-          </select>
-          <button className="btn btn-secondary" onClick={refreshBackups}>
-            Refresh
-          </button>
-          <button
-            className="btn btn-warning"
-            onClick={handleLoadBackup}
-            disabled={loadingBackup || backups.length === 0 || !selectedBackup}
-          >
-            {loadingBackup ? 'Loading...' : 'Load Backup'}
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-2">
-        <div>
-          <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Divisions</h3>
+      <div>
+        <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Divisions</h3>
           
           <div className="form-group">
             <label className="form-label">Add Division</label>
@@ -218,11 +146,12 @@ function Configuration() {
                 <th>Division</th>
                 <th>Order</th>
                 <th>Rings</th>
+                <th>Reorder</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {config.divisions.map((div) => (
+              {[...config.divisions].sort((a, b) => a.order - b.order).map((div, index, sortedArray) => (
                 <tr key={div.name}>
                   <td>{div.name}</td>
                   <td>{div.order}</td>
@@ -238,6 +167,28 @@ function Configuration() {
                     />
                   </td>
                   <td>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => handleMoveDivision(div.name, 'up')}
+                        disabled={index === 0}
+                        style={{ padding: '2px 8px', fontSize: '12px', cursor: index === 0 ? 'not-allowed' : 'pointer', opacity: index === 0 ? 0.5 : 1 }}
+                        title="Move up"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => handleMoveDivision(div.name, 'down')}
+                        disabled={index === sortedArray.length - 1}
+                        style={{ padding: '2px 8px', fontSize: '12px', cursor: index === sortedArray.length - 1 ? 'not-allowed' : 'pointer', opacity: index === sortedArray.length - 1 ? 0.5 : 1 }}
+                        title="Move down"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  </td>
+                  <td>
                     <button
                       className="btn btn-danger"
                       onClick={() => handleRemoveDivision(div.name)}
@@ -250,10 +201,26 @@ function Configuration() {
               ))}
             </tbody>
           </table>
+
+          {/* Update a single column (moved from the old Import tab) */}
+          {participants.length > 0 && (
+            <div style={{ marginTop: '30px' }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Update a Single Column</h3>
+              <ColumnImport />
+            </div>
+          )}
+
+          {/* Reset all data */}
+          <div style={{ marginTop: '30px' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '10px', color: '#dc3545' }}>Danger Zone</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '10px' }}>
+              Remove all participants, categories, and assignments.
+            </p>
+            <button className="btn btn-danger" onClick={handleResetAllData}>
+              Reset All Data
+            </button>
+          </div>
         </div>
-
-
-      </div>
 
       <div style={{ marginTop: '30px' }}>
         <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>
@@ -285,10 +252,6 @@ function Configuration() {
             <div style={{ marginBottom: '10px' }}>
               <strong>Data Directory:</strong><br />
               <code>{fileLocations.dataPath}</code>
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <strong>Backup Directory:</strong><br />
-              <code>{fileLocations.backupDir}</code>
             </div>
             <div style={{ marginBottom: '10px' }}>
               <strong>Autosave File:</strong><br />

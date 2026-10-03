@@ -5,7 +5,6 @@ import { computeCompetitionRings } from './utils/computeRings';
 import { buildCategoryPoolName } from './utils/ringNameFormatter';
 import { computeConfigIssues } from './utils/sanityStats';
 import Dashboard from './components/Dashboard';
-import DataImport from './components/DataImport';
 import CategoryManagement from './components/CategoryManagement';
 import RingOverview from './components/RingOverview';
 import PDFExport from './components/PDFExport';
@@ -13,13 +12,14 @@ import DataViewer from './components/DataViewer';
 import SanityCheck from './components/SanityCheck';
 import RingMapEditor from './components/RingMapEditor';
 import Configuration from './components/Configuration';
-import CheckpointManager from './components/CheckpointManager';
+import HistoryPanel from './components/HistoryPanel';
+import InitialImportModal from './components/InitialImportModal';
 import AddParticipantModal from './components/AddParticipantModal';
 import AboutDialog from './components/AboutDialog';
 import UpdateChecker from './components/UpdateChecker';
 import HelpDialog, { HelpTopic, helpTopics } from './components/HelpDialog';
 
-type Tab = 'dashboard' | 'import' | 'configuration' | 'categories' | 'editor' | 'sanity' | 'tournament' | 'ringmap' | 'export' | 'checkpoints';
+type Tab = 'dashboard' | 'configuration' | 'categories' | 'editor' | 'sanity' | 'tournament' | 'ringmap' | 'export' | 'history';
 type Theme = 'light' | 'dark';
 
 function App() {
@@ -27,6 +27,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchFocused, setSearchFocused] = useState<boolean>(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isUpdateCheckerOpen, setIsUpdateCheckerOpen] = useState(false);
   const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
@@ -42,8 +43,8 @@ function App() {
   const categories = useTournamentStore((state) => state.categories);
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
-  const checkpoints = useTournamentStore((state) => state.checkpoints);
-  const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
+  const baselineState = useTournamentStore((state) => state.baselineState);
+  const diffBaseline = useTournamentStore((state) => state.diffBaseline);
   const config = useTournamentStore((state) => state.config);
   const undo = useTournamentStore((state) => state.undo);
   const redo = useTournamentStore((state) => state.redo);
@@ -68,6 +69,18 @@ function App() {
 
     window.electronAPI.onShowHelp((topic: string) => {
       setHelpTopic(topic as HelpTopic);
+    });
+
+    window.electronAPI.onMenuImportExcel(() => {
+      setIsImportModalOpen(true);
+    });
+
+    window.electronAPI.onMenuExportDatabase(() => {
+      useTournamentStore.getState().saveState();
+    });
+
+    window.electronAPI.onMenuImportDatabase(() => {
+      useTournamentStore.getState().loadState();
     });
   }, []);
 
@@ -183,16 +196,11 @@ function App() {
     // Count rings without physical ring mappings
     const unmappedRings = competitionRings.filter(ring => !ring.physicalRingId).length;
 
-    // Count rings changed since last checkpoint
+    // Count rings changed since the active baseline commit
     let changedRings = 0;
-    if (checkpoints.length > 0) {
-      const latestCheckpoint = [...checkpoints].sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      )[0];
-      const diff = diffCheckpoint(latestCheckpoint.id);
-      if (diff) {
-        changedRings = diff.ringsAffected.size;
-      }
+    const diff = diffBaseline();
+    if (diff) {
+      changedRings = diff.ringsAffected.size;
     }
 
     // Count configuration errors (shared with the Sanity Check tab)
@@ -202,10 +210,9 @@ function App() {
       categories: unassignedCategories,
       ringMap: unmappedRings,
       tournamentDay: changedRings,
-      checkpoints: checkpoints.length,
       configuration: configErrors,
     };
-  }, [participants, categories, competitionRings, checkpoints, diffCheckpoint]);
+  }, [participants, categories, competitionRings, baselineState, diffBaseline]);
 
   // Badge component
   const Badge = ({ count, type = 'warning' }: { count: number; type?: 'warning' | 'info' | 'success' }) => {
@@ -511,13 +518,6 @@ function App() {
           📊 Dashboard
         </button>
         <button
-          className={`tab ${activeTab === 'import' ? 'active' : ''}`}
-          onClick={() => setActiveTab('import')}
-        >
-          Import Data
-          {participants.length > 0 && <Badge count={participants.length} type="info" />}
-        </button>
-        <button
           className={`tab ${activeTab === 'configuration' ? 'active' : ''}`}
           onClick={() => setActiveTab('configuration')}
         >
@@ -574,17 +574,15 @@ function App() {
           Export
         </button>
         <button
-          className={`tab ${activeTab === 'checkpoints' ? 'active' : ''}`}
-          onClick={() => setActiveTab('checkpoints')}
+          className={`tab ${activeTab === 'history' ? 'active' : ''}`}
+          onClick={() => setActiveTab('history')}
         >
-          Checkpoints
-          <Badge count={tabStatus.checkpoints} type="info" />
+          History
         </button>
       </div>
 
       <div className="tab-content">
-        {activeTab === 'dashboard' && <Dashboard onNavigate={(tab) => setActiveTab(tab as Tab)} />}
-        {activeTab === 'import' && <DataImport />}
+        {activeTab === 'dashboard' && <Dashboard onNavigate={(tab) => setActiveTab(tab as Tab)} onImport={() => setIsImportModalOpen(true)} />}
         {activeTab === 'configuration' && <Configuration />}
         {activeTab === 'categories' && <CategoryManagement />}
         {activeTab === 'ringmap' && <RingMapEditor />}
@@ -602,7 +600,7 @@ function App() {
         )}
         {activeTab === 'export' && <PDFExport />}
         {activeTab === 'sanity' && <SanityCheck />}
-        {activeTab === 'checkpoints' && <CheckpointManager />}
+        {activeTab === 'history' && <HistoryPanel />}
       </div>
 
       {/* Global Add Participant Modal */}
@@ -621,6 +619,12 @@ function App() {
       <UpdateChecker 
         isOpen={isUpdateCheckerOpen} 
         onClose={() => setIsUpdateCheckerOpen(false)} 
+      />
+
+      {/* Initial Excel Import Modal (File → Import Initial Excel File) */}
+      <InitialImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
       />
 
       {/* Help Dialog */}

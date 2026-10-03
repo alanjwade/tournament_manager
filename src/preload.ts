@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { OperationHint } from './shared/history';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   selectFile: () => ipcRenderer.invoke('select-file'),
@@ -10,13 +11,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPDFFolder: (directoryPath: string) => ipcRenderer.invoke('open-pdf-folder', directoryPath),
   saveTournamentState: (state: any) => ipcRenderer.invoke('save-tournament-state', state),
   loadTournamentState: () => ipcRenderer.invoke('load-tournament-state'),
-  saveAutosave: (data: string) => ipcRenderer.invoke('save-autosave', data),
+  saveAutosave: (data: string, hint?: OperationHint) => ipcRenderer.invoke('save-autosave', { data, hint }),
   loadAutosave: () => ipcRenderer.invoke('load-autosave'),
-  saveCheckpoint: (checkpoint: any) => ipcRenderer.invoke('save-checkpoint', checkpoint),
-  loadCheckpoints: () => ipcRenderer.invoke('load-checkpoints'),
-  deleteCheckpoint: (checkpointId: string) => ipcRenderer.invoke('delete-checkpoint', checkpointId),
-  listBackups: () => ipcRenderer.invoke('list-backups'),
-  loadBackup: (fileName: string) => ipcRenderer.invoke('load-backup', fileName),
+  historyLog: () => ipcRenderer.invoke('history-log'),
+  historyShow: (commitId: string) => ipcRenderer.invoke('history-show', commitId),
+  historyCheckout: (commitId: string) => ipcRenderer.invoke('history-checkout', commitId),
+  historyTags: () => ipcRenderer.invoke('history-tags'),
+  historyAddTag: (name: string, commitId: string) => ipcRenderer.invoke('history-add-tag', { name, commitId }),
+  historyRemoveTag: (tagId: string) => ipcRenderer.invoke('history-remove-tag', tagId),
   getFileLocations: () => ipcRenderer.invoke('get-file-locations'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
@@ -24,4 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onShowAboutDialog: (callback: () => void) => ipcRenderer.on('show-about-dialog', callback),
   onCheckForUpdates: (callback: () => void) => ipcRenderer.on('check-for-updates', callback),
   onShowHelp: (callback: (topic: string) => void) => ipcRenderer.on('show-help', (_event, topic: string) => callback(topic)),
+  onMenuImportExcel: (callback: () => void) => ipcRenderer.on('menu-import-excel', callback),
+  onMenuExportDatabase: (callback: () => void) => ipcRenderer.on('menu-export-database', callback),
+  onMenuImportDatabase: (callback: () => void) => ipcRenderer.on('menu-import-database', callback),
 });

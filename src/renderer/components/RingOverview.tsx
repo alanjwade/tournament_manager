@@ -64,9 +64,7 @@ function RingOverview({}: RingOverviewProps) {
   const [showCreateRingModal, setShowCreateRingModal] = useState(false);
   const [newRingName, setNewRingName] = useState('Black Belt Grand Champion');
   const [newRingType, setNewRingType] = useState<'forms' | 'sparring'>('forms');
-  const [newCheckpointName, setNewCheckpointName] = useState('');
-  const [renamingCheckpointId, setRenamingCheckpointId] = useState<string | null>(null);
-  const [renamingCheckpointValue, setRenamingCheckpointValue] = useState('');
+  const [newBaselineName, setNewBaselineName] = useState('');
   const [expandedRings, setExpandedRings] = useState<Set<string>>(new Set());
   const [ringSort, setRingSort] = useState<'ring' | 'group' | 'category'>('ring');
   const [expandedRingChanges, setExpandedRingChanges] = useState<Set<string>>(new Set());
@@ -79,8 +77,6 @@ function RingOverview({}: RingOverviewProps) {
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const batchUpdateParticipants = useTournamentStore((state) => state.batchUpdateParticipants);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
-  const checkpoints = useTournamentStore((state) => state.checkpoints);
-  const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
   const customRings = useTournamentStore((state) => state.customRings);
   const addCustomRing = useTournamentStore((state) => state.addCustomRing);
   const deleteCustomRing = useTournamentStore((state) => state.deleteCustomRing);
@@ -88,10 +84,16 @@ function RingOverview({}: RingOverviewProps) {
   const addParticipantToCustomRing = useTournamentStore((state) => state.addParticipantToCustomRing);
   const removeParticipantFromCustomRing = useTournamentStore((state) => state.removeParticipantFromCustomRing);
   const moveParticipantInCustomRing = useTournamentStore((state) => state.moveParticipantInCustomRing);
-  const createCheckpoint = useTournamentStore((state) => state.createCheckpoint);
-  const loadCheckpoint = useTournamentStore((state) => state.loadCheckpoint);
-  const renameCheckpoint = useTournamentStore((state) => state.renameCheckpoint);
-  const deleteCheckpoint = useTournamentStore((state) => state.deleteCheckpoint);
+  const history = useTournamentStore((state) => state.history);
+  const historyTags = useTournamentStore((state) => state.historyTags);
+  const historyHeadId = useTournamentStore((state) => state.historyHeadId);
+  const baselineState = useTournamentStore((state) => state.baselineState);
+  const baselineCommitId = useTournamentStore((state) => state.baselineCommitId);
+  const setBaseline = useTournamentStore((state) => state.setBaseline);
+  const diffBaseline = useTournamentStore((state) => state.diffBaseline);
+  const loadHistory = useTournamentStore((state) => state.loadHistory);
+  const createHistoryTag = useTournamentStore((state) => state.createHistoryTag);
+  const deleteHistoryTag = useTournamentStore((state) => state.deleteHistoryTag);
   const openQuickEditParticipantId = useTournamentStore((state) => state.openQuickEditParticipantId);
   const setOpenQuickEditParticipantId = useTournamentStore((state) => state.setOpenQuickEditParticipantId);
   const customOrderRings = useTournamentStore((state) => state.customOrderRings);
@@ -141,17 +143,39 @@ function RingOverview({}: RingOverviewProps) {
     return () => observer.disconnect();
   }, []);
 
-  // Sort checkpoints by timestamp, newest first
-  const sortedCheckpoints = useMemo(() => {
-    return [...checkpoints].sort((a, b) => 
+  // Load history and default the baseline to the current HEAD so change
+  // indicators reset here and grow as edits are made.
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  useEffect(() => {
+    if (!baselineState && historyHeadId) setBaseline(historyHeadId);
+  }, [baselineState, historyHeadId, setBaseline]);
+
+  // Commits (newest first) available as diff baselines.
+  const sortedCommits = useMemo(() => {
+    return [...history].sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
-  }, [checkpoints]);
+  }, [history]);
 
-  const handleCreateCheckpoint = async () => {
-    const name = newCheckpointName.trim() || `Checkpoint ${checkpoints.length + 1}`;
-    await createCheckpoint(name);
-    setNewCheckpointName('');
+  const sortedTags = useMemo(() => {
+    return [...historyTags].sort((a, b) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [historyTags]);
+
+  const handleCreateBaselineWithName = async (name: string) => {
+    await createHistoryTag(name);
+    await loadHistory();
+    if (historyHeadId) await setBaseline(historyHeadId);
+  };
+
+  const handleCreateBaseline = async () => {
+    const name = newBaselineName.trim() || `Baseline ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    await handleCreateBaselineWithName(name);
+    setNewBaselineName('');
   };
 
   const handlePrintGCRing = async (ring: CustomRing, ringParticipants: Participant[], mode: PrintMode) => {
@@ -299,12 +323,12 @@ function RingOverview({}: RingOverviewProps) {
   // Print all changed rings combined into one PDF
   const handlePrintAllChanged = async (mode: PrintMode) => {
     if (changedRingsCounts.total === 0) {
-      alert('No rings have changed since the last checkpoint.');
+      alert('No rings have changed since the baseline.');
       return;
     }
 
     // Don't filter when viewing Grand Champion or Checkpoints
-    const divisionFilterForPrint = (selectedDivision === 'grand-champion' || selectedDivision === 'checkpoints') ? 'all' : selectedDivision;
+    const divisionFilterForPrint = (selectedDivision === 'grand-champion' || selectedDivision === 'baselines') ? 'all' : selectedDivision;
 
     // Get all competition rings that have changed, filtered by selected division
     // For forms, we just need to know if the ring changed
@@ -436,16 +460,11 @@ function RingOverview({}: RingOverviewProps) {
     setExpandedRings(allPoolNames);
   };
 
-  // Compute rings changed since latest checkpoint
+  // Compute rings changed since the selected baseline commit
   const changedRings = useMemo(() => {
-    if (checkpoints.length === 0) return new Set<string>();
-    const latestCheckpoint = [...checkpoints].sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    )[0];
-    const diff = diffCheckpoint(latestCheckpoint.id);
-    if (!diff) return new Set<string>();
-    return diff.ringsAffected;
-  }, [checkpoints, diffCheckpoint, participants, categories]);
+    const diff = diffBaseline();
+    return diff ? diff.ringsAffected : new Set<string>();
+  }, [baselineState, diffBaseline, participants, categories]);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -540,25 +559,17 @@ function RingOverview({}: RingOverviewProps) {
     });
   }, [ringPairs, config.divisions]);
 
-  // Get latest checkpoint
-  const latestCheckpoint = useMemo(() => {
-    if (checkpoints.length === 0) return null;
-    return [...checkpoints].sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    )[0];
-  }, [checkpoints]);
-
-  // Full diff against the latest checkpoint (for per-ring member changes)
+  // Full diff against the selected baseline (for per-ring member changes)
   const latestDiff = useMemo(() => {
-    if (!latestCheckpoint) return null;
-    return diffCheckpoint(latestCheckpoint.id);
-  }, [latestCheckpoint, participants, categories]);
+    if (!baselineState) return null;
+    return diffBaseline();
+  }, [baselineState, diffBaseline, participants, categories]);
 
   // Per-ring member diff: maps ringId -> { added: string[], removed: string[] }
   // ringId format: "Division - CategoryName Pool N_forms" or "..._sparring" or "..._sparring_a"
   const ringMemberDiff = useMemo(() => {
     const empty = new Map<string, { added: string[]; removed: string[] }>();
-    if (!latestDiff || !latestCheckpoint) return empty;
+    if (!latestDiff || !baselineState) return empty;
 
     const result = new Map<string, { added: string[]; removed: string[] }>();
     const getOrCreate = (rid: string) => {
@@ -567,9 +578,9 @@ function RingOverview({}: RingOverviewProps) {
     };
 
     const checkpointParticipantMap = new Map(
-      latestCheckpoint.state.participants.map((p: Participant) => [p.id, p])
+      baselineState.participants.map((p: Participant) => [p.id, p])
     );
-    const checkpointCategories = latestCheckpoint.state.categories;
+    const checkpointCategories = baselineState.categories;
 
     const buildDiffRingId = (
       cat: any,
@@ -626,12 +637,12 @@ function RingOverview({}: RingOverviewProps) {
     });
 
     return result;
-  }, [latestDiff, latestCheckpoint, participants, categories]);
+  }, [latestDiff, baselineState, participants, categories]);
 
   // Count changed rings for display
   const changedRingsCounts = useMemo(() => {
     // Don't filter when viewing Grand Champion or Checkpoints
-    const divisionFilter = (selectedDivision === 'grand-champion' || selectedDivision === 'checkpoints') ? 'all' : selectedDivision;
+    const divisionFilter = (selectedDivision === 'grand-champion' || selectedDivision === 'baselines') ? 'all' : selectedDivision;
     
     const changedFormsRings = competitionRings.filter(
       ring => ring.type === 'forms' && 
@@ -2347,7 +2358,7 @@ function RingOverview({}: RingOverviewProps) {
           <div style={{ display: 'flex' }}>
             {/* Overview segment */}
             {(() => {
-              const isActive = selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints';
+              const isActive = selectedDivision !== 'grand-champion' && selectedDivision !== 'baselines';
               return (
                 <button
                   onClick={() => setSelectedDivision(divisionFilter)}
@@ -2369,13 +2380,13 @@ function RingOverview({}: RingOverviewProps) {
                 </button>
               );
             })()}
-            {/* Checkpoints segment */}
+            {/* Baselines segment */}
             {(() => {
-              const isActive = selectedDivision === 'checkpoints';
+              const isActive = selectedDivision === 'baselines';
               return (
                 <button
-                  onClick={() => setSelectedDivision(isActive ? divisionFilter : 'checkpoints')}
-                  title="Show checkpoints"
+                  onClick={() => setSelectedDivision(isActive ? divisionFilter : 'baselines')}
+                  title="Show history baselines"
                   style={{
                     padding: '6px 14px',
                     fontSize: '14px',
@@ -2389,7 +2400,7 @@ function RingOverview({}: RingOverviewProps) {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  📋 Checkpoints
+                  📋 Baselines
                 </button>
               );
             })()}
@@ -2438,7 +2449,7 @@ function RingOverview({}: RingOverviewProps) {
         </div>
 
         {/* Row 2: Tools — only visible in Overview mode */}
-        {selectedDivision !== 'grand-champion' && selectedDivision !== 'checkpoints' && (
+        {selectedDivision !== 'grand-champion' && selectedDivision !== 'baselines' && (
           <div style={{
             display: 'flex',
             gap: '8px',
@@ -2489,7 +2500,7 @@ function RingOverview({}: RingOverviewProps) {
               onClick={() => {
                 const now = new Date();
                 const label = `Baseline ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                createCheckpoint(label);
+                handleCreateBaselineWithName(label);
               }}
               style={{
                 padding: '5px 12px',
@@ -2501,13 +2512,13 @@ function RingOverview({}: RingOverviewProps) {
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
               }}
-              title="Save current state as a new baseline checkpoint — change indicators will reset"
+              title="Tag the current state as a new baseline — change indicators will reset"
             >
               📍 Set Baseline
             </button>
 
             {/* Print Changed — only appears when there are changes */}
-            {checkpoints.length > 0 && changedRingsCounts.total > 0 && (
+            {baselineState && changedRingsCounts.total > 0 && (
               <PrintButton
                 onPrint={(mode) => handlePrintAllChanged(mode)}
                 disabled={printing === 'all-changed'}
@@ -2862,314 +2873,93 @@ function RingOverview({}: RingOverviewProps) {
             })
           )}
         </div>
-      ) : selectedDivision === 'checkpoints' ? (
+      ) : selectedDivision === 'baselines' ? (
         <div>
-          {/* Header */}
-          <h3 style={{ 
-            marginBottom: '20px', 
-            color: 'var(--text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-          }}>
+          <h3 style={{ marginBottom: '20px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '24px' }}>📋</span>
-            Checkpoints
+            Baselines &amp; History
           </h3>
 
-          {/* Create Checkpoint Section */}
-          <div style={{
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: '8px',
-            padding: '20px',
-            marginBottom: '25px',
-            border: '2px solid var(--border-color)',
-          }}>
-            <h4 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>
-              Create New Checkpoint
-            </h4>
-            
+          {/* Create baseline */}
+          <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', padding: '20px', marginBottom: '25px', border: '2px solid var(--border-color)' }}>
+            <h4 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)' }}>Create New Baseline</h4>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <div style={{ flex: '1 1 300px' }}>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: '5px', 
-                  fontSize: '13px',
-                  color: 'var(--text-secondary)',
-                  fontWeight: '600'
-                }}>
-                  Checkpoint Name (optional)
-                </label>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Baseline Name (optional)</label>
                 <input
                   type="text"
-                  value={newCheckpointName}
-                  onChange={(e) => setNewCheckpointName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleCreateCheckpoint();
-                    }
-                  }}
+                  value={newBaselineName}
+                  onChange={(e) => setNewBaselineName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBaseline(); }}
                   placeholder="Leave blank for auto-generated name"
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid var(--input-border)',
-                    fontSize: '14px',
-                    backgroundColor: 'var(--input-bg)',
-                    color: 'var(--text-primary)',
-                    boxSizing: 'border-box',
-                  }}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--input-border)', fontSize: '14px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
                 />
               </div>
-              <button
-                onClick={handleCreateCheckpoint}
-                style={{
-                  padding: '8px 20px',
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                💾 Create Checkpoint
+              <button onClick={handleCreateBaseline} style={{ padding: '8px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                💾 Create Baseline
               </button>
             </div>
-            
-            <p style={{ 
-              marginTop: '10px', 
-              marginBottom: 0, 
-              fontSize: '12px', 
-              color: 'var(--text-muted)',
-              fontStyle: 'italic',
-            }}>
-              A checkpoint saves the current state of all ring assignments, allowing you to track changes made after this point.
+            <p style={{ marginTop: '10px', marginBottom: 0, fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              A baseline tags the current commit. Ring change indicators and "Print All Changed" compare against the selected baseline.
             </p>
           </div>
 
-          {/* Print All Changed Section */}
-          {checkpoints.length > 0 && changedRings.size > 0 && (
-            <div style={{
-              backgroundColor: '#fff3cd',
-              color: '#856404',
-              borderRadius: '8px',
-              padding: '15px',
-              marginBottom: '25px',
-              border: '2px solid #ffc107',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '10px',
-            }}>
+          {/* Print All Changed */}
+          {baselineState && changedRings.size > 0 && (
+            <div style={{ backgroundColor: '#fff3cd', color: '#856404', borderRadius: '8px', padding: '15px', marginBottom: '25px', border: '2px solid #ffc107', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <strong style={{ fontSize: '15px' }}>⚠️ {changedRings.size} ring(s) changed since checkpoint</strong>
-                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>
-                  Print updated PDFs for rings that have been modified.
-                </p>
+                <strong style={{ fontSize: '15px' }}>⚠️ {changedRings.size} ring(s) changed since baseline</strong>
+                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>Print updated PDFs for rings that have been modified.</p>
               </div>
-              <PrintButton
-                onPrint={(mode) => {
-                  if (changedRings.size > 0) {
-                    handlePrintAllChanged(mode);
-                  }
-                }}
-                disabled={changedRings.size === 0}
-                color="#ffc107"
-                textColor="#000"
-                fontSize={14}
-                padding="8px 16px"
-                fontWeight="600"
-              />
+              <PrintButton onPrint={(mode) => { if (changedRings.size > 0) handlePrintAllChanged(mode); }} disabled={changedRings.size === 0} color="#ffc107" textColor="#000" fontSize={14} padding="8px 16px" fontWeight="600" />
             </div>
           )}
 
-          {/* Checkpoints List */}
-          {sortedCheckpoints.length === 0 ? (
-            <div className="info" style={{ textAlign: 'center', padding: '40px' }}>
-              <p>No checkpoints created yet.</p>
-              <p>Create a checkpoint above to save the current state of ring assignments.</p>
+          {/* Baseline tags */}
+          <h4 style={{ marginBottom: '15px', color: 'var(--text-primary)' }}>Baselines ({sortedTags.length})</h4>
+          {sortedTags.length === 0 ? (
+            <div className="info" style={{ textAlign: 'center', padding: '20px' }}>
+              <p>No baselines created yet.</p>
             </div>
           ) : (
-            <div>
-              <h4 style={{ marginBottom: '15px', color: 'var(--text-primary)' }}>
-                Saved Checkpoints ({sortedCheckpoints.length})
-              </h4>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {sortedCheckpoints.map((checkpoint) => {
-                  const isActive = latestCheckpoint?.id === checkpoint.id;
-                  const isRenaming = renamingCheckpointId === checkpoint.id;
-                  
-                  return (
-                    <div
-                      key={checkpoint.id}
-                      style={{
-                        backgroundColor: isActive ? '#d4edda' : 'var(--bg-secondary)',
-                        border: isActive ? '2px solid #28a745' : '2px solid var(--border-color)',
-                        borderRadius: '8px',
-                        padding: '15px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '12px',
-                      }}
-                    >
-                      <div style={{ flex: '1 1 300px' }}>
-                        {isRenaming ? (
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <input
-                              type="text"
-                              value={renamingCheckpointValue}
-                              onChange={(e) => setRenamingCheckpointValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && renamingCheckpointValue.trim()) {
-                                  renameCheckpoint(checkpoint.id, renamingCheckpointValue);
-                                  setRenamingCheckpointId(null);
-                                } else if (e.key === 'Escape') {
-                                  setRenamingCheckpointId(null);
-                                }
-                              }}
-                              autoFocus
-                              style={{
-                                fontSize: '16px',
-                                fontWeight: 'bold',
-                                padding: '6px 10px',
-                                borderRadius: '4px',
-                                border: '1px solid var(--input-border)',
-                                backgroundColor: 'var(--input-bg)',
-                                color: 'var(--text-primary)',
-                                flex: 1,
-                              }}
-                            />
-                            <button
-                              onClick={() => {
-                                if (renamingCheckpointValue.trim()) {
-                                  renameCheckpoint(checkpoint.id, renamingCheckpointValue);
-                                  setRenamingCheckpointId(null);
-                                }
-                              }}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#28a745',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setRenamingCheckpointId(null)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#6c757d',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <div style={{ 
-                              fontWeight: 'bold', 
-                              fontSize: '16px', 
-                              marginBottom: '4px',
-                              color: isActive ? '#155724' : 'var(--text-primary)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                            }}>
-                              {isActive && <span style={{ color: '#28a745' }}>✓</span>}
-                              {checkpoint.name}
-                            </div>
-                            <div style={{ 
-                              fontSize: '13px', 
-                              color: isActive ? '#155724' : 'var(--text-secondary)',
-                            }}>
-                              {new Date(checkpoint.timestamp).toLocaleString()}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      
-                      {!isRenaming && (
-                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                          {!isActive && (
-                            <button
-                              onClick={() => loadCheckpoint(checkpoint.id)}
-                              style={{
-                                padding: '6px 14px',
-                                backgroundColor: '#007bff',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                                fontWeight: '600',
-                              }}
-                            >
-                              📂 Load
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              setRenamingCheckpointId(checkpoint.id);
-                              setRenamingCheckpointValue(checkpoint.name);
-                            }}
-                            style={{
-                              padding: '6px 14px',
-                              backgroundColor: '#6c757d',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                            }}
-                          >
-                            ✏️ Rename
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Delete checkpoint "${checkpoint.name}"? This cannot be undone.`)) {
-                                deleteCheckpoint(checkpoint.id);
-                                if (renamingCheckpointId === checkpoint.id) {
-                                  setRenamingCheckpointId(null);
-                                }
-                              }
-                            }}
-                            style={{
-                              padding: '6px 14px',
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                            }}
-                          >
-                            🗑️ Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '25px' }}>
+              {sortedTags.map((tag) => (
+                <div key={tag.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', padding: '10px', borderRadius: '6px', border: baselineCommitId === tag.commitId ? '2px solid #007bff' : '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>🏷 {tag.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{new Date(tag.timestamp).toLocaleString()}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => setBaseline(tag.commitId)} disabled={baselineCommitId === tag.commitId} style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', cursor: baselineCommitId === tag.commitId ? 'default' : 'pointer', backgroundColor: baselineCommitId === tag.commitId ? '#6c757d' : '#007bff', color: 'white', fontSize: '13px' }}>
+                      {baselineCommitId === tag.commitId ? 'Active' : 'Use as Baseline'}
+                    </button>
+                    <button onClick={() => deleteHistoryTag(tag.id)} style={{ padding: '6px 14px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>🗑️ Delete</button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
+
+          {/* Recent commits (history) */}
+          <h4 style={{ marginBottom: '15px', color: 'var(--text-primary)' }}>Recent Commits ({sortedCommits.length})</h4>
+          <div style={{ maxHeight: '45vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {sortedCommits.slice(0, 200).map((commit) => (
+              <div key={commit.id} style={{ padding: '10px', borderRadius: '6px', border: baselineCommitId === commit.id ? '2px solid #007bff' : '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline' }}>
+                  <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{commit.operation.description}</div>
+                  <button onClick={() => setBaseline(commit.id)} disabled={baselineCommitId === commit.id} style={{ padding: '5px 10px', borderRadius: '4px', border: 'none', cursor: baselineCommitId === commit.id ? 'default' : 'pointer', backgroundColor: baselineCommitId === commit.id ? '#6c757d' : 'transparent', color: baselineCommitId === commit.id ? 'white' : 'var(--text-secondary)', fontSize: '12px' }}>
+                    {baselineCommitId === commit.id ? 'Baseline' : 'Set Baseline'}
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  {new Date(commit.timestamp).toLocaleString()} · {commit.stats.participants} participants · {commit.id.slice(0, 8)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+
+
       ) : (
         /* Regular Ring Pairs View */
         <div>

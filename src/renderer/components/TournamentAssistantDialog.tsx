@@ -218,7 +218,7 @@ function BaselineHelp() {
           <strong>📍 Set Baseline</strong> in the Tournament tab toolbar.
         </li>
         <li>
-          A checkpoint is created (timestamped automatically). All ring-change indicators reset to clear.
+          A baseline is created (timestamped automatically). All ring-change indicators reset to clear.
         </li>
         <li>
           You can set a new baseline at any time — for example, after a batch of changes — to start tracking from that
@@ -496,7 +496,7 @@ function generateAssistantPDF(): void {
   subheading(1, 'Setting a Baseline');
   stepList(1, [
     'After printing initial PDFs, click "Set Baseline" in the Tournament toolbar.',
-    'A checkpoint saves current state and all change indicators reset.',
+    'A baseline tags current state and all change indicators reset.',
   ]);
 
   subheading(1, 'Printing Changed Rings');

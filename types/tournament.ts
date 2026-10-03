@@ -123,13 +123,6 @@ export interface TournamentState {
   lastSaved?: string;
 }
 
-export interface Checkpoint {
-  id: string;
-  name: string;
-  timestamp: string;
-  state: TournamentState;
-}
-
 export interface ParticipantChange {
   participantId: string;
   participantName: string;
@@ -138,7 +131,8 @@ export interface ParticipantChange {
   newValue: any;
 }
 
-export interface CheckpointDiff {
+/** Difference between a baseline state (a history commit) and the current state. */
+export interface StateDiff {
   participantsAdded: Participant[];
   participantsRemoved: Participant[];
   participantsModified: ParticipantChange[];

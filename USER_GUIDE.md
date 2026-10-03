@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tournament Manager is a desktop application designed to simplify the organization and execution of martial arts tournaments. It handles participant registration, category grouping, ring assignments, competition ordering, checkpoint management, and generates all necessary PDF documents for running a successful tournament.
+Tournament Manager is a desktop application designed to simplify the organization and execution of martial arts tournaments. It handles participant registration, category grouping, ring assignments, competition ordering, history and baseline management, and generates all necessary PDF documents for running a successful tournament.
 
 ## Application Tabs
 
@@ -11,22 +11,21 @@ The application has the following tabs:
 | Tab | Purpose |
 |-----|---------|
 | **Dashboard** | Overview of tournament status and quick navigation |
-| **Import Data** | Load participant data from Excel files |
-| **Configuration** | Set up divisions, physical rings, watermark, school abbreviations |
+| **Configuration** | Set up divisions (and their order), physical rings, watermark, school abbreviations |
 | **Categories** | Create and assign age/gender/division categories |
 | **Ring Map** | Assign categories to physical rings |
 | **Editor** | Inline-editable table of all participants |
 | **Tournament** | Main tournament view — ring overview, quick edit, grand champion |
 | **Export** | Generate PDFs (name tags, check-in sheets, scoring sheets, brackets) |
-| **Checkpoints** | Save and compare tournament state snapshots |
+| **History** | Git-like commit history — every change with its operation; restore any point |
 
 ## Getting Started
 
 ### Step 1: Import Participant Data
 
-1. Navigate to the **Import Data** tab
-2. Click "Choose Excel File" or use the file selection dialog
-3. Select your participant spreadsheet
+1. Open the **File** menu → **Import Initial Excel File…**
+2. Drag and drop your spreadsheet onto the dialog, or click to browse
+3. Review the preview (and fix any errors) before confirming the import
 
 **Required Excel Columns:**
 - student first name
@@ -192,35 +191,38 @@ Access the Grand Champion section from the **GC** button in the toolbar:
 - Reorder participants within Grand Champion rings
 - Rename or delete Grand Champion rings
 
-### Step 6: Checkpoints
+### Step 6: Baselines &amp; History
 
-Checkpoints let you save snapshots of your tournament state so you can track changes and revert if needed.
+Every change you make is recorded in a git-like **History**. **Baselines** are named tags that mark "compare from here" points used by the change indicators and **Print All Changed**.
 
-#### Creating a Checkpoint
+#### Creating a Baseline
 
-1. Click the **Checkpoints** button in the Tournament tab toolbar, or go to the **Checkpoints** tab
-2. Click "Create Checkpoint"
-3. Optionally enter a name (defaults to timestamp)
+1. Open the **History** tab (or the **📋 Baselines** view in the Tournament tab)
+2. Enter a name (optional) and click "Create Baseline"
 
-#### Viewing Changes (Diff)
+#### Reviewing Changes
 
-Click "View Diff" on any checkpoint to see what changed since that snapshot:
-- **Participants added** — new participants since the checkpoint
-- **Participants removed** — participants no longer present
-- **Participants modified** — per-field changes with old (red) and new (green) values
-- **Rings affected** — listed as badges showing which competition rings changed
+The **History** tab lists every commit with the operation that caused it, for example *"Moved Mason Crosby from Beginner - Mixed 7-9 Pool 1 to Beginner - Mixed 7-9 Pool 2 (forms)"*. Rings changed since the selected baseline are highlighted in the Tournament view.
 
-#### Loading a Checkpoint
+#### Restoring
 
-Click "Load" on a checkpoint to restore the tournament state to that saved point.
-
-⚠️ **Warning:** Loading a checkpoint replaces your current state. Create a new checkpoint first if you want to preserve current work.
+Click **Restore** on any commit in the History tab to return the data to that point. Restoring is non-destructive: it appends a new "Restored to …" commit, so you can always move forward again.
 
 #### Print All Changed
 
-In the Tournament tab, use the **Print All Changed** button to print scoring sheets and brackets only for rings that changed since the last checkpoint. This is useful when making mid-tournament adjustments.
+In the Tournament tab, use the **Print All Changed** button to print scoring sheets and brackets only for rings that changed since the selected baseline. This is useful when making mid-tournament adjustments.
 
-### Step 7: Export PDFs
+### Step 7: History
+
+Every change you make is recorded as a **commit** in a git-like history, labelled with the operation that caused it — for example, *"Moved Mason Crosby from Beginner - Mixed 7-9 Pool 1 to Beginner - Mixed 7-9 Pool 2 (forms)"*.
+
+1. Open the **History** tab
+2. Each row shows the operation, timestamp, and participant count; the current state is marked *(current)*
+3. Click **Restore** on any commit to return the data to that point
+
+Restoring is non-destructive: it appends a new "Restored to …" commit, so you can always move forward again or restore a different point. You can also create **checkpoints** here — named tags that mark important commits (e.g. "Check-in complete"). These replace the older standalone checkpoint snapshots, which are imported automatically the first time you run this version.
+
+### Step 8: Export PDFs
 
 Navigate to the **Export** tab to generate tournament documents.
 
@@ -316,22 +318,22 @@ The participant's previous category/pool assignments are preserved internally so
    - You have full manual control over the order
 6. To go back to automatic ordering, uncheck **Custom Order** — the ring will be instantly re-ordered
 
-### Use the Checkpoint System
+### Use Baselines &amp; History
 
 **Before making changes:**
-1. Go to the **Checkpoints** tab or click **Checkpoints** in the Tournament toolbar
-2. Click **Create Checkpoint** and give it a descriptive name (e.g., "Before lunch adjustments")
+1. Go to the **History** tab or the **📋 Baselines** view in the Tournament tab
+2. Click **Create Baseline** and give it a descriptive name (e.g., "Before lunch adjustments")
 
 **After making changes:**
-1. Click **View Diff** on your checkpoint to review what changed
-2. See which rings were affected, which participants were added/removed/modified
+1. Open **History** to review the commits and the operation behind each one
+2. Rings changed since the selected baseline are highlighted in the Tournament view
 
 **If you need to undo changes:**
-1. Click **Load** on the checkpoint you want to restore
-2. The tournament state reverts to that snapshot
+1. In the **History** tab, click **Restore** on the commit you want to return to
+2. A new "Restored to …" commit is added, so nothing is lost
 
 **Printing only changed rings:**
-1. In the **Tournament** tab, after making changes since a checkpoint
+1. In the **Tournament** tab, after making changes since a baseline
 2. Click **Print All Changed** to generate PDFs only for affected rings
 3. This avoids reprinting everything — only the rings with changes are printed
 
@@ -355,7 +357,7 @@ The **Editor** tab provides a full spreadsheet-like view of all participants:
 ### Before the Tournament
 
 1. **Import Early:** Import and verify participant data at least a week before
-2. **Create a Checkpoint:** Save a checkpoint after completing initial setup
+2. **Create a Baseline:** Set a baseline after completing initial setup
 3. **Test Run:** Practice the entire workflow with sample data
 4. **Print Extras:** Print 10% extra name tags and scoring sheets
 5. **Watermark:** Use a light, semi-transparent watermark so text remains readable
@@ -383,10 +385,10 @@ The **Editor** tab provides a full spreadsheet-like view of all participants:
 
 ### Day-of-Tournament Workflow
 
-1. **Create a checkpoint** at the start of the day
+1. **Create a baseline** at the start of the day
 2. Handle late registrations and no-shows using Quick Edit or Add Participant
 3. Use **Print All Changed** to reprint only the affected scoring sheets and brackets
-4. Create additional checkpoints before major changes (e.g., "Before round 2 adjustments")
+4. Create additional baselines before major changes (e.g., "Before round 2 adjustments")
 5. Use Custom Order on rings where you need specific competitor placement
 
 ### Common Issues
@@ -397,7 +399,7 @@ The **Editor** tab provides a full spreadsheet-like view of all participants:
 | Rings unbalanced in size | Move participants between pools using Quick Edit |
 | Need specific competitor order | Enable Custom Order on that ring |
 | Wrong ring assignment | Click participant name → Quick Edit → change category/pool |
-| Need to undo changes | Load a previous checkpoint |
+| Need to undo changes | Restore a previous commit in the History tab |
 | Late registration | Use Add Participant button, assign to appropriate category/pool |
 | No-show | Quick Edit → uncheck Competing in Forms/Sparring |
 
@@ -411,7 +413,8 @@ The application automatically saves your work after every change. Your state is 
 
 - **Save**: Use File → Save to export your full tournament state
 - **Load**: Use File → Load to import a previously saved state
-- **Checkpoints**: Use checkpoints for incremental snapshots during work
+- **History**: Every change is committed with the operation that caused it; restore any point from the History tab
+- **Baselines**: Create named baseline tags to track changes and print only what changed
 
 ### Undo/Redo
 

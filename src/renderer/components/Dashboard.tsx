@@ -6,15 +6,16 @@ import { getEffectiveDivision } from '../utils/excelParser';
 
 interface DashboardProps {
   onNavigate: (tab: string) => void;
+  onImport: () => void;
 }
 
-function Dashboard({ onNavigate }: DashboardProps) {
+function Dashboard({ onNavigate, onImport }: DashboardProps) {
   const participants = useTournamentStore((state) => state.participants);
   const categories = useTournamentStore((state) => state.categories);
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
-  const checkpoints = useTournamentStore((state) => state.checkpoints);
+  const historyTags = useTournamentStore((state) => state.historyTags);
 
   // Compute competition rings
   const competitionRings = useMemo(() => 
@@ -147,15 +148,15 @@ function Dashboard({ onNavigate }: DashboardProps) {
         tab: 'ringmap',
       },
       {
-        name: 'Create Checkpoint',
-        status: checkpoints.length > 0 ? 'complete' : 'pending',
-        detail: checkpoints.length > 0 ? `${checkpoints.length} checkpoint(s)` : 'No checkpoints',
-        tab: 'checkpoints',
+        name: 'Create Baseline',
+        status: historyTags.length > 0 ? 'complete' : 'pending',
+        detail: historyTags.length > 0 ? `${historyTags.length} baseline(s)` : 'No baselines',
+        tab: 'history',
       },
     ];
 
     return steps;
-  }, [participants, overallStats, mappingAnalysis, competitionRings, checkpoints]);
+  }, [participants, overallStats, mappingAnalysis, competitionRings, historyTags]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -247,7 +248,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
           {workflowStatus.map((step, idx) => (
             <div 
               key={idx}
-              onClick={() => onNavigate(step.tab)}
+              onClick={() => step.tab === 'import' ? onImport() : onNavigate(step.tab)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -413,7 +414,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
             📄 Export PDFs
           </button>
           <button
-            onClick={() => onNavigate('checkpoints')}
+            onClick={() => onNavigate('history')}
             style={{
               padding: '12px 20px',
               backgroundColor: '#17a2b8',
@@ -425,7 +426,7 @@ function Dashboard({ onNavigate }: DashboardProps) {
               fontWeight: 'bold',
             }}
           >
-            💾 Manage Checkpoints
+            🕘 History &amp; Baselines
           </button>
           <button
             onClick={() => onNavigate('editor')}

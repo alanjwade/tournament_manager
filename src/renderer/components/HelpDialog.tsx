@@ -41,15 +41,14 @@ function Overview() {
         </thead>
         <tbody>
           <tr><td style={tdStyle}><strong>Dashboard</strong></td><td style={tdStyle}>At-a-glance summary of tournament status and quick actions</td></tr>
-          <tr><td style={tdStyle}><strong>Import</strong></td><td style={tdStyle}>Load participant data from an Excel / CSV spreadsheet</td></tr>
-          <tr><td style={tdStyle}><strong>Configuration</strong></td><td style={tdStyle}>Set divisions, physical rings, watermark image, and PDF output folder</td></tr>
+          <tr><td style={tdStyle}><strong>Configuration</strong></td><td style={tdStyle}>Set divisions and their order, physical rings, watermark image, and PDF output folder</td></tr>
           <tr><td style={tdStyle}><strong>Categories</strong></td><td style={tdStyle}>Create competition categories and assign participants to them</td></tr>
           <tr><td style={tdStyle}><strong>Ring Map</strong></td><td style={tdStyle}>Map logical pools to physical rings and order competitors</td></tr>
           <tr><td style={tdStyle}><strong>Data Editor</strong></td><td style={tdStyle}>View and manually edit individual participant records</td></tr>
           <tr><td style={tdStyle}><strong>Sanity Check</strong></td><td style={tdStyle}>Totals per division (Forms / Sparring) and a breakdown of anyone not counted</td></tr>
           <tr><td style={tdStyle}><strong>Overview</strong></td><td style={tdStyle}>Full read-only view of all rings, divisions, and assignments</td></tr>
           <tr><td style={tdStyle}><strong>Export</strong></td><td style={tdStyle}>Generate PDFs — name tags, check-in sheets, scoring sheets, brackets</td></tr>
-          <tr><td style={tdStyle}><strong>Checkpoints</strong></td><td style={tdStyle}>Save and restore snapshots of your tournament data</td></tr>
+          <tr><td style={tdStyle}><strong>History</strong></td><td style={tdStyle}>Browse every committed change and restore any point in time</td></tr>
         </tbody>
       </table>
 
@@ -105,8 +104,8 @@ function PreTournamentGuide() {
 
       <h4>2. Import Data</h4>
       <ol>
-        <li>Open the <strong>Import</strong> tab and select your file.</li>
-        <li>Verify the preview matches your expectations.</li>
+        <li>Open <strong>File → Import Initial Excel File…</strong> and select your file.</li>
+        <li>Verify the preview (and resolve any errors) before confirming the import.</li>
         <li>Check the Dashboard for any warnings about missing or mismatched data.</li>
       </ol>
 
@@ -144,10 +143,10 @@ function PreTournamentGuide() {
         <li>Print extras (roughly 10% more name tags and scoring sheets).</li>
       </ol>
 
-      <h4>7. Save a Checkpoint</h4>
+      <h4>7. Set a Baseline</h4>
       <p>
-        Before tournament day, save a <strong>Checkpoint</strong> so you can restore your
-        work if anything goes wrong.
+        Before tournament day, create a <strong>Baseline</strong> (a tag on the History tab) so you can
+        track and restore your work if anything goes wrong.
       </p>
     </div>
   );
@@ -222,7 +221,7 @@ function TournamentDayGuide() {
       <h4>End of Day</h4>
       <ul>
         <li>Collect all scoring sheets and brackets for your records.</li>
-        <li>Save a final <strong>Checkpoint</strong> in the app.</li>
+        <li>Save a final <strong>Baseline</strong> in the app.</li>
       </ul>
     </div>
   );
@@ -334,9 +333,9 @@ function QuickReference() {
       <div style={qrCardStyle}>
         <p style={qrCardTitleStyle}>Save &amp; Restore Data</p>
         <ul style={qrListStyle}>
-          <li style={qrListItemStyle}><strong>Autosave</strong> — saves automatically every few minutes and on close. No action needed.</li>
-          <li style={qrListItemStyle}><strong>Checkpoints</strong> — create named snapshots on the <strong>Checkpoints</strong> tab. Restore any time.</li>
-          <li style={qrListItemStyle}><strong>Backups</strong> — automatic rolling backups are kept for 12 hours in your data directory.</li>
+          <li style={qrListItemStyle}><strong>Autosave</strong> — saves automatically as you work. No action needed.</li>
+          <li style={qrListItemStyle}><strong>History</strong> — every change is saved as a commit labelled with the action that caused it (e.g. "Moved Mason Crosby from … Pool 1 to … Pool 2"). Open the <strong>History</strong> tab to review and restore any point.</li>
+          <li style={qrListItemStyle}><strong>Baselines</strong> — create named tags on the <strong>History</strong> tab to mark important moments. Restore any time; history is never lost.</li>
         </ul>
       </div>
 
@@ -824,9 +823,9 @@ function printQuickReferenceCookbook() {
       <div class="card">
         <h2>Save &amp; Restore Data</h2>
         <ul>
-          <li><strong>Autosave</strong> — saves every few minutes and on close.</li>
-          <li><strong>Checkpoints</strong> — named snapshots on the Checkpoints tab.</li>
-          <li><strong>Backups</strong> — rolling backups kept for 12 hours.</li>
+          <li><strong>Autosave</strong> — saves every change automatically; each change is committed to History.</li>
+          <li><strong>History</strong> — every change is a commit labelled with its operation; open the History tab to review or restore any point.</li>
+          <li><strong>Baselines</strong> — named tags that mark important commits (e.g. "Before round 2"). Create them on the History tab.</li>
         </ul>
       </div>
     </div>

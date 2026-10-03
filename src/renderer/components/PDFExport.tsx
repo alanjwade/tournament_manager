@@ -8,7 +8,8 @@ import { generateRingOverviewPDF } from '../utils/pdfGenerators/ringOverview';
 import { generateScoreSheetsPerDivision } from '../utils/pdfGenerators/scoreSheetsPerDivision';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { getEffectiveDivision } from '../utils/excelParser';
-import { CompetitionRing } from '../types/tournament';
+import { computeStateDiff } from '../utils/stateDiff';
+import { CompetitionRing, TournamentState as SavedState } from '../types/tournament';
 import logoImage from '../assets/logos/logo_orig_dark_letters.png';
 
 interface PDFExportProps {}
@@ -19,8 +20,9 @@ function PDFExport({}: PDFExportProps) {
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
-  const checkpoints = useTournamentStore((state) => state.checkpoints);
-  const diffCheckpoint = useTournamentStore((state) => state.diffCheckpoint);
+  const history = useTournamentStore((state) => state.history);
+  const customRings = useTournamentStore((state) => state.customRings);
+  const customOrderRings = useTournamentStore((state) => state.customOrderRings);
   
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
   
@@ -65,7 +67,6 @@ function PDFExport({}: PDFExportProps) {
   const [exporting, setExporting] = useState(false);
   const [fileLocations, setFileLocations] = useState<{
     dataPath: string;
-    backupDir: string;
     autosavePath: string;
     defaultPdfOutputDir: string;
     exePath: string;
@@ -76,33 +77,42 @@ function PDFExport({}: PDFExportProps) {
   const [sparringExpanded, setSparringExpanded] = useState(false);
   const [selectedFormsRings, setSelectedFormsRings] = useState<Set<string>>(new Set());
   const [selectedSparringRings, setSelectedSparringRings] = useState<Set<string>>(new Set());
-  const [selectedFormsCheckpoint, setSelectedFormsCheckpoint] = useState<string>('');
-  const [selectedSparringCheckpoint, setSelectedSparringCheckpoint] = useState<string>('');
+  const [selectedBaseline, setSelectedBaseline] = useState<string>('');
+  const [baselineState, setBaselineState] = useState<SavedState | null>(null);
   
   // Persist division selection per-page
   useEffect(() => {
     localStorage.setItem('division-export', selectedDivision);
   }, [selectedDivision]);
   
-  // Get sorted checkpoints (latest first)
-  const sortedCheckpoints = useMemo(() => {
-    return [...checkpoints].sort((a, b) => 
+  // Sorted history commits (latest first) available as diff baselines
+  const sortedCommits = useMemo(() => {
+    return [...history].sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
-  }, [checkpoints]);
-  
-  // Set default checkpoint to latest when checkpoints available
+  }, [history]);
+
+  // Default to the latest commit
   useEffect(() => {
-    if (sortedCheckpoints.length > 0 && !selectedFormsCheckpoint) {
-      setSelectedFormsCheckpoint(sortedCheckpoints[0].id);
+    if (sortedCommits.length > 0 && !selectedBaseline) {
+      setSelectedBaseline(sortedCommits[0].id);
     }
-  }, [sortedCheckpoints]);
-  
+  }, [sortedCommits, selectedBaseline]);
+
+  // Load the selected baseline's full state for diffing
   useEffect(() => {
-    if (sortedCheckpoints.length > 0 && !selectedSparringCheckpoint) {
-      setSelectedSparringCheckpoint(sortedCheckpoints[0].id);
+    let cancelled = false;
+    if (!selectedBaseline) {
+      setBaselineState(null);
+      return;
     }
-  }, [sortedCheckpoints]);
+    window.electronAPI.historyShow(selectedBaseline).then((result) => {
+      if (!cancelled && result.success && result.data) {
+        setBaselineState(result.data as SavedState);
+      }
+    }).catch(() => { /* ignore */ });
+    return () => { cancelled = true; };
+  }, [selectedBaseline]);
   
   // Get available rings for selected division
   const availableFormsRings = useMemo(() => {
@@ -150,14 +160,24 @@ function PDFExport({}: PDFExportProps) {
     }
   }, [selectedDivision, availableSparringRings, sparringExpanded]);
 
-  // Select rings that changed since checkpoint
+  // Select rings that changed since the chosen baseline commit
+  const buildCurrentState = (): SavedState => ({
+    participants,
+    categories,
+    config,
+    physicalRingMappings,
+    categoryPoolMappings,
+    customRings,
+    customOrderRings,
+  });
+
   const handleSelectFormsDiff = () => {
-    if (!selectedFormsCheckpoint) {
-      alert('Please select a checkpoint');
+    if (!selectedBaseline) {
+      alert('Please select a baseline commit');
       return;
     }
     
-    const diff = diffCheckpoint(selectedFormsCheckpoint);
+    const diff = baselineState ? computeStateDiff(baselineState, buildCurrentState()) : null;
     if (!diff) {
       alert('Failed to compute diff');
       return;
@@ -185,19 +205,19 @@ function PDFExport({}: PDFExportProps) {
     });
     
     if (affectedRings.size === 0) {
-      alert(`No forms rings changed in ${selectedDivision} division since checkpoint`);
+      alert(`No forms rings changed in ${selectedDivision} division since baseline`);
     } else {
       setSelectedFormsRings(affectedRings);
     }
   };
   
   const handleSelectSparringDiff = () => {
-    if (!selectedSparringCheckpoint) {
-      alert('Please select a checkpoint');
+    if (!selectedBaseline) {
+      alert('Please select a baseline commit');
       return;
     }
     
-    const diff = diffCheckpoint(selectedSparringCheckpoint);
+    const diff = baselineState ? computeStateDiff(baselineState, buildCurrentState()) : null;
     if (!diff) {
       alert('Failed to compute diff');
       return;
@@ -225,7 +245,7 @@ function PDFExport({}: PDFExportProps) {
     });
     
     if (affectedRings.size === 0) {
-      alert(`No sparring rings changed in ${selectedDivision} division since checkpoint`);
+      alert(`No sparring rings changed in ${selectedDivision} division since baseline`);
     } else {
       setSelectedSparringRings(affectedRings);
     }
@@ -853,23 +873,23 @@ function PDFExport({}: PDFExportProps) {
                       >
                         Deselect All
                       </button>
-                      {checkpoints.length > 0 && (
+                      {sortedCommits.length > 0 && (
                         <>
                           <button
                             className="btn btn-secondary"
                             onClick={handleSelectFormsDiff}
                             style={{ fontSize: '12px', padding: '5px 10px' }}
                           >
-                            Select Diff from Checkpoint
+                            Select Diff from Commit
                           </button>
                           <select
-                            value={selectedFormsCheckpoint}
-                            onChange={(e) => setSelectedFormsCheckpoint(e.target.value)}
+                            value={selectedBaseline}
+                            onChange={(e) => setSelectedBaseline(e.target.value)}
                             style={{ fontSize: '12px', padding: '5px 10px' }}
                           >
-                            {sortedCheckpoints.map(cp => (
+                            {sortedCommits.map(cp => (
                               <option key={cp.id} value={cp.id}>
-                                {cp.name} ({new Date(cp.timestamp).toLocaleString()})
+                                {cp.operation.description} ({new Date(cp.timestamp).toLocaleString()})
                               </option>
                             ))}
                           </select>
@@ -1029,23 +1049,23 @@ function PDFExport({}: PDFExportProps) {
                       >
                         Deselect All
                       </button>
-                      {checkpoints.length > 0 && (
+                      {sortedCommits.length > 0 && (
                         <>
                           <button
                             className="btn btn-secondary"
                             onClick={handleSelectSparringDiff}
                             style={{ fontSize: '12px', padding: '5px 10px' }}
                           >
-                            Select Diff from Checkpoint
+                            Select Diff from Commit
                           </button>
                           <select
-                            value={selectedSparringCheckpoint}
-                            onChange={(e) => setSelectedSparringCheckpoint(e.target.value)}
+                            value={selectedBaseline}
+                            onChange={(e) => setSelectedBaseline(e.target.value)}
                             style={{ fontSize: '12px', padding: '5px 10px' }}
                           >
-                            {sortedCheckpoints.map(cp => (
+                            {sortedCommits.map(cp => (
                               <option key={cp.id} value={cp.id}>
-                                {cp.name} ({new Date(cp.timestamp).toLocaleString()})
+                                {cp.operation.description} ({new Date(cp.timestamp).toLocaleString()})
                               </option>
                             ))}
                           </select>

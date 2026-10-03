@@ -1,9 +1,11 @@
 import { create } from 'zustand';
-import { Participant, Category, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CategoryPoolMapping, TournamentState as SavedState, Checkpoint, CheckpointDiff, ParticipantChange, CustomRing } from '../types/tournament';
+import { Participant, Category, TournamentConfig, Division, PhysicalRing, PhysicalRingMapping, CategoryPoolMapping, TournamentState as SavedState, StateDiff, CustomRing } from '../types/tournament';
 import { debounce } from '../utils/debounce';
 import { AUTOSAVE_DELAY_MS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { reorderAllRings } from '../utils/ringOrdering';
+import { computeStateDiff } from '../utils/stateDiff';
+import type { CommitSummary, HistoryTag, OperationHint } from '../../shared/history';
 
 /** Fields whose changes should trigger automatic ring re-ordering. */
 const ASSIGNMENT_FIELDS: (keyof Participant)[] = [
@@ -58,7 +60,12 @@ interface TournamentState {
   config: TournamentConfig;
   physicalRingMappings: PhysicalRingMapping[]; // Legacy
   categoryPoolMappings: CategoryPoolMapping[]; // New mapping system
-  checkpoints: Checkpoint[]; // Checkpoint system
+  history: CommitSummary[]; // Git-like commit history (newest last)
+  historyTags: HistoryTag[]; // Named pointers into the history (checkpoints)
+  historyHeadId: string | null;
+  /** Commit chosen as the diff baseline (its full state is cached below). */
+  baselineCommitId: string | null;
+  baselineState: SavedState | null;
   customRings: CustomRing[]; // Grand Champion / Side rings
   customOrderRings: string[]; // Ring IDs with custom (manual) ordering enabled
   highlightedParticipantId: string | null; // For cross-component highlighting
@@ -89,15 +96,20 @@ interface TournamentState {
   loadState: () => Promise<void>;
   loadStateFromData: (data: SavedState) => void;
   hydrateFromAutosave: (data: SavedState) => void;
-  autoSave: () => void;
+  autoSave: (hint?: OperationHint) => void;
+  /** Commit immediately (bypassing the debounce) with an optional operation hint. */
+  commitNow: (hint?: OperationHint) => void;
+
+  // History (git-like commit journal)
+  loadHistory: () => Promise<void>;
+  restoreCommit: (commitId: string) => Promise<boolean>;
+  createHistoryTag: (name: string, commitId?: string) => Promise<void>;
+  deleteHistoryTag: (tagId: string) => Promise<void>;
+  /** Select (or clear) the commit used as the diff baseline; fetches its state. */
+  setBaseline: (commitId: string | null) => Promise<void>;
+  /** Diff the current state against the selected baseline. */
+  diffBaseline: () => StateDiff | null;
   reset: () => void;
-  
-  // Checkpoint actions
-  createCheckpoint: (name?: string) => Promise<Checkpoint>;
-  renameCheckpoint: (checkpointId: string, newName: string) => Promise<void>;
-  deleteCheckpoint: (checkpointId: string) => Promise<void>;
-  diffCheckpoint: (checkpointId: string) => CheckpointDiff | null;
-  loadCheckpoint: (checkpointId: string) => void;
   
   // Custom Ring actions
   addCustomRing: (name: string, type: 'forms' | 'sparring') => CustomRing;
@@ -278,7 +290,6 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   config: initialConfig,
   physicalRingMappings: [],
   categoryPoolMappings: [],
-  checkpoints: [],
   undoStack: [],
   redoStack: [],
   customRings: [
@@ -300,6 +311,11 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   customOrderRings: [],
   highlightedParticipantId: null,
   openQuickEditParticipantId: null,
+  history: [],
+  historyTags: [],
+  historyHeadId: null,
+  baselineCommitId: null,
+  baselineState: null,
 
   pushHistory: () => {
     const s = get();
@@ -445,6 +461,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
   withdrawParticipant: (id) => {
     get().pushHistory();
+    const target = get().participants.find((p) => p.id === id);
     const withdrawnParticipants = get().participants.map((p) =>
       p.id === id
         ? {
@@ -459,11 +476,16 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const { categories, categoryPoolMappings, customOrderRings } = get();
     // Reorder remaining participants so pool adjacency is recalculated
     set({ participants: reorderAllRings(withdrawnParticipants, categories, categoryPoolMappings, new Set(customOrderRings)) });
-    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+    get().commitNow(
+      target
+        ? { kind: 'participant.withdraw', description: `Withdrew ${target.firstName} ${target.lastName}` }
+        : undefined
+    );
   },
 
   deleteParticipant: (id) => {
     get().pushHistory();
+    const target = get().participants.find((p) => p.id === id);
     const remaining = get().participants.filter((p) => p.id !== id);
     const { categories, categoryPoolMappings, customOrderRings, customRings } = get();
     // Reorder the survivors so pool adjacency is recalculated, and drop any
@@ -476,7 +498,11 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
           : ring
       ),
     });
-    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+    get().commitNow(
+      target
+        ? { kind: 'participant.remove', description: `Removed ${target.firstName} ${target.lastName}` }
+        : undefined
+    );
   },
 
   setCategories: (categories) => {
@@ -630,7 +656,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     set({ ...buildHydratedState(state), undoStack: [], redoStack: [] });
   },
 
-  autoSave: async () => {
+  autoSave: async (hint?: OperationHint) => {
     const state = useTournamentStore.getState();
     const tournamentState: SavedState = {
       participants: state.participants,
@@ -643,12 +669,68 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       lastSaved: new Date().toISOString(),
     };
     logger.debug('Saving autosave - participants count:', state.participants.length);
-    
+
     try {
-      const result = await window.electronAPI.saveAutosave(JSON.stringify(tournamentState));
+      const result = await window.electronAPI.saveAutosave(JSON.stringify(tournamentState), hint);
       logger.debug('Autosave result:', result.success ? 'success' : result.error);
     } catch (error) {
       logger.error('Failed to save autosave:', error);
+    }
+  },
+
+  commitNow: (hint?: OperationHint) => {
+    // Bypass the debounce so deliberate actions land as their own commit.
+    useTournamentStore.getState().autoSave(hint);
+  },
+
+  loadHistory: async () => {
+    try {
+      const log = await window.electronAPI.historyLog();
+      const tags = await window.electronAPI.historyTags();
+      set({
+        history: log.success ? log.data ?? [] : [],
+        historyHeadId: log.headId ?? null,
+        historyTags: tags.success ? tags.data ?? [] : [],
+      });
+    } catch (error) {
+      logger.error('Failed to load history:', error);
+    }
+  },
+
+  restoreCommit: async (commitId) => {
+    try {
+      const result = await window.electronAPI.historyCheckout(commitId);
+      if (result.success && result.data) {
+        // The main process already wrote the head file and appended a restore
+        // commit; just sync the in-memory store to match.
+        get().loadStateFromData(result.data as SavedState);
+        await get().loadHistory();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      logger.error('Failed to restore commit:', error);
+      return false;
+    }
+  },
+
+  createHistoryTag: async (name, commitId) => {
+    const target = commitId ?? get().historyHeadId;
+    if (!target) return;
+    try {
+      await window.electronAPI.historyAddTag(name, target);
+      await get().loadHistory();
+    } catch (error) {
+      logger.error('Failed to create history tag:', error);
+    }
+  },
+
+  deleteHistoryTag: async (tagId) => {
+    try {
+      await window.electronAPI.historyRemoveTag(tagId);
+      await get().loadHistory();
+    } catch (error) {
+      logger.error('Failed to delete history tag:', error);
     }
   },
 
@@ -657,305 +739,53 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       participants: [],
       categories: [],
       config: initialConfig,
-      checkpoints: [],
       customRings: [],
       customOrderRings: [],
       physicalRingMappings: [],
       categoryPoolMappings: [],
       undoStack: [],
       redoStack: [],
+      history: [],
+      historyTags: [],
+      historyHeadId: null,
+      baselineCommitId: null,
+      baselineState: null,
     }),
 
-  // Checkpoint management
-  createCheckpoint: async (name?: string) => {
-    const state = get();
-    const timestamp = new Date().toISOString();
-    const checkpointName = name || `Checkpoint ${new Date().toLocaleString()}`;
-    
-    const checkpoint: Checkpoint = {
-      id: `checkpoint-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: checkpointName,
-      timestamp,
-      state: {
-        participants: structuredClone(state.participants),
-        categories: structuredClone(state.categories),
-        config: structuredClone(state.config),
-        physicalRingMappings: structuredClone(state.physicalRingMappings),
-        categoryPoolMappings: structuredClone(state.categoryPoolMappings),
-        customRings: structuredClone(state.customRings),
-        customOrderRings: [...state.customOrderRings],
-        lastSaved: timestamp,
-      },
-    };
-
-    set((state) => ({
-      checkpoints: [...state.checkpoints, checkpoint],
-    }));
-
-    // Save checkpoint to disk
-    try {
-      const result = await window.electronAPI.saveCheckpoint(checkpoint);
-      if (result.success) {
-        logger.debug('Checkpoint saved:', checkpoint.name);
-      } else {
-        logger.error('Failed to save checkpoint:', result.error);
-      }
-    } catch (error) {
-      logger.error('Error saving checkpoint:', error);
-    }
-
-    return checkpoint;
-  },
-
-  renameCheckpoint: async (checkpointId: string, newName: string) => {
-    set((state) => ({
-      checkpoints: state.checkpoints.map(cp =>
-        cp.id === checkpointId ? { ...cp, name: newName } : cp
-      ),
-    }));
-
-    // Persist the rename. If the write fails the in-memory and on-disk copies
-    // silently diverge (the rename is lost on restart), so surface it.
-    const checkpoint = get().checkpoints.find(cp => cp.id === checkpointId);
-    if (!checkpoint) return;
-
-    try {
-      const result = await window.electronAPI.saveCheckpoint(checkpoint);
-      if (!result?.success) {
-        logger.error('Failed to update checkpoint name:', result?.error);
-        alert(`Failed to rename checkpoint on disk: ${result?.error || 'unknown error'}`);
-      }
-    } catch (error) {
-      logger.error('Failed to update checkpoint name:', error);
-      alert(`Failed to rename checkpoint on disk: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  },
-
-  deleteCheckpoint: async (checkpointId: string) => {
-    // Delete from disk first: if this fails the checkpoint stays in the UI so the
-    // list never claims it is gone while it still exists on disk.
-    try {
-      const result = await window.electronAPI.deleteCheckpoint(checkpointId);
-      if (!result?.success) {
-        logger.error('Failed to delete checkpoint:', result?.error);
-        alert(`Failed to delete checkpoint: ${result?.error || 'unknown error'}`);
-        return;
-      }
-    } catch (error) {
-      logger.error('Failed to delete checkpoint:', error);
-      alert(`Failed to delete checkpoint: ${error instanceof Error ? error.message : String(error)}`);
-      return;
-    }
-
-    set((state) => ({
-      checkpoints: state.checkpoints.filter(cp => cp.id !== checkpointId),
-    }));
-  },
-
-  diffCheckpoint: (checkpointId: string): CheckpointDiff | null => {
-    const state = get();
-    const checkpoint = state.checkpoints.find(cp => cp.id === checkpointId);
-    
-    if (!checkpoint) {
-      return null;
-    }
-
-    const currentParticipants = state.participants;
-    const checkpointParticipants = checkpoint.state.participants;
-
-    // Create maps for quick lookup
-    const currentMap = new Map(currentParticipants.map(p => [p.id, p]));
-    const checkpointMap = new Map(checkpointParticipants.map(p => [p.id, p]));
-
-    // Find added participants
-    const participantsAdded = currentParticipants.filter(p => !checkpointMap.has(p.id));
-
-    // Find removed participants
-    const participantsRemoved = checkpointParticipants.filter(p => !currentMap.has(p.id));
-
-    // Find modified participants
-    const participantsModified: ParticipantChange[] = [];
-    const ringsAffected = new Set<string>();
-
-    /**
-     * Build a ring identifier with all necessary context.
-     * Format: Division - CategoryName Pool N_type[_altRing]
-     * 
-     * Examples:
-     * - "Beginner - Mixed 8-10 Pool 1_forms" - Forms ring
-     * - "Beginner - Mixed 8-10 Pool 1_sparring" - Sparring ring (no alt rings)
-     * - "Beginner - Mixed 8-10 Pool 1_sparring_a" - Sparring alt ring A
-     * - "Beginner - Mixed 8-10 Pool 1_sparring_b" - Sparring alt ring B
-     */
-    const buildRingId = (
-      division: string,
-      categoryName: string,
-      pool: string,
-      type: 'forms' | 'sparring',
-      altRing?: string
-    ): string => {
-      // Convert pool format from P1 to Pool 1
-      const poolDisplay = pool.replace(/^P(\d+)$/, 'Pool $1');
-      let id = `${division} - ${categoryName} ${poolDisplay}_${type}`;
-      if (type === 'sparring' && altRing) {
-        id += `_${altRing}`;
-      }
-      return id;
-    };
-
-    currentParticipants.forEach(currentP => {
-      const checkpointP = checkpointMap.get(currentP.id);
-      if (!checkpointP) return; // Already counted in participantsAdded
-
-      // Check relevant fields for changes
-      const fieldsToCheck = [
-        'formsCategoryId', 'sparringCategoryId',
-        'formsPool', 'sparringPool', 'sparringAltRing',
-        'competingForms', 'competingSparring',
-        'formsRankOrder', 'sparringRankOrder'
-      ];
-
-      fieldsToCheck.forEach(field => {
-        const currentValue = (currentP as any)[field];
-        const checkpointValue = (checkpointP as any)[field];
-        
-        if (JSON.stringify(currentValue) !== JSON.stringify(checkpointValue)) {
-          participantsModified.push({
-            participantId: currentP.id,
-            participantName: `${currentP.firstName} ${currentP.lastName}`,
-            field,
-            oldValue: checkpointValue,
-            newValue: currentValue,
-          });
-
-          // Track affected rings for forms changes
-          if (field === 'formsCategoryId' || field === 'formsPool' || field === 'formsRankOrder' || field === 'competingForms') {
-            // For rank order changes, only track the current state (reordering doesn't move between rings)
-            if (field === 'formsRankOrder') {
-              const categoryId = currentP.formsCategoryId;
-              const category = state.categories.find(c => c.id === categoryId);
-              if (category && currentP.competingForms) {
-                const pool = currentP.formsPool || 'P1';
-                ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
-              }
-            } else {
-              // For category, pool, or competing changes, track both old and new rings
-              if (checkpointP.competingForms && checkpointP.formsCategoryId) {
-                const category = checkpoint.state.categories.find(c => c.id === checkpointP.formsCategoryId);
-                if (category) {
-                  const pool = checkpointP.formsPool || 'P1';
-                  ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
-                }
-              }
-              if (currentP.competingForms && currentP.formsCategoryId) {
-                const category = state.categories.find(c => c.id === currentP.formsCategoryId);
-                if (category) {
-                  const pool = currentP.formsPool || 'P1';
-                  ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
-                }
-              }
-            }
-          }
-          
-          // Track affected rings for sparring changes
-          if (field === 'sparringCategoryId' || field === 'sparringPool' || field === 'sparringAltRing' || field === 'sparringRankOrder' || field === 'competingSparring') {
-            // For rank order changes, track the specific alt ring that was reordered
-            if (field === 'sparringRankOrder') {
-              const categoryId = currentP.sparringCategoryId;
-              const category = state.categories.find(c => c.id === categoryId);
-              if (category && currentP.competingSparring) {
-                const pool = currentP.sparringPool || 'P1';
-                ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', currentP.sparringAltRing || undefined));
-              }
-            } else {
-              // For category, pool, alt ring, or competing changes, track both old and new rings
-              if (checkpointP.competingSparring && checkpointP.sparringCategoryId) {
-                const category = checkpoint.state.categories.find(c => c.id === checkpointP.sparringCategoryId);
-                if (category) {
-                  const pool = checkpointP.sparringPool || 'P1';
-                  ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', checkpointP.sparringAltRing || undefined));
-                }
-              }
-              if (currentP.competingSparring && currentP.sparringCategoryId) {
-                const category = state.categories.find(c => c.id === currentP.sparringCategoryId);
-                if (category) {
-                  const pool = currentP.sparringPool || 'P1';
-                  ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', currentP.sparringAltRing || undefined));
-                }
-              }
-            }
-          }
-        }
-      });
-    });
-
-    // Track rings for newly added participants
-    participantsAdded.forEach(p => {
-      if (p.competingForms && p.formsCategoryId) {
-        const category = state.categories.find(c => c.id === p.formsCategoryId);
-        if (category) {
-          const pool = p.formsPool || 'P1';
-          ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
-        }
-      }
-      if (p.competingSparring && p.sparringCategoryId) {
-        const category = state.categories.find(c => c.id === p.sparringCategoryId);
-        if (category) {
-          const pool = p.sparringPool || 'P1';
-          ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', p.sparringAltRing || undefined));
-        }
-      }
-    });
-
-    // Track rings for removed participants (use checkpoint categories)
-    participantsRemoved.forEach(p => {
-      if (p.competingForms && p.formsCategoryId) {
-        const category = checkpoint.state.categories.find(c => c.id === p.formsCategoryId);
-        if (category) {
-          const pool = p.formsPool || 'P1';
-          ringsAffected.add(buildRingId(category.division, category.name, pool, 'forms'));
-        }
-      }
-      if (p.competingSparring && p.sparringCategoryId) {
-        const category = checkpoint.state.categories.find(c => c.id === p.sparringCategoryId);
-        if (category) {
-          const pool = p.sparringPool || 'P1';
-          ringsAffected.add(buildRingId(category.division, category.name, pool, 'sparring', p.sparringAltRing || undefined));
-        }
-      }
-    });
-
-    return {
-      participantsAdded,
-      participantsRemoved,
-      participantsModified,
-      ringsAffected,
-    };
-  },
-
-  loadCheckpoint: (checkpointId: string) => {
-    const state = get();
-    const checkpoint = state.checkpoints.find(cp => cp.id === checkpointId);
-    
-    if (!checkpoint) {
-      alert('Checkpoint not found');
-      return;
-    }
-
-    if (confirm(`Load checkpoint "${checkpoint.name}"? This will replace your current state.`)) {
-      get().pushHistory();
-      // Normalize/migrate exactly like autosave + file load (orphan references,
-      // legacy ring names, defaults) instead of restoring raw checkpoint data.
-      set(buildHydratedState(checkpoint.state));
-      // Immediately persist the restored state so autosave reflects the checkpoint data.
-      // Without this, closing the app before any subsequent mutation would reload the
-      // pre-restore autosave on next startup (silently discarding the checkpoint restore).
-      useTournamentStore.getState().autoSave();
-      alert(`Checkpoint "${checkpoint.name}" loaded successfully`);
-    }
-  },
 
   // Custom Ring actions
+  // Baseline — diff the current data against a chosen history commit
+  setBaseline: async (commitId: string | null) => {
+    if (!commitId) {
+      set({ baselineCommitId: null, baselineState: null });
+      return;
+    }
+    try {
+      const result = await window.electronAPI.historyShow(commitId);
+      if (result.success && result.data) {
+        set({ baselineCommitId: commitId, baselineState: result.data as SavedState });
+      }
+    } catch (error) {
+      logger.error('Failed to load baseline commit:', error);
+    }
+  },
+
+  diffBaseline: (): StateDiff | null => {
+    const state = get();
+    if (!state.baselineState) return null;
+    const current: SavedState = {
+      participants: state.participants,
+      categories: state.categories,
+      config: state.config,
+      physicalRingMappings: state.physicalRingMappings,
+      categoryPoolMappings: state.categoryPoolMappings,
+      customRings: state.customRings,
+      customOrderRings: state.customOrderRings,
+    };
+    return computeStateDiff(state.baselineState, current);
+  },
+
+
   addCustomRing: (name: string, type: 'forms' | 'sparring') => {
     const newRing: CustomRing = {
       id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1064,13 +894,3 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   },
 }));
 
-// Load checkpoints from disk on startup
-if (typeof window !== 'undefined' && window.electronAPI?.loadCheckpoints) {
-  window.electronAPI.loadCheckpoints().then((result) => {
-    if (result.success && result.data) {
-      useTournamentStore.setState({ checkpoints: result.data });
-    }
-  }).catch((error) => {
-    logger.error('Error loading checkpoints on startup:', error);
-  });
-}

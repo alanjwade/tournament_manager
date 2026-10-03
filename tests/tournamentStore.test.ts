@@ -6,11 +6,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useTournamentStore } from '../src/renderer/store/tournamentStore';
 import { createTestParticipant, createTestCategory, resetTestIds } from './fixtures';
+import { computeStateDiff } from '../src/renderer/utils/stateDiff';
+import type { TournamentState as SavedState } from '../types/tournament';
 
-// Mock window.electronAPI for checkpoint tests
+// Mock window.electronAPI used by store persistence/history calls
 const mockElectronAPI = {
-  saveCheckpoint: vi.fn().mockResolvedValue({ success: true }),
-  deleteCheckpoint: vi.fn().mockResolvedValue({ success: true }),
+  historyShow: vi.fn().mockResolvedValue({ success: false }),
+  historyLog: vi.fn().mockResolvedValue({ success: true, data: [], headId: null }),
+  historyTags: vi.fn().mockResolvedValue({ success: true, data: [] }),
 };
 
 global.window = {
@@ -19,6 +22,20 @@ global.window = {
 
 global.confirm = vi.fn().mockReturnValue(true);
 global.alert = vi.fn();
+
+/** Snapshot the current store slices into a SavedState (used as a diff baseline). */
+function snapshotState(): SavedState {
+  const s = useTournamentStore.getState();
+  return {
+    participants: s.participants,
+    categories: s.categories,
+    config: s.config,
+    physicalRingMappings: s.physicalRingMappings,
+    categoryPoolMappings: s.categoryPoolMappings,
+    customRings: s.customRings,
+    customOrderRings: s.customOrderRings,
+  };
+}
 
 describe('Tournament Store', () => {
   beforeEach(() => {
@@ -246,78 +263,6 @@ describe('Tournament Store', () => {
     });
   });
 
-  describe('Checkpoint System', () => {
-    it('should create a checkpoint', async () => {
-      const participant = createTestParticipant({ id: 'p1', firstName: 'Alice' });
-      useTournamentStore.getState().setParticipants([participant]);
-      
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Test Checkpoint');
-      
-      const state = useTournamentStore.getState();
-      expect(state.checkpoints.length).toBe(1);
-      expect(state.checkpoints[0].name).toBe('Test Checkpoint');
-      expect(state.checkpoints[0].state.participants.length).toBe(1);
-    });
-
-    it('should delete a checkpoint', async () => {
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Test');
-
-      await useTournamentStore.getState().deleteCheckpoint(checkpoint.id);
-
-      const state = useTournamentStore.getState();
-      expect(state.checkpoints.length).toBe(0);
-    });
-
-    it('should keep the checkpoint when the disk delete fails', async () => {
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Test');
-
-      mockElectronAPI.deleteCheckpoint.mockResolvedValueOnce({ success: false, error: 'disk error' });
-      await useTournamentStore.getState().deleteCheckpoint(checkpoint.id);
-
-      // The list must not claim the checkpoint is gone while it still exists on disk
-      expect(useTournamentStore.getState().checkpoints.map(cp => cp.id)).toContain(checkpoint.id);
-    });
-
-    it('should generate unique ids for checkpoints created in the same millisecond', async () => {
-      const spy = vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
-      try {
-        const a = await useTournamentStore.getState().createCheckpoint('A');
-        const b = await useTournamentStore.getState().createCheckpoint('B');
-        expect(a.id).not.toBe(b.id);
-      } finally {
-        spy.mockRestore();
-      }
-    });
-
-    it('should rename a checkpoint', async () => {
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Old Name');
-      
-      useTournamentStore.getState().renameCheckpoint(checkpoint.id, 'New Name');
-      
-      const state = useTournamentStore.getState();
-      expect(state.checkpoints[0].name).toBe('New Name');
-    });
-
-    it('should load a checkpoint and restore state', async () => {
-      // Initial state
-      const p1 = createTestParticipant({ id: 'p1', firstName: 'Alice' });
-      useTournamentStore.getState().setParticipants([p1]);
-      
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Saved State');
-      
-      // Modify state
-      const p2 = createTestParticipant({ id: 'p2', firstName: 'Bob' });
-      useTournamentStore.getState().setParticipants([p1, p2]);
-      
-      // Load checkpoint
-      useTournamentStore.getState().loadCheckpoint(checkpoint.id);
-      
-      const state = useTournamentStore.getState();
-      expect(state.participants.length).toBe(1);
-      expect(state.participants[0].firstName).toBe('Alice');
-    });
-  });
-
   describe('Reset', () => {
     it('should reset store to initial state', () => {
       const participant = createTestParticipant({ id: 'p1' });
@@ -330,7 +275,6 @@ describe('Tournament Store', () => {
       const state = useTournamentStore.getState();
       expect(state.participants).toEqual([]);
       expect(state.categories).toEqual([]);
-      expect(state.checkpoints).toEqual([]);
     });
   });
 
@@ -357,13 +301,13 @@ describe('Tournament Store', () => {
       useTournamentStore.getState().setCategories([category]);
 
       // Create checkpoint
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+      const baseline = snapshotState();
 
       // Change only the rank order in alt ring 'a'
       useTournamentStore.getState().updateParticipant('p1', { sparringRankOrder: 2 });
 
       // Get diff
-      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      const diff = computeStateDiff(baseline, snapshotState());
       
       expect(diff).not.toBeNull();
       // New format uses _sparring_a suffix
@@ -402,13 +346,13 @@ describe('Tournament Store', () => {
       useTournamentStore.getState().setCategories([category]);
 
       // Create checkpoint
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+      const baseline = snapshotState();
 
       // Change ONLY forms order
       useTournamentStore.getState().updateParticipant('pf1', { formsRankOrder: 2 });
 
       // Get diff
-      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      const diff = computeStateDiff(baseline, snapshotState());
       
       expect(diff).not.toBeNull();
       // Should track forms ring as changed (new format)
@@ -448,13 +392,13 @@ describe('Tournament Store', () => {
       useTournamentStore.getState().setCategories([category]);
 
       // Create checkpoint
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+      const baseline = snapshotState();
 
       // Change ONLY alt ring 'a' order
       useTournamentStore.getState().updateParticipant('p1', { sparringRankOrder: 2 });
 
       // Get diff
-      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      const diff = computeStateDiff(baseline, snapshotState());
       
       expect(diff).not.toBeNull();
       // Should track only alt ring a as changed (new format)
@@ -500,13 +444,13 @@ describe('Tournament Store', () => {
       useTournamentStore.getState().setCategories([category]);
 
       // Create checkpoint
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+      const baseline = snapshotState();
 
       // Change ONLY forms order
       useTournamentStore.getState().updateParticipant('pf1', { formsRankOrder: 2 });
 
       // Get diff and compute rings (simulating what happens in app)
-      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      const diff = computeStateDiff(baseline, snapshotState());
       const state = useTournamentStore.getState();
       const competitionRings = computeCompetitionRings(
         state.participants,
@@ -584,13 +528,13 @@ describe('Tournament Store', () => {
       useTournamentStore.getState().setCategories([category]);
 
       // Create checkpoint
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Before');
+      const baseline = snapshotState();
 
       // Change ONLY forms order
       useTournamentStore.getState().updateParticipant('pf1', { formsRankOrder: 2 });
 
       // Get diff
-      const diff = useTournamentStore.getState().diffCheckpoint(checkpoint.id);
+      const diff = computeStateDiff(baseline, snapshotState());
       
       expect(diff).not.toBeNull();
       
@@ -685,26 +629,26 @@ describe('Tournament Store', () => {
       expect(state.physicalRingMappings[0].physicalRingName).toBe('Ring 1');
     });
   });
-  describe('loadCheckpoint normalization', () => {
-    it('clears orphaned category references when a checkpoint is restored', async () => {
+  describe('loadStateFromData normalization', () => {
+    it('clears orphaned category references when state is loaded', () => {
       const participant = createTestParticipant({ id: 'p1', formsCategoryId: 'ghost-category' });
       useTournamentStore.getState().setParticipants([participant]);
 
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Orphaned');
-      useTournamentStore.getState().loadCheckpoint(checkpoint.id);
+      const baseline = snapshotState();
+      useTournamentStore.getState().loadStateFromData(baseline);
 
       expect(useTournamentStore.getState().participants[0].formsCategoryId).toBeUndefined();
     });
 
-    it('restores customOrderRings from a checkpoint', async () => {
+    it('restores customOrderRings from loaded state', () => {
       const participant = createTestParticipant({ id: 'p1' });
       useTournamentStore.getState().setParticipants([participant]);
       useTournamentStore.setState({ customOrderRings: ['forms-cat1-P1'] });
 
-      const checkpoint = await useTournamentStore.getState().createCheckpoint('Manual order');
+      const baseline = snapshotState();
 
       useTournamentStore.setState({ customOrderRings: [] });
-      useTournamentStore.getState().loadCheckpoint(checkpoint.id);
+      useTournamentStore.getState().loadStateFromData(baseline);
 
       expect(useTournamentStore.getState().customOrderRings).toEqual(['forms-cat1-P1']);
     });

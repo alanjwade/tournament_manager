@@ -2,9 +2,11 @@ import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as https from 'https';
+import { HistoryStore } from './history/store';
+import type { OperationHint } from '../shared/history';
 
 let mainWindow: BrowserWindow | null = null;
-let backupInterval: NodeJS.Timeout | null = null;
+let historyStore: HistoryStore | null = null;
 
 /**
  * Load the renderer into `win`, retrying until the bundle is available.
@@ -89,8 +91,20 @@ app.whenReady().then(() => {
   createWindow();
   createMenu();
 
-  // Start periodic backups while the app is running
-  startBackupScheduler();
+  // Initialize the git-like history store (commit journal + snapshots).
+  try {
+    historyStore = new HistoryStore(getDataPath());
+    historyStore.init();
+    // First run: import legacy scheduled backups + checkpoints as the initial chain.
+    const imported = historyStore.seedFromLegacy();
+    if (imported > 0) {
+      console.log(`[history] Imported ${imported} legacy snapshot(s) into history.`);
+    }
+    historyStore.pruneOrphanSnapshots();
+  } catch (error) {
+    console.error('Failed to initialize history store:', error);
+    historyStore = null;
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -102,13 +116,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
-  }
-});
-
-app.on('before-quit', () => {
-  if (backupInterval) {
-    clearInterval(backupInterval);
-    backupInterval = null;
   }
 });
 
@@ -144,16 +151,6 @@ function getDataPath(): string {
   return app.getPath('userData');
 }
 
-function getBackupDir(): string {
-  const dataPath = getDataPath();
-  return path.join(dataPath, 'backups');
-}
-
-function formatBackupTimestamp(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-}
-
 /**
  * Write a file atomically: write to a temporary sibling and then rename it over
  * the destination. rename() is atomic on the same volume, so a crash or power
@@ -175,80 +172,29 @@ function writeFileAtomic(filePath: string, data: string): void {
   }
 }
 
-function cleanupOldBackups(backupDir: string) {
-  if (!fs.existsSync(backupDir)) {
-    return;
-  }
-
-  const cutoff = Date.now() - 12 * 60 * 60 * 1000;
-  const files = fs.readdirSync(backupDir)
-    .filter((file) => file.endsWith('.json'))
-    .map((file) => {
-      const fullPath = path.join(backupDir, file);
-      const stat = fs.statSync(fullPath);
-      return { file, fullPath, mtimeMs: stat.mtimeMs };
-    })
-    .sort((a, b) => b.mtimeMs - a.mtimeMs);
-
-  if (files.length === 0) {
-    return;
-  }
-
-  const recent = files.filter((entry) => entry.mtimeMs >= cutoff);
-  const old = files.filter((entry) => entry.mtimeMs < cutoff);
-
-  if (recent.length > 0) {
-    old.forEach((entry) => fs.unlinkSync(entry.fullPath));
-    return;
-  }
-
-  // All backups are older than cutoff; keep the newest one
-  const [newest, ...rest] = files;
-  rest.forEach((entry) => fs.unlinkSync(entry.fullPath));
-}
-
-function runBackupJob() {
+ipcMain.handle('save-autosave', async (event, payload: string | { data: string; hint?: OperationHint }) => {
   try {
     const dataPath = getDataPath();
-    const autosavePath = path.join(dataPath, 'tournament-autosave.json');
-    if (!fs.existsSync(autosavePath)) {
-      return;
-    }
 
-    const backupDir = getBackupDir();
-    if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true });
-    }
-
-    const timestamp = formatBackupTimestamp(new Date());
-    const backupFileName = `backup-${timestamp}.json`;
-    const backupPath = path.join(backupDir, backupFileName);
-    fs.copyFileSync(autosavePath, backupPath);
-
-    cleanupOldBackups(backupDir);
-  } catch (error) {
-    console.error('Error running backup job:', error);
-  }
-}
-
-function startBackupScheduler() {
-  runBackupJob();
-  const intervalMs = 20 * 60 * 1000;
-  backupInterval = setInterval(runBackupJob, intervalMs);
-}
-
-ipcMain.handle('save-autosave', async (event, data: string) => {
-  try {
-    const dataPath = getDataPath();
-    
     // Ensure directory exists before writing
     if (!fs.existsSync(dataPath)) {
       fs.mkdirSync(dataPath, { recursive: true });
       console.log('Created data directory:', dataPath);
     }
-    
+
     const autosavePath = path.join(dataPath, 'tournament-autosave.json');
-    writeFileAtomic(autosavePath, data);
+    // Support both the legacy string payload and the new { data, hint } payload.
+    const raw = typeof payload === 'string' ? payload : payload?.data;
+    const hint = typeof payload === 'string' ? undefined : payload?.hint;
+
+    if (historyStore) {
+      // Recording the commit also writes the head state atomically.
+      const state = JSON.parse(raw);
+      historyStore.commit(state, { operationHint: hint });
+    } else {
+      writeFileAtomic(autosavePath, raw);
+    }
+
     console.log('Saved tournament data to:', autosavePath);
     return { success: true, path: autosavePath };
   } catch (error) {
@@ -273,44 +219,6 @@ ipcMain.handle('load-autosave', async () => {
   } catch (error) {
     console.error('Error loading autosave:', error);
     return { success: false, error: String(error), path: 'unknown' };
-  }
-});
-
-ipcMain.handle('list-backups', async () => {
-  try {
-    const backupDir = getBackupDir();
-    if (!fs.existsSync(backupDir)) {
-      return { success: true, data: [] };
-    }
-
-    const files = fs.readdirSync(backupDir)
-      .filter((file) => file.endsWith('.json'))
-      .map((file) => {
-        const fullPath = path.join(backupDir, file);
-        const stat = fs.statSync(fullPath);
-        return { fileName: file, path: fullPath, mtimeMs: stat.mtimeMs };
-      })
-      .sort((a, b) => b.mtimeMs - a.mtimeMs);
-
-    return { success: true, data: files };
-  } catch (error) {
-    console.error('Error listing backups:', error);
-    return { success: false, error: String(error), data: [] };
-  }
-});
-
-ipcMain.handle('load-backup', async (event, fileName: string) => {
-  try {
-    const backupDir = getBackupDir();
-    const filePath = path.join(backupDir, fileName);
-    if (!fs.existsSync(filePath)) {
-      return { success: false, error: 'Backup file not found' };
-    }
-    const data = fs.readFileSync(filePath, 'utf-8');
-    return { success: true, data: JSON.parse(data), path: filePath };
-  } catch (error) {
-    console.error('Error loading backup:', error);
-    return { success: false, error: String(error) };
   }
 });
 
@@ -416,7 +324,6 @@ ipcMain.handle('print-html', async (_event, html: string) => {
 
 ipcMain.handle('get-file-locations', async () => {
   const dataPath = getDataPath();
-  const backupDir = getBackupDir();
   const autosavePath = path.join(dataPath, 'tournament-autosave.json');
   
   // PDF output directory is a sibling to backups, not next to exe
@@ -429,7 +336,6 @@ ipcMain.handle('get-file-locations', async () => {
   
   return {
     dataPath,
-    backupDir,
     autosavePath,
     defaultPdfOutputDir,
     exePath
@@ -551,69 +457,77 @@ ipcMain.handle('load-tournament-state', async () => {
   }
 });
 
-// Checkpoint handlers
-ipcMain.handle('save-checkpoint', async (event, checkpoint: any) => {
+// History (git-like commit journal) handlers
+ipcMain.handle('history-log', async () => {
+  if (!historyStore) {
+    return { success: false, error: 'History store unavailable', data: [] };
+  }
   try {
-    const checkpointsDir = path.join(app.getPath('userData'), 'checkpoints');
-    
-    // Create checkpoints directory if it doesn't exist
-    if (!fs.existsSync(checkpointsDir)) {
-      fs.mkdirSync(checkpointsDir, { recursive: true });
-    }
-    
-    const filePath = path.join(checkpointsDir, `${checkpoint.id}.json`);
-    writeFileAtomic(filePath, JSON.stringify(checkpoint, null, 2));
-    
-    return { success: true, path: filePath };
+    return {
+      success: true,
+      data: historyStore.listCommits(),
+      headId: historyStore.getHeadId(),
+    };
   } catch (error) {
-    console.error('Error saving checkpoint:', error);
+    console.error('Error reading history log:', error);
+    return { success: false, error: String(error), data: [] };
+  }
+});
+
+ipcMain.handle('history-show', async (event, commitId: string) => {
+  if (!historyStore) {
+    return { success: false, error: 'History store unavailable' };
+  }
+  try {
+    return { success: true, data: historyStore.resolveState(commitId) };
+  } catch (error) {
+    console.error('Error resolving commit:', error);
     return { success: false, error: String(error) };
   }
 });
 
-ipcMain.handle('load-checkpoints', async () => {
+ipcMain.handle('history-checkout', async (event, commitId: string) => {
+  if (!historyStore) {
+    return { success: false, error: 'History store unavailable' };
+  }
   try {
-    const checkpointsDir = path.join(app.getPath('userData'), 'checkpoints');
-    
-    // Return empty array if checkpoints directory doesn't exist
-    if (!fs.existsSync(checkpointsDir)) {
-      return { success: true, data: [] };
-    }
-    
-    const files = fs.readdirSync(checkpointsDir);
-    const checkpoints = files
-      .filter(file => file.endsWith('.json'))
-      .map(file => {
-        try {
-          const filePath = path.join(checkpointsDir, file);
-          const fileData = fs.readFileSync(filePath, 'utf-8');
-          return JSON.parse(fileData);
-        } catch (error) {
-          console.error(`Error reading checkpoint file ${file}:`, error);
-          return null;
-        }
-      })
-      .filter(checkpoint => checkpoint !== null);
-    
-    return { success: true, data: checkpoints };
+    const state = historyStore.checkout(commitId);
+    if (!state) return { success: false, error: 'Commit not found' };
+    return { success: true, data: state };
   } catch (error) {
-    console.error('Error loading checkpoints:', error);
+    console.error('Error checking out commit:', error);
     return { success: false, error: String(error) };
   }
 });
 
-ipcMain.handle('delete-checkpoint', async (event, checkpointId: string) => {
+ipcMain.handle('history-tags', async () => {
+  if (!historyStore) {
+    return { success: false, error: 'History store unavailable', data: [] };
+  }
+  return { success: true, data: historyStore.listTags() };
+});
+
+ipcMain.handle('history-add-tag', async (event, payload: { name: string; commitId: string }) => {
+  if (!historyStore) {
+    return { success: false, error: 'History store unavailable' };
+  }
   try {
-    const checkpointsDir = path.join(app.getPath('userData'), 'checkpoints');
-    const filePath = path.join(checkpointsDir, `${checkpointId}.json`);
-    
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-    
+    return { success: true, data: historyStore.addTag(payload.name, payload.commitId) };
+  } catch (error) {
+    console.error('Error adding history tag:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('history-remove-tag', async (event, tagId: string) => {
+  if (!historyStore) {
+    return { success: false, error: 'History store unavailable' };
+  }
+  try {
+    historyStore.removeTag(tagId);
     return { success: true };
   } catch (error) {
-    console.error('Error deleting checkpoint:', error);
+    console.error('Error removing history tag:', error);
     return { success: false, error: String(error) };
   }
 });
@@ -700,6 +614,29 @@ function createMenu() {
     {
       label: 'File',
       submenu: [
+        {
+          label: 'Import Initial Excel File…',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => {
+            mainWindow?.webContents.send('menu-import-excel');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Export Database…',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => {
+            mainWindow?.webContents.send('menu-export-database');
+          }
+        },
+        {
+          label: 'Import Database…',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => {
+            mainWindow?.webContents.send('menu-import-database');
+          }
+        },
+        { type: 'separator' },
         {
           label: 'Exit',
           accelerator: 'Alt+F4',

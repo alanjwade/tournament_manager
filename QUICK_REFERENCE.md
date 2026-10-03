@@ -25,12 +25,12 @@ Required columns (exact names):
 
 ## Workflow
 
-1. **Import** → Upload Excel file
+1. **Import** → File menu → **Import Initial Excel File…**
 2. **Configure** → Set divisions, physical rings, school abbreviations
 3. **Categories** → Assign participants to categories by age/gender/division
 4. **Ring Map** → Map category pools to physical rings
 5. **Tournament** → Review rings, quick-edit participants, adjust ordering
-6. **Checkpoints** → Save snapshots, track and print changes
+6. **History** → Review every change as a commit; create baselines, restore any point
 7. **Export** → Generate PDFs
 
 ## Standard Flows
@@ -44,10 +44,10 @@ Required columns (exact names):
 | **Add new participant** | Header bar → "+ Add Participant" → fill fields → Add |
 | **Custom order a ring** | Tournament → check "Custom Order" on ring → use ▲/▼ buttons |
 | **Return to auto order** | Uncheck "Custom Order" → ring re-orders automatically |
-| **Create checkpoint** | Checkpoints tab → "Create Checkpoint" → name it |
-| **View changes** | Click "View Diff" on a checkpoint |
-| **Revert changes** | Click "Load" on a checkpoint |
-| **Print only changed rings** | Tournament → "Print All Changed" button |
+| **Create baseline** | History tab (or Tournament → 📋 Baselines) → "Create Baseline" → name it |
+| **View changes** | History tab → commits show the operation; changed rings highlighted in Tournament |
+| **Restore a point** | History tab → "Restore" on a commit (adds a new restore commit) |
+| **Print only changed rings** | Tournament → select a baseline → "Print All Changed" |
 
 ## Ring Ordering
 
@@ -66,7 +66,7 @@ Required columns (exact names):
 | Action | Warning | Impact |
 |--------|---------|--------|
 | Re-run Category Assignment | ⚠️ Destroys previous assignments | All manual edits lost |
-| Load Checkpoint | ⚠️ Replaces current state | Create a checkpoint first |
+| Restore Commit | ⚠️ Replaces current state (kept in History) | Create a baseline first |
 | Uncheck Custom Order | ✅ Re-orders that ring only | Other rings unaffected |
 
 ## Category Guidelines
@@ -102,16 +102,17 @@ Click any participant name in the Tournament tab to open:
 - Adjust rank order
 - "Copy from Forms" checkbox mirrors settings to sparring
 
-## Checkpoints
+## History &amp; Baselines
 
-- **Create**: Save a named snapshot of the current state
-- **Diff**: Compare current state vs. checkpoint (added/removed/modified participants, affected rings)
-- **Load**: Restore to a previous checkpoint
-- **Print Changed**: Print only the rings that changed since the last checkpoint
+- **History**: Every change is a commit labelled with the operation that caused it
+- **Create baseline**: Tag the current commit to mark a "compare from here" point
+- **Review**: Browse commits in the History tab; changed rings are highlighted in the Tournament view
+- **Restore**: Return to any commit (adds a new "Restored to …" commit)
+- **Print Changed**: Print only the rings that changed since the selected baseline
 
 ## Day-of-Tournament Checklist
 
-1. Create a checkpoint at start of day
+1. Create a baseline at start of day
 2. Handle late registrations (+ Add Participant)
 3. Handle no-shows (Quick Edit → uncheck competing)
 4. Move participants between rings as needed (Quick Edit)
