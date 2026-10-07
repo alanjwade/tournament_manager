@@ -90,9 +90,9 @@ function RingOverview({}: RingOverviewProps) {
   const baselineState = useTournamentStore((state) => state.baselineState);
   const baselineCommitId = useTournamentStore((state) => state.baselineCommitId);
   const setBaseline = useTournamentStore((state) => state.setBaseline);
+  const createBaseline = useTournamentStore((state) => state.createBaseline);
   const diffBaseline = useTournamentStore((state) => state.diffBaseline);
   const loadHistory = useTournamentStore((state) => state.loadHistory);
-  const createHistoryTag = useTournamentStore((state) => state.createHistoryTag);
   const deleteHistoryTag = useTournamentStore((state) => state.deleteHistoryTag);
   const openQuickEditParticipantId = useTournamentStore((state) => state.openQuickEditParticipantId);
   const setOpenQuickEditParticipantId = useTournamentStore((state) => state.setOpenQuickEditParticipantId);
@@ -167,9 +167,9 @@ function RingOverview({}: RingOverviewProps) {
   }, [historyTags]);
 
   const handleCreateBaselineWithName = async (name: string) => {
-    await createHistoryTag(name);
-    await loadHistory();
-    if (historyHeadId) await setBaseline(historyHeadId);
+    // Flushes pending edits and baselines against the newest commit, so the
+    // "changed ring" indicators clear in a single click (see store.createBaseline).
+    await createBaseline(name);
   };
 
   const handleCreateBaseline = async () => {
@@ -1717,11 +1717,12 @@ function RingOverview({}: RingOverviewProps) {
           </h5>
           <div style={{ 
             padding: '10px', 
-            backgroundColor: '#fff3cd', 
-            border: '1px solid #ffc107',
+            backgroundColor: 'var(--warning-bg)', 
+            border: '1px solid var(--warning-border)',
             borderRadius: '4px',
             marginBottom: '10px',
-            fontSize: '12px'
+            fontSize: '12px',
+            color: 'var(--warning-text)'
           }}>
             ⚠️ <strong>Mixed Alt Ring Assignments:</strong> {altStatus.countA} in 'a', {altStatus.countB} in 'b', {altStatus.countEmpty} unassigned. 
             All participants must have the same alt ring setting or all be unassigned.

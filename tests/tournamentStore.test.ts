@@ -3,7 +3,7 @@
  * and verify deprecated fields are not persisted.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useTournamentStore } from '../src/renderer/store/tournamentStore';
 import { createTestParticipant, createTestCategory, resetTestIds } from './fixtures';
 import { computeStateDiff } from '../src/renderer/utils/stateDiff';
@@ -14,6 +14,8 @@ const mockElectronAPI = {
   historyShow: vi.fn().mockResolvedValue({ success: false }),
   historyLog: vi.fn().mockResolvedValue({ success: true, data: [], headId: null }),
   historyTags: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  historyAddTag: vi.fn().mockResolvedValue({ success: true }),
+  saveAutosave: vi.fn().mockResolvedValue({ success: true }),
 };
 
 global.window = {
@@ -683,5 +685,110 @@ describe('Tournament Store', () => {
   });
 
 
-
 });
+
+describe('History persistence for undo/redo and hydration', () => {
+  beforeEach(() => {
+    resetTestIds();
+    useTournamentStore.getState().reset();
+    mockElectronAPI.saveAutosave.mockClear();
+  });
+
+  it('journals an undo as a durable forward commit', () => {
+    useTournamentStore.getState().setParticipants([
+      createTestParticipant({ id: 'p1', firstName: 'Alice' }),
+    ]);
+    useTournamentStore.getState().updateParticipant('p1', { firstName: 'Alicia' });
+
+    useTournamentStore.getState().undo();
+
+    expect(useTournamentStore.getState().participants[0].firstName).toBe('Alice');
+    expect(mockElectronAPI.saveAutosave).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ kind: 'undo' })
+    );
+  });
+
+  it('journals a redo as a durable forward commit', () => {
+    useTournamentStore.getState().setParticipants([
+      createTestParticipant({ id: 'p1', firstName: 'Alice' }),
+    ]);
+    useTournamentStore.getState().updateParticipant('p1', { firstName: 'Alicia' });
+    useTournamentStore.getState().undo();
+
+    useTournamentStore.getState().redo();
+
+    expect(useTournamentStore.getState().participants[0].firstName).toBe('Alicia');
+    expect(mockElectronAPI.saveAutosave).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ kind: 'redo' })
+    );
+  });
+
+  it('establishes a baseline commit when a session is hydrated', () => {
+    useTournamentStore.getState().hydrateFromAutosave({
+      participants: [createTestParticipant({ id: 'p1' })],
+      categories: [createTestCategory({ id: 'cat1' })],
+      config: { divisions: [{ name: 'Black Belt', order: 1 }], physicalRings: [] },
+      physicalRingMappings: [],
+      categoryPoolMappings: [],
+    });
+
+    expect(mockElectronAPI.saveAutosave).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ kind: 'snapshot' })
+    );
+  });
+});
+
+describe('createBaseline', () => {
+  beforeEach(() => {
+    resetTestIds();
+    useTournamentStore.getState().reset();
+    mockElectronAPI.saveAutosave.mockClear();
+  });
+
+  afterEach(() => {
+    // Restore the default mock behaviours for any later tests.
+    mockElectronAPI.historyShow.mockResolvedValue({ success: false });
+    mockElectronAPI.historyLog.mockResolvedValue({ success: true, data: [], headId: null });
+    mockElectronAPI.historyTags.mockResolvedValue({ success: true, data: [] });
+    mockElectronAPI.historyAddTag.mockResolvedValue({ success: true });
+  });
+
+  it('tags and baselines against the newest commit, not the stale renderer head', async () => {
+    // The renderer head is stale - it still points at the pre-edit commit.
+    useTournamentStore.setState({ historyHeadId: 'OLD' });
+
+    const freshState = snapshotState();
+    // The flushed autosave creates a new commit, so history reports a new head.
+    mockElectronAPI.historyLog.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'NEW',
+          parentId: 'OLD',
+          timestamp: new Date().toISOString(),
+          author: 'user',
+          operation: { kind: 'move', description: 'Moved someone' },
+          delta: {},
+          stats: { participants: 0 },
+        },
+      ],
+      headId: 'NEW',
+    });
+    mockElectronAPI.historyShow.mockResolvedValue({ success: true, data: freshState });
+
+    const headId = await useTournamentStore.getState().createBaseline('Before lunch');
+
+    // Pending edits are flushed to the journal before creating the baseline.
+    expect(mockElectronAPI.saveAutosave).toHaveBeenCalled();
+    // Both the tag and the baseline use the fresh head, so the change indicators
+    // clear on the first click instead of requiring a second one.
+    expect(mockElectronAPI.historyAddTag).toHaveBeenCalledWith('Before lunch', 'NEW');
+    expect(mockElectronAPI.historyShow).toHaveBeenCalledWith('NEW');
+    expect(headId).toBe('NEW');
+    expect(useTournamentStore.getState().baselineCommitId).toBe('NEW');
+  });
+});
+

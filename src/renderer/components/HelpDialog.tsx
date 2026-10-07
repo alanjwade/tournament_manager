@@ -43,10 +43,10 @@ function Overview() {
           <tr><td style={tdStyle}><strong>Dashboard</strong></td><td style={tdStyle}>At-a-glance summary of tournament status and quick actions</td></tr>
           <tr><td style={tdStyle}><strong>Configuration</strong></td><td style={tdStyle}>Set divisions and their order, physical rings, watermark image, and PDF output folder</td></tr>
           <tr><td style={tdStyle}><strong>Categories</strong></td><td style={tdStyle}>Create competition categories and assign participants to them</td></tr>
-          <tr><td style={tdStyle}><strong>Ring Map</strong></td><td style={tdStyle}>Map logical pools to physical rings and order competitors</td></tr>
-          <tr><td style={tdStyle}><strong>Data Editor</strong></td><td style={tdStyle}>View and manually edit individual participant records</td></tr>
+          <tr><td style={tdStyle}><strong>Ring Map</strong></td><td style={tdStyle}>Map logical pools to physical rings</td></tr>
+          <tr><td style={tdStyle}><strong>Editor</strong></td><td style={tdStyle}>View and manually edit individual participant records</td></tr>
           <tr><td style={tdStyle}><strong>Sanity Check</strong></td><td style={tdStyle}>Totals per division (Forms / Sparring) and a breakdown of anyone not counted</td></tr>
-          <tr><td style={tdStyle}><strong>Overview</strong></td><td style={tdStyle}>Full read-only view of all rings, divisions, and assignments</td></tr>
+          <tr><td style={tdStyle}><strong>Tournament</strong></td><td style={tdStyle}>Main tournament view — ring overview, quick edit, custom ordering, baselines, and grand champion</td></tr>
           <tr><td style={tdStyle}><strong>Export</strong></td><td style={tdStyle}>Generate PDFs — name tags, check-in sheets, scoring sheets, brackets</td></tr>
           <tr><td style={tdStyle}><strong>History</strong></td><td style={tdStyle}>Browse every committed change and restore any point in time</td></tr>
         </tbody>
@@ -66,7 +66,7 @@ function Overview() {
         <li>Configure divisions and physical rings</li>
         <li>Create and assign categories</li>
         <li>Map pools to physical rings and order competitors</li>
-        <li>Review in Overview</li>
+        <li>Review in Tournament</li>
         <li>Export PDFs</li>
       </ul>
     </div>
@@ -121,24 +121,24 @@ function PreTournamentGuide() {
       <ol>
         <li>Go to the <strong>Categories</strong> tab.</li>
         <li>For each category, set the division, gender, and age range.</li>
-        <li>Click <strong>Assign Categories</strong> to auto-assign participants.</li>
+        <li>Click <strong>Add Category</strong> — matching participants are assigned to it automatically.</li>
         <li>Review for unassigned participants and manually fix if needed.</li>
       </ol>
       <div style={tipStyle}>
-        <strong>Tip:</strong> Re-running "Assign Categories" will overwrite all previous assignments and manual edits.
+        <strong>Tip:</strong> Clicking <strong>Reassign Participants</strong> resets all pool assignments (your category definitions are kept).
       </div>
 
       <h4>5. Map Pools to Physical Rings</h4>
       <ol>
         <li>Go to the <strong>Ring Map</strong> tab.</li>
-        <li>Assign logical pools to physical rings.</li>
-        <li>Run <strong>Order Forms Ring</strong> for each forms pool — this interleaves schools so competitors from the same school don't go back-to-back.</li>
-        <li>Run <strong>Order Sparring Ring</strong> for each sparring pool — this sorts by height for fair bracket seeding.</li>
+        <li>Assign logical pools to physical rings — use <strong>Auto Assign</strong>, adjust as needed, then click <strong>Confirm</strong>.</li>
+        <li>Rings are ordered automatically: forms interleaves schools so competitors from the same school don't go back-to-back, and sparring is sorted by height for fair bracket seeding.</li>
+        <li>Need a specific order? Enable <strong>Custom Order</strong> on a ring in the Tournament tab.</li>
       </ol>
 
       <h4>6. Review &amp; Export</h4>
       <ol>
-        <li>Check the <strong>Overview</strong> tab to verify everything looks right.</li>
+        <li>Check the <strong>Tournament</strong> tab to verify everything looks right.</li>
         <li>Go to <strong>Export</strong> and generate all PDFs.</li>
         <li>Print extras (roughly 10% more name tags and scoring sheets).</li>
       </ol>
@@ -161,7 +161,7 @@ function TournamentDayGuide() {
       <h4>Before Competitors Arrive</h4>
       <ul>
         <li>Launch TournamentManager — your most recent data is automatically restored.</li>
-        <li>Verify the <strong>Overview</strong> tab still looks correct.</li>
+        <li>Verify the <strong>Tournament</strong> tab still looks correct.</li>
         <li>Have printed PDFs ready at each station: check-in sheets at the door, scoring sheets and brackets at each ring, name tags at the registration table.</li>
       </ul>
 
@@ -184,8 +184,8 @@ function TournamentDayGuide() {
           <tr>
             <td style={tdStyle}>New participant added</td>
             <td style={tdStyle}>
-              Add via the <strong>+ Add</strong> button, assign a category in the <strong>Data Editor</strong>,
-              then re-order the affected ring.
+              Add via the <strong>+ Add Participant</strong> button, assign a category/pool in
+              <strong> Quick Edit</strong> — the affected ring re-orders automatically.
             </td>
           </tr>
           <tr>
@@ -265,39 +265,25 @@ function QuickReference() {
         </p>
         <ul style={qrListStyle}>
           <li style={qrListItemStyle}>After adding, open the <strong>Editor</strong> tab to assign their category and pool.</li>
-          <li style={qrListItemStyle}>Re-order the affected ring in <strong>Ring Map</strong>.</li>
+          <li style={qrListItemStyle}>The affected ring re-orders automatically — enable <strong>Custom Order</strong> in the Tournament tab if you need a specific order.</li>
         </ul>
       </div>
 
       <div style={qrCardStyle}>
-        <p style={qrCardTitleStyle}>Re-Order a Forms Ring</p>
-        <ol style={qrListStyle}>
-          <li style={qrListItemStyle}>Go to <strong>Ring Map</strong>.</li>
-          <li style={qrListItemStyle}>Select the forms pool from the list.</li>
-          <li style={qrListItemStyle}>Click <strong>Order Forms Ring</strong>.</li>
-        </ol>
-        <p style={{ margin: '0.2rem 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-          Safe to re-run — interleaves schools so same-school competitors don't compete back-to-back.
-        </p>
-      </div>
-
-      <div style={qrCardStyle}>
-        <p style={qrCardTitleStyle}>Re-Order a Sparring Ring</p>
-        <ol style={qrListStyle}>
-          <li style={qrListItemStyle}>Go to <strong>Ring Map</strong>.</li>
-          <li style={qrListItemStyle}>Select the sparring pool.</li>
-          <li style={qrListItemStyle}>Click <strong>Order Sparring Ring</strong>.</li>
-        </ol>
-        <p style={{ margin: '0.2rem 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-          Sorts by height for fair bracket seeding.
+        <p style={qrCardTitleStyle}>Ring Ordering</p>
+        <p style={{ margin: '0 0 0.25rem' }}>
+          Rings re-order <strong>automatically</strong> whenever participants are moved — forms interleaves
+          schools, and sparring sorts by height. Use the <strong>Custom Order</strong> checkbox on a ring in
+          the Tournament tab to switch that ring to manual ordering.
         </p>
       </div>
 
       <div style={qrCardStyle}>
         <p style={qrCardTitleStyle}>Fine-Tune Competitor Order</p>
         <p style={{ margin: '0 0 0.25rem' }}>
-          In <strong>Ring Map</strong>, use the <strong>▲ Up</strong> and <strong>▼ Down</strong> arrow
-          buttons next to each competitor to adjust their position. Changes save automatically.
+          In the <strong>Tournament</strong> tab, check <strong>Custom Order</strong> on the ring, then use the
+          <strong> ▲ Up</strong> and <strong>▼ Down</strong> arrow buttons next to each competitor to adjust
+          their position. Uncheck <strong>Custom Order</strong> to return to automatic ordering.
         </p>
       </div>
 
@@ -314,8 +300,10 @@ function QuickReference() {
           <tbody>
             <tr><td style={tdStyle}>Name Tags</td><td style={tdStyle}>2×4 grid per page, ring color coded</td></tr>
             <tr><td style={tdStyle}>Check-In Sheets</td><td style={tdStyle}>Per division, alphabetical with checkboxes</td></tr>
+            <tr><td style={tdStyle}>Ring Overview</td><td style={tdStyle}>All participants by ring and division</td></tr>
             <tr><td style={tdStyle}>Forms Scoring</td><td style={tdStyle}>Per forms ring with judge score columns</td></tr>
             <tr><td style={tdStyle}>Sparring Brackets</td><td style={tdStyle}>16-person bracket per ring, seeded by height</td></tr>
+            <tr><td style={tdStyle}>Score Sheets Per Division</td><td style={tdStyle}>Forms + sparring interleaved by ring, one file per division</td></tr>
             <tr><td style={{ ...tdStyle, borderBottom: 'none' }}>Blank Forms / Brackets</td><td style={{ ...tdStyle, borderBottom: 'none' }}>Blank sheets for manual use (see Export tab)</td></tr>
           </tbody>
         </table>
@@ -379,7 +367,7 @@ function QuickReference() {
           <tbody>
             <tr><td style={tdStyle}>Unassigned participants</td><td style={tdStyle}>Check category age/gender criteria, or manually assign in the Editor tab.</td></tr>
             <tr><td style={tdStyle}>Unbalanced rings</td><td style={tdStyle}>Move participants between pools via Quick Edit (search name → open Quick Edit).</td></tr>
-            <tr><td style={tdStyle}>Same school back-to-back in forms</td><td style={tdStyle}>Re-run Order Forms Ring — the algorithm interleaves schools automatically.</td></tr>
+            <tr><td style={tdStyle}>Same school back-to-back in forms</td><td style={tdStyle}>Rings auto-interleave schools; enable Custom Order in the Tournament tab to fine-tune.</td></tr>
             <tr><td style={{ ...tdStyle, borderBottom: 'none' }}>PDF won't open</td><td style={{ ...tdStyle, borderBottom: 'none' }}>Ensure a PDF reader is installed; try a different file name.</td></tr>
           </tbody>
         </table>
@@ -582,7 +570,7 @@ function DayOfReference() {
             Go to <strong>Ring Map</strong> and assign the Grand Champion pool to a physical ring.
           </li>
           <li style={stepListItemStyle}>
-            Run <strong>Order Forms Ring</strong> (or Sparring) to finalize the order.
+            The ring re-orders automatically — enable <strong>Custom Order</strong> in the Tournament tab if you need a specific order.
           </li>
           <li style={stepListItemStyle}>
             Go to <strong>Export</strong> to generate the scoring sheet or bracket for this ring.
@@ -790,31 +778,17 @@ function printQuickReferenceCookbook() {
         <h2>Adding a Walk-In Participant</h2>
         <p>Click <strong>+ Add Participant</strong> in the app header (or Dashboard quick action).</p>
         <ul>
-          <li>After adding, assign their category in the <strong>Editor</strong> tab.</li>
-          <li>Re-order the affected ring in <strong>Ring Map</strong>.</li>
+          <li>After adding, assign their category/pool in <strong>Quick Edit</strong> (or the <strong>Editor</strong> tab).</li>
+          <li>The affected ring re-orders automatically.</li>
         </ul>
       </div>
       <div class="card">
-        <h2>Re-Order a Forms Ring</h2>
-        <ol>
-          <li>Go to <strong>Ring Map</strong>.</li>
-          <li>Select the forms pool.</li>
-          <li>Click <strong>Order Forms Ring</strong>.</li>
-        </ol>
-        <p>Interleaves schools so same-school competitors don't go back-to-back.</p>
-      </div>
-      <div class="card">
-        <h2>Re-Order a Sparring Ring</h2>
-        <ol>
-          <li>Go to <strong>Ring Map</strong>.</li>
-          <li>Select the sparring pool.</li>
-          <li>Click <strong>Order Sparring Ring</strong>.</li>
-        </ol>
-        <p>Sorts by height for fair bracket seeding.</p>
+        <h2>Ring Ordering</h2>
+        <p>Rings re-order <strong>automatically</strong> when participants are moved (forms interleaves schools; sparring sorts by height). Use <strong>Custom Order</strong> on a ring in the Tournament tab for manual control.</p>
       </div>
       <div class="card">
         <h2>Fine-Tune Competitor Order</h2>
-        <p>In <strong>Ring Map</strong>, use the ▲ Up / ▼ Down arrows next to each competitor to adjust position. Changes save automatically.</p>
+        <p>In the <strong>Tournament</strong> tab, check <strong>Custom Order</strong> on a ring, then use the ▲ Up / ▼ Down arrows to adjust position. Uncheck <strong>Custom Order</strong> to return to automatic ordering.</p>
       </div>
       <div class="card">
         <h2>Print Blank Sheets</h2>
@@ -837,8 +811,10 @@ function printQuickReferenceCookbook() {
           <tbody>
             <tr><td>Name Tags</td><td>2×4 per page, ring color coded</td></tr>
             <tr><td>Check-In Sheets</td><td>Per division, alphabetical + checkboxes</td></tr>
+            <tr><td>Ring Overview</td><td>All participants by ring and division</td></tr>
             <tr><td>Forms Scoring</td><td>Per forms ring, judge score columns</td></tr>
             <tr><td>Sparring Brackets</td><td>16-person bracket, seeded by height</td></tr>
+            <tr><td>Score Sheets Per Division</td><td>Forms + sparring interleaved by ring</td></tr>
             <tr><td>Blank Forms / Bracket</td><td>Blank sheets for manual use</td></tr>
           </tbody>
         </table>
@@ -870,7 +846,7 @@ function printQuickReferenceCookbook() {
           <tbody>
             <tr><td>Unassigned participants</td><td>Check category age/gender criteria or assign manually in Editor</td></tr>
             <tr><td>Unbalanced rings</td><td>Move participants between pools via Quick Edit</td></tr>
-            <tr><td>Same school back-to-back</td><td>Re-run Order Forms Ring</td></tr>
+            <tr><td>Same school back-to-back</td><td>Rings auto-interleave schools; use Custom Order in the Tournament tab to fine-tune</td></tr>
             <tr><td>PDF won't open</td><td>Ensure a PDF reader is installed</td></tr>
           </tbody>
         </table>
@@ -1035,7 +1011,7 @@ function printDayOfScenarios() {
           <li>Categories tab → create a new category (e.g. &ldquo;Grand Champion&rdquo;), wide age range.</li>
           <li>Use Quick Edit or Editor to assign each champion to this category, Pool 1.</li>
           <li>Ring Map → assign Grand Champion pool to a physical ring.</li>
-          <li>Run Order Forms/Sparring Ring to set order.</li>
+          <li>The ring re-orders automatically (enable Custom Order if you need a specific order).</li>
           <li>Export → generate scoring sheet or bracket.</li>
         </ol>
         <p class="tip">Competitors can be in their regular ring AND the Grand Champion ring.</p>

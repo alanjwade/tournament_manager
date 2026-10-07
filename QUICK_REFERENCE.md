@@ -20,13 +20,17 @@ Required columns (exact names):
 - `height feet`
 - `height inches`
 - `school`
-- `branch`
 - `division`
+- `sparring?` (yes / no — blank is treated as "not participating")
+
+Optional columns:
+- `form?` (yes / no — blank defaults to "yes")
+- `branch`
 
 ## Workflow
 
 1. **Import** → File menu → **Import Initial Excel File…**
-2. **Configure** → Set divisions, physical rings, school abbreviations
+2. **Configure** → Set divisions, physical rings, school abbreviations, watermark, and PDF output folder
 3. **Categories** → Assign participants to categories by age/gender/division
 4. **Ring Map** → Map category pools to physical rings
 5. **Tournament** → Review rings, quick-edit participants, adjust ordering
@@ -90,8 +94,11 @@ Required columns (exact names):
 |----------|--------|-------------|
 | **Name Tags** | 2×4 grid per page | Name, division, school, ring color |
 | **Check-In Sheets** | One per division | Sorted by last name, checkbox |
+| **Ring Overview** | One per division | All participants by ring and division |
 | **Forms Scoring Sheets** | One per ring | Rank order, 3 judges, watermark |
 | **Sparring Brackets** | 16-person landscape | Height order, byes, color-coded rounds |
+| **Score Sheets Per Division** | One per division | Forms + sparring interleaved by ring |
+| **Blank Sheets** | Forms / brackets | Unmarked, reusable sheets for manual use |
 
 ## Quick Edit Modal
 
@@ -118,7 +125,7 @@ Click any participant name in the Tournament tab to open:
 4. Move participants between rings as needed (Quick Edit)
 5. Use Custom Order for finalized rings
 6. Print All Changed for updated sheets
-7. Create checkpoints before major changes
+7. Create baselines before major changes
 
 ## Troubleshooting
 
@@ -128,7 +135,7 @@ Click any participant name in the Tournament tab to open:
 | Participant missing from ring | Check category/pool in Quick Edit |
 | Unbalanced rings | Move participants between pools via Quick Edit |
 | Need specific order | Enable Custom Order on that ring |
-| Need to undo changes | Load a previous checkpoint |
+| Need to undo changes | History tab → **Restore** a commit (create a baseline first for safety) |
 | Build errors | Run `npm install` again |
 
 ---

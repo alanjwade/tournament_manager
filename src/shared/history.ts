@@ -38,7 +38,9 @@ export type OperationKind =
   | 'customRing'
   | 'snapshot'
   | 'checkpoint'
-  | 'checkout';
+  | 'checkout'
+  | 'undo'
+  | 'redo';
 
 /** A single record's field-level change. `removed` lists keys that became undefined. */
 export interface FieldChange<T> {

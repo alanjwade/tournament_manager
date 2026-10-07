@@ -11,7 +11,7 @@ A desktop application for managing martial arts tournament participation, built 
 - **Forms Competition**: Automated ordering to prevent same-school clustering
 - **Sparring Competition**: Height-based ordering with automated bracket generation
 - **Custom Order**: Per-ring manual ordering with automatic reorder bypass
-- **Checkpoints**: Save, compare, and restore tournament state snapshots
+- **History & Baselines**: Every change is committed; restore any point in time, with named baselines
 - **Quick Edit**: Click any participant name to edit assignments inline
 - **Grand Champion**: Custom rings for grand champion rounds
 - **Undo/Redo**: Full undo/redo support for all changes
@@ -21,7 +21,7 @@ A desktop application for managing martial arts tournament participation, built 
   - Check-in sheets
   - Forms scoring sheets
   - Sparring brackets (16-person format)
-  - Print only changed rings via checkpoint diff
+  - Print only changed rings via baseline diff
 
 ## Requirements
 
@@ -89,10 +89,10 @@ The input Excel file should have the following columns (case-insensitive):
    - Rings auto-reorder when participants are moved between pools
    - Enable **Custom Order** per-ring for manual reordering (disables auto-reorder for that ring)
    - Set up Grand Champion rings
-6. **Checkpoints**:
-   - Save named snapshots before making changes
-   - View diffs to see what changed (added/removed/modified participants, affected rings)
-   - Load a checkpoint to revert changes
+6. **History & Baselines**:
+   - Review every committed change in the History tab
+   - Create named baselines to mark "compare from here" points
+   - Restore any commit (appends a new restore commit, so nothing is lost)
    - Print only changed rings for reprinting
 7. **Export PDFs**: Generate and save tournament documents
 
@@ -108,7 +108,7 @@ tournament-manager/
 │   │   ├── store/         # Zustand state management
 │   │   ├── utils/         # Utility functions
 │   │   │   ├── pdfGenerators/  # PDF generation
-│   │   │   ├── categoryAssignment.ts
+│   │   │   ├── categoryUtils.ts
 │   │   │   ├── ringAssignment.ts
 │   │   │   ├── ringOrdering.ts
 │   │   │   └── excelParser.ts

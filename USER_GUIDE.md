@@ -15,7 +15,8 @@ The application has the following tabs:
 | **Categories** | Create and assign age/gender/division categories |
 | **Ring Map** | Assign categories to physical rings |
 | **Editor** | Inline-editable table of all participants |
-| **Tournament** | Main tournament view — ring overview, quick edit, grand champion |
+| **Sanity Check** | Totals per division and a breakdown of anyone not counted |
+| **Tournament** | Main tournament view — ring overview, quick edit, custom ordering, baselines, grand champion |
 | **Export** | Generate PDFs (name tags, check-in sheets, scoring sheets, brackets) |
 | **History** | Git-like commit history — every change with its operation; restore any point |
 
@@ -99,12 +100,10 @@ Categories group participants who will compete against each other. Typically, ca
 2. For each category:
    - Select the division
    - Choose gender category (Male/Female/Mixed)
-   - Set minimum age
-   - Set maximum age (use 999 or high number for "18+")
+   - Check the ages to include (youngest first; "18 and Up" covers adults)
    - Specify number of pools this category will need
-3. Click "Add Category Criteria"
+3. Click **Add Category** — matching participants are assigned to it automatically
 4. Repeat for all categories needed
-5. Click "Assign Categories" to apply
 
 **Tips:**
 - Consider category sizes when deciding pool counts
@@ -118,15 +117,16 @@ After initial category assignment:
 2. Individual participants can be moved between categories using the Editor tab or Quick Edit
 3. Check for unassigned participants
 
-⚠️ **Warning:** Re-running "Assign Categories" will overwrite all previous category assignments and manual edits!
+⚠️ **Warning:** Clicking **Reassign Participants** resets all pool assignments (your category definitions are kept) — all manual pool edits are lost!
 
 ### Step 4: Ring Map
 
 The **Ring Map** tab lets you assign category pools to physical rings at your venue.
 
 1. Navigate to the **Ring Map** tab
-2. For each category pool, assign it to a physical ring
-3. This determines where participants will physically compete
+2. Select a division, then click **Auto Assign** to fill the table (or set each pool's physical ring manually)
+3. Adjust as needed, then click **Confirm** to save
+4. This determines where participants will physically compete
 
 ### Step 5: Tournament View
 
@@ -185,7 +185,7 @@ To return to automatic ordering:
 
 #### Grand Champion
 
-Access the Grand Champion section from the **GC** button in the toolbar:
+Access the Grand Champion section from the **⭐ Grand Champion Ring** segment in the toolbar:
 - Create custom Grand Champion rings (forms or sparring)
 - Add participants from any division to Grand Champion rings
 - Reorder participants within Grand Champion rings
@@ -220,7 +220,7 @@ Every change you make is recorded as a **commit** in a git-like history, labelle
 2. Each row shows the operation, timestamp, and participant count; the current state is marked *(current)*
 3. Click **Restore** on any commit to return the data to that point
 
-Restoring is non-destructive: it appends a new "Restored to …" commit, so you can always move forward again or restore a different point. You can also create **checkpoints** here — named tags that mark important commits (e.g. "Check-in complete"). These replace the older standalone checkpoint snapshots, which are imported automatically the first time you run this version.
+Restoring is non-destructive: it appends a new "Restored to …" commit, so you can always move forward again or restore a different point. You can also create **baselines** here — named tags that mark important commits (e.g. "Check-in complete"). These replace the older standalone checkpoint snapshots, which are imported automatically the first time you run this version.
 
 ### Step 8: Export PDFs
 

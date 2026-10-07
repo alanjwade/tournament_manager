@@ -107,6 +107,11 @@ interface TournamentState {
   deleteHistoryTag: (tagId: string) => Promise<void>;
   /** Select (or clear) the commit used as the diff baseline; fetches its state. */
   setBaseline: (commitId: string | null) => Promise<void>;
+  /**
+   * Flush pending edits, refresh history, tag the newest commit, and select it as
+   * the diff baseline. Returns the head commit id that was baselined (or null).
+   */
+  createBaseline: (name: string) => Promise<string | null>;
   /** Diff the current state against the selected baseline. */
   diffBaseline: () => StateDiff | null;
   reset: () => void;
@@ -352,6 +357,9 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       undoStack: s.undoStack.slice(0, -1),
       redoStack: [...s.redoStack, current],
     });
+    // Journal the resulting transition so an undo is durable and recoverable
+    // from the persisted history, exactly like a forward edit.
+    get().commitNow({ kind: 'undo', description: 'Undid last change' });
   },
 
   redo: () => {
@@ -372,6 +380,9 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       undoStack: [...s.undoStack, current],
       redoStack: s.redoStack.slice(0, -1),
     });
+    // Journal the resulting transition so a redo is durable and recoverable
+    // from the persisted history, exactly like a forward edit.
+    get().commitNow({ kind: 'redo', description: 'Redid last change' });
   },
 
   setParticipants: (participants) => {
@@ -654,6 +665,10 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     // Restores every persisted slice (including customOrderRings) and repairs
     // stale references in one place - see buildHydratedState.
     set({ ...buildHydratedState(state), undoStack: [], redoStack: [] });
+    // Establish a durable baseline for the restored session. `commit` drops an
+    // empty delta, so a clean restart stays silent while normalized/repaired
+    // state is captured as the starting point of the journal.
+    get().commitNow({ kind: 'snapshot', description: 'Restored previous session' });
   },
 
   autoSave: async (hint?: OperationHint) => {
@@ -768,6 +783,20 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     } catch (error) {
       logger.error('Failed to load baseline commit:', error);
     }
+  },
+
+  createBaseline: async (name: string) => {
+    // Flush any pending (debounced) edit so the newest state is committed first.
+    // Without this the head can still point at the pre-edit commit, which would
+    // leave the "changed ring" indicators showing until a second click.
+    await get().autoSave();
+    // Refresh history so `historyHeadId` points at the newest commit.
+    await get().loadHistory();
+    // Tag that same fresh head, then use it as the diff baseline.
+    await get().createHistoryTag(name);
+    const headId = get().historyHeadId;
+    if (headId) await get().setBaseline(headId);
+    return headId;
   },
 
   diffBaseline: (): StateDiff | null => {

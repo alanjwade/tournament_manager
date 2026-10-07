@@ -30,14 +30,16 @@ Three-part training series covering the complete Tournament Manager workflow.
 **[DEMO: Point to each tab slowly as you name it.]**
 
 > - **Dashboard** — a home screen with status and quick links.
-> - **Import Data** — this is where you load your participant Excel file.
 > - **Configuration** — one-time setup: divisions, rings, school abbreviations, watermark.
 > - **Categories** — where you define who competes against whom, grouped by age, gender, and division.
 > - **Ring Map** — assigns your category pools to the physical rings at your venue.
 > - **Editor** — a full spreadsheet view for manual data corrections.
+> - **Sanity Check** — totals per division and anyone not counted.
 > - **Tournament** — your main screen during tournament day. This is where you'll spend most of your time.
 > - **Export** — generates all your PDFs.
-> - **Checkpoints** — snapshot, compare, and restore tournament state.
+> - **History** — browse every change and restore any point; named baselines live here too.
+
+> Your participant Excel file is loaded from the **File** menu → **Import Initial Excel File…** (or the Dashboard quick action).
 
 > Notice that some tabs have small colored badges. A yellow badge means there's something that needs attention — like unassigned participants. A blue badge shows a count, like how many participants are loaded.
 
@@ -95,15 +97,15 @@ Three-part training series covering the complete Tournament Manager workflow.
 
 ## Introduction
 
-> Welcome to Part 2. By the end of this video, all participants will be loaded, categorized, and assigned to physical rings. We'll cover the Import tab, Configuration, Categories, and Ring Map.
+> Welcome to Part 2. By the end of this video, all participants will be loaded, categorized, and assigned to physical rings. We'll cover importing your data, Configuration, Categories, and Ring Map.
 
 ---
 
-## Tab 1: Import Data
+## Step 1: Import Data
 
-> Click the **Import Data** tab.
+> Open the **File** menu and choose **Import Initial Excel File…** (you can also start it from the Dashboard).
 
-**[DEMO: Navigate to the Import Data tab.]**
+**[DEMO: Open the File menu and choose Import Initial Excel File…]**
 
 > This is the starting point. Nothing else in the app is fully usable until participants are loaded here.
 
@@ -257,7 +259,7 @@ Three-part training series covering the complete Tournament Manager workflow.
 
 **[DEMO: Scroll down to show the Pools Needed summary.]**
 
-> ⚠️ **Important:** After you click Reassign, all manual adjustments you've made to individual pools are lost. Always create a Checkpoint before using this button. We'll cover Checkpoints in Part 3.
+> ⚠️ **Important:** After you click Reassign, all manual adjustments you've made to individual pools are lost. Always create a Baseline before using this button. We'll cover Baselines in Part 3.
 
 ---
 
@@ -323,7 +325,7 @@ Three-part training series covering the complete Tournament Manager workflow.
 # Part 3: Tournament Day Operations
 
 **Estimated length:** 20–25 minutes  
-**Goal:** Cover everything you'll do on the day of the tournament — reviewing rings, handling changes, the Quick Edit modal, Grand Champion, checkpoints, and printing.
+**Goal:** Cover everything you'll do on the day of the tournament — reviewing rings, handling changes, the Quick Edit modal, Grand Champion, baselines, and printing.
 
 ---
 
@@ -384,7 +386,7 @@ Three-part training series covering the complete Tournament Manager workflow.
 
 > Before you start making any day-of changes, click **Set Baseline** in the toolbar.
 
-**[DEMO: Click Set Baseline. Show the checkpoint is created with a "Baseline HH:MM" name.]**
+**[DEMO: Click Set Baseline. Show the baseline is created with a "Baseline HH:MM" name.]**
 
 > This creates a snapshot of the current state. From this point on, any ring that gets changed will show a red `CHANGED` badge and a red border. You'll also get a change summary strip under the header showing which participants were added or removed from that ring.
 >
@@ -529,7 +531,7 @@ Three-part training series covering the complete Tournament Manager workflow.
 
 > Grand Champion rings are custom rings you create for championship rounds — outside the normal pool structure.
 
-**[DEMO: Click the ⭐ GC button in the toolbar.]**
+**[DEMO: Click the ⭐ Grand Champion Ring segment in the toolbar.]**
 
 > You're now in the Grand Champion view.
 
@@ -573,25 +575,25 @@ Three-part training series covering the complete Tournament Manager workflow.
 
 ---
 
-## Operation 9: Checkpoints and Change Tracking
+## Operation 9: Baselines and Change Tracking
 
-> Checkpoints are your safety net. Use them before making any significant batch of changes.
+> Baselines are your safety net. Create one before making any significant batch of changes.
 
-### Creating a Checkpoint
+### Creating a Baseline
 
-**[DEMO: Click the "Checkpoints" segment button in the Tournament toolbar, or click the Checkpoints tab.]**
+**[DEMO: Click the "📋 Baselines" segment button in the Tournament toolbar, or open the History tab.]**
 
-> Either place works. Type a name — like "Before lunch adjustments" — and click **Create Checkpoint**. Or just press Enter.
+> Either place works. Type a name — like "Before lunch adjustments" — and click **Create Baseline**. Or just press Enter.
 
-**[DEMO: Create a named checkpoint.]**
+**[DEMO: Create a named baseline.]**
 
-> The newest checkpoint is highlighted in green with a ✓. That's the active baseline for change tracking.
+> The active baseline is highlighted in blue. That's the "compare from here" point for change tracking.
 
 ### Viewing What Changed
 
-**[DEMO: Go to the Checkpoints tab and click "View Diff" on an earlier checkpoint.]**
+**[DEMO: Select an earlier baseline in the 📋 Baselines view to compare against it.]**
 
-> The diff panel shows:
+> The change summary shows:
 > - **Participants Added** — green section
 > - **Participants Removed** — red section
 > - **Participants Modified** — each changed field, old value in red, new value in green
@@ -599,19 +601,19 @@ Three-part training series covering the complete Tournament Manager workflow.
 
 **[DEMO: Point to each section.]**
 
-### Loading a Checkpoint
+### Restoring a Point in Time
 
-**[DEMO: Point to the Load button on a non-current checkpoint.]**
+**[DEMO: Open the History tab and point to the Restore button on an older commit.]**
 
-> If you need to revert, click **Load** on any older checkpoint. This replaces your entire current state with that snapshot. Always create a new checkpoint before loading an old one — just in case.
+> If you need to revert, click **Restore** on any older commit. The state is replaced with that point, and a new "Restored to …" commit is appended — so your history is never lost. Always create a baseline first as a safety net.
 
-> There's no Undo for a checkpoint load, so treat it like a nuclear option. The confirmation dialog will remind you.
+> Restoring keeps everything in History, so nothing is truly lost — but treat it as a big step and create a baseline first, just in case.
 
 ### Printing Only Changed Rings
 
 **[DEMO: Go back to the Tournament tab. Point to the "Print Changed (N)" button in the toolbar.]**
 
-> After making changes since the last checkpoint, the **Print Changed** button appears showing how many rings are affected. Click it to generate scoring sheets and brackets for only those rings — for the currently filtered division.
+> After making changes since the selected baseline, the **Print Changed** button appears showing how many rings are affected. Click it to generate scoring sheets and brackets for only those rings — for the currently filtered division.
 
 **[DEMO: Click Print Changed and show the PDF being generated.]**
 
@@ -647,7 +649,7 @@ Three-part training series covering the complete Tournament Manager workflow.
 > 6. Handle **no-shows** with Quick Edit → Withdraw.
 > 7. Handle **late arrivals** with Add Participant.
 > 8. **Rebalance rings** if needed using Quick Edit → change pool.
-> 9. Create a **Checkpoint** before lunch or any large batch of changes.
+> 9. Create a **Baseline** before lunch or any large batch of changes.
 > 10. After changes, use **Print Changed** to reprint only affected rings.
 > 11. Set up **Grand Champion rings** when the qualifying rounds finish.
 > 12. **Save Tournament** from Configuration when done for the day.
@@ -661,7 +663,7 @@ Three-part training series covering the complete Tournament Manager workflow.
 > To summarize what you've learned:
 > - **Part 1** — the overall layout and workflow
 > - **Part 2** — importing data, configuring the tournament, creating categories, and mapping rings
-> - **Part 3** — everything you'll do on the day: moving participants, withdrawals, late registrations, custom order, Grand Champion rings, checkpoints, and printing
+> - **Part 3** — everything you'll do on the day: moving participants, withdrawals, late registrations, custom order, Grand Champion rings, baselines, and printing
 >
 > For a quick reference during a live tournament, check the **QUICK_REFERENCE.md** file included with the app. It covers the most common operations in a condensed format.
 >

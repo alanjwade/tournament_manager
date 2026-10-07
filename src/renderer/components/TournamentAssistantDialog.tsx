@@ -94,7 +94,7 @@ function WithdrawHelp() {
         </li>
       </ol>
       <div style={tipStyle}>
-        <strong>Tip:</strong> Withdrawn participants appear grayed out in the Data Editor so you can always find and
+        <strong>Tip:</strong> Withdrawn participants appear grayed out in the Editor tab so you can always find and
         edit them later.
       </div>
 
