@@ -67,4 +67,29 @@ describe('parseExcelFile', () => {
     const [adult] = parseExcelFile(toBytes([row({ Age: '18 and Up' })]), VALID_DIVISIONS);
     expect(adult.age).toBe(18);
   });
+
+  it('assumes sparring by default when the Sparring column is blank', () => {
+    const [p] = parseExcelFile(toBytes([row({ Sparring: '' })]), VALID_DIVISIONS);
+
+    expect(p.competingSparring).toBe(true);
+    expect(p.sparringDivision).toBe('Level 1');
+  });
+
+  it('treats any form of "no" in the Sparring column as not sparring', () => {
+    for (const value of ['No', 'no', 'NO', 'N', 'None', 'Not participating', 'no thanks']) {
+      const [p] = parseExcelFile(toBytes([row({ Sparring: value })]), VALID_DIVISIONS);
+      expect({ value, competingSparring: p.competingSparring, sparringDivision: p.sparringDivision }).toEqual({
+        value,
+        competingSparring: false,
+        sparringDivision: null,
+      });
+    }
+  });
+
+  it('still honours an explicit sparring division name', () => {
+    const [p] = parseExcelFile(toBytes([row({ Sparring: 'Level 1' })]), VALID_DIVISIONS);
+
+    expect(p.competingSparring).toBe(true);
+    expect(p.sparringDivision).toBe('Level 1');
+  });
 });

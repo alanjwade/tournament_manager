@@ -69,6 +69,18 @@ function toFiniteNumber(value: unknown, fallback: number): number {
   return Number.isFinite(num) ? num : fallback;
 }
 
+/**
+ * Returns true when a spreadsheet cell explicitly opts a participant OUT of an
+ * event. A blank cell is NOT treated as "no" (callers decide their own default).
+ * Any value that is, or starts with, "no" counts — e.g. "No", "NO", "N", "None",
+ * "Not participating", "no thanks" — as do "false" and "declined".
+ */
+function isExplicitNo(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (v === '') return false;
+  return v === 'n' || v === 'false' || v === 'declined' || v.startsWith('no');
+}
+
 export function parseExcelFile(data: number[], validDivisions: string[] = []): Participant[] {
   const uint8Array = new Uint8Array(data);
   const workbook = XLSX.read(uint8Array, { type: 'array' });
@@ -145,47 +157,46 @@ export function parseExcelFile(data: number[], validDivisions: string[] = []): P
       }
     }
     
-    // Determine sparring division - null means not participating
+    // Determine sparring division - null means not participating.
+    // Default assumption: everyone is sparring unless the column explicitly
+    // says "no" (or another opt-out such as "N" / "Not participating").
     let sparringDivision: string | null = null;
     let competingSparring = false;
-    if (sparringValue.toLowerCase() === 'no' || sparringValue.toLowerCase() === 'not participating') {
+    if (isExplicitNo(sparringValue)) {
       // Explicitly marked as not participating
       sparringDivision = null;
       competingSparring = false;
-    } else if (sparringValue.toLowerCase() === 'yes' || sparringValue.toLowerCase() === 'y') {
-      // "Yes" or "y" - use base division (empty/absent = not participating)
+    } else if (sparringValue === '' || sparringValue.toLowerCase() === 'yes' || sparringValue.toLowerCase() === 'y') {
+      // Blank / "Yes" / "y" - assume sparring and use the base division
       if (baseDivision && baseDivision !== '') {
         sparringDivision = baseDivision;
         competingSparring = true;
         if (index === 0) {
-          console.log('  ✅ Sparring is Yes, using baseDivision:', baseDivision);
+          console.log('  ✅ Sparring assumed (blank/Yes), using baseDivision:', baseDivision);
         }
       } else {
-        // No base division either - not participating
+        // No base division to assign to - not participating
         sparringDivision = null;
         competingSparring = false;
         if (index === 0) {
-          console.log('  ❌ Sparring is Yes BUT baseDivision is empty - setting to not participating');
+          console.log('  ❌ Sparring assumed BUT baseDivision is empty - setting to not participating');
         }
       }
-    } else if (sparringValue && sparringValue !== '') {
-      // Has a specific value (division name)
-      // Handle legacy "same as forms" value
-      if (sparringValue.toLowerCase().includes('same') && sparringValue.toLowerCase().includes('form')) {
-        sparringDivision = formsDivision;
-        competingSparring = competingForms;
+    } else if (sparringValue.toLowerCase().includes('same') && sparringValue.toLowerCase().includes('form')) {
+      // Legacy "same as forms" value
+      sparringDivision = formsDivision;
+      competingSparring = competingForms;
+    } else {
+      // Has a specific division name - normalize it
+      const normalized = normalizeDivision(sparringValue, validDivisions);
+      if (normalized) {
+        sparringDivision = normalized;
+        competingSparring = true;
       } else {
-        // Normalize the sparring division
-        const normalized = normalizeDivision(sparringValue, validDivisions);
-        if (normalized) {
-          sparringDivision = normalized;
-          competingSparring = true;
-        } else {
-          // Could not normalize - log warning and skip
-          console.warn(`⚠️  Could not normalize sparring division "${sparringValue}" for participant ${index}`);
-          sparringDivision = null;
-          competingSparring = false;
-        }
+        // Could not normalize - log warning and skip
+        console.warn(`⚠️  Could not normalize sparring division "${sparringValue}" for participant ${index}`);
+        sparringDivision = null;
+        competingSparring = false;
       }
     }
     
