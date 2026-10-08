@@ -17,6 +17,40 @@ function addTimestampFooter(doc: jsPDF): void {
   doc.setTextColor(0, 0, 0); // Reset to black
 }
 
+// Helper function to draw the page header (title + table headers) and return
+// the starting Y for the first data row. Used for every page so that all pages
+// of a check-in sheet start at exactly the same position.
+function drawPageHeader(
+  doc: jsPDF,
+  division: string,
+  pageNumber: number,
+  totalPages: number
+): number {
+  // Title with page number
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Check-In Sheet - ${division} (Page ${pageNumber} of ${totalPages})`, 15, 15);
+
+  // Table headers
+  let y = 30;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Last Name', 15, y);
+  doc.text('First Name', 55, y);
+  doc.text('School', 95, y);
+  doc.text('Ring', 135, y);
+  doc.text('Forms', 170, y);
+  doc.text('Spar', 185, y);
+
+  // Draw header line
+  y += 2;
+  doc.setLineWidth(0.5);
+  doc.line(15, y, 195, y);
+
+  // Starting Y for the first data row
+  return y + 8;
+}
+
 export function generateCheckInSheet(
   participants: Participant[],
   division: string,
@@ -44,34 +78,16 @@ export function generateCheckInSheet(
     });
 
   let pageNumber = 1;
-  const totalPages = Math.ceil(divisionParticipants.length / 32); // Approximate rows per page
+  const ROWS_PER_PAGE = 32; // Rows that fit on a full page
+  const totalPages = Math.ceil(divisionParticipants.length / ROWS_PER_PAGE);
 
-  // Title with page number
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Check-In Sheet - ${division} (Page ${pageNumber} of ${totalPages})`, 15, 20);
-
-  // Table headers
-  let y = 35;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Last Name', 15, y);
-  doc.text('First Name', 55, y);
-  doc.text('School', 95, y);
-  doc.text('Ring', 135, y);
-  doc.text('Forms', 170, y);
-  doc.text('Spar', 185, y);
-
-  // Draw header line
-  y += 2;
-  doc.setLineWidth(0.5);
-  doc.line(15, y, 195, y);
+  // Draw the header on the first page and get the starting Y for the first data row
+  let y = drawPageHeader(doc, division, pageNumber, totalPages);
 
   // Add timestamp footer to first page
   addTimestampFooter(doc);
 
   // Table rows
-  y += 8;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
 
@@ -79,32 +95,16 @@ export function generateCheckInSheet(
     if (y > 260) {
       // Add timestamp to current page before adding new page
       addTimestampFooter(doc);
-      
+
       doc.addPage();
       pageNumber++;
-      y = 20;
-      
-      // Title with page number
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Check-In Sheet - ${division} (Page ${pageNumber} of ${totalPages})`, 15, 15);
-      
-      y = 30;
-      // Repeat headers
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('Last Name', 15, y);
-      doc.text('First Name', 55, y);
-      doc.text('School', 95, y);
-      doc.text('Ring', 135, y);
-      doc.text('Forms', 170, y);
-      doc.text('Spar', 185, y);
-      y += 2;
-      doc.line(15, y, 195, y);
-      y += 8;
+
+      // Draw the header at the exact same position as the first page
+      y = drawPageHeader(doc, division, pageNumber, totalPages);
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      
+
       // Add timestamp footer to new page
       addTimestampFooter(doc);
     }

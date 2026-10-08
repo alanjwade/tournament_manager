@@ -395,17 +395,35 @@ ipcMain.handle('open-directory', async (event, directoryPath: string) => {
   }
 });
 
-ipcMain.handle('open-pdf-folder', async (event, directoryPath: string) => {
+// One-way handler (paired with ipcRenderer.send in the preload): there is no
+// reply channel, so the intermittent Electron "reply was never sent" error
+// (triggered when an invoke reply channel is garbage-collected before the async
+// handler replies) cannot happen here. Any OS error is logged instead.
+ipcMain.on('open-pdf-folder', (_event, directoryPath: string) => {
   try {
+    if (!directoryPath) {
+      console.error('Error opening PDF folder: no directory path provided');
+      return;
+    }
     // Ensure directory exists
     if (!fs.existsSync(directoryPath)) {
       fs.mkdirSync(directoryPath, { recursive: true });
     }
-    await shell.openPath(directoryPath);
-    return { success: true };
+    // Fire-and-forget: launching the OS file manager can take a moment, so we
+    // do not block on it. shell.openPath resolves with an error string on
+    // failure (it does not reject).
+    void shell
+      .openPath(directoryPath)
+      .then((errorMessage) => {
+        if (errorMessage) {
+          console.error('Error opening PDF folder:', errorMessage);
+        }
+      })
+      .catch((error) => {
+        console.error('Error opening PDF folder:', error);
+      });
   } catch (error) {
     console.error('Error opening PDF folder:', error);
-    return { success: false, error: String(error) };
   }
 });
 

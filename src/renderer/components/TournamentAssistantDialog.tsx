@@ -617,7 +617,8 @@ const TournamentAssistantDialog: React.FC<TournamentAssistantDialogProps> = ({ i
             gap: '0.25rem',
             padding: '0.5rem 1.5rem 0',
             borderBottom: '1px solid var(--border-color)',
-            flexWrap: 'wrap',
+            // Keep all topic tabs on a single row instead of wrapping.
+            flexWrap: 'nowrap',
           }}
         >
           {topics.map((t) => (
@@ -625,15 +626,22 @@ const TournamentAssistantDialog: React.FC<TournamentAssistantDialogProps> = ({ i
               key={t.key}
               onClick={() => setActiveTopic(t.key)}
               style={{
-                padding: '0.5rem 1rem',
+                // Allow each tab to shrink (with ellipsis) rather than wrap, so
+                // all four stay on one line even in a narrower window.
+                flex: '0 1 auto',
+                minWidth: 0,
+                padding: '0.5rem 0.5rem',
                 border: 'none',
                 borderBottom: activeTopic === t.key ? '2px solid var(--accent-primary)' : '2px solid transparent',
                 background: 'none',
                 cursor: 'pointer',
                 fontWeight: activeTopic === t.key ? 600 : 400,
                 color: activeTopic === t.key ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                fontSize: '0.9rem',
+                fontSize: '0.85rem',
                 whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                textAlign: 'center',
                 transition: 'color 0.15s, border-color 0.15s',
               }}
             >

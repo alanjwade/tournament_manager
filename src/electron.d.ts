@@ -7,7 +7,7 @@ export interface ElectronAPI {
   selectImage: () => Promise<{ path: string; data: number[] } | null>;
   selectDirectory: () => Promise<string | null>;
   openDirectory: (directoryPath: string) => Promise<{ success: boolean; error?: string }>;
-  openPDFFolder: (directoryPath: string) => Promise<{ success: boolean; error?: string }>;
+  openPDFFolder: (directoryPath: string) => void;
   saveTournamentState: (state: any) => Promise<{ success: boolean; path?: string; error?: string }>;
   loadTournamentState: () => Promise<{ success: boolean; data?: any; error?: string } | null>;
   saveAutosave: (data: string, hint?: OperationHint) => Promise<{ success: boolean; error?: string; path?: string }>;

@@ -8,7 +8,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectImage: () => ipcRenderer.invoke('select-image'),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   openDirectory: (directoryPath: string) => ipcRenderer.invoke('open-directory', directoryPath),
-  openPDFFolder: (directoryPath: string) => ipcRenderer.invoke('open-pdf-folder', directoryPath),
+  // Fire-and-forget: this uses a one-way channel (send/on) instead of
+  // invoke/handle. Opening a folder has no meaningful return value, and avoiding
+  // the invoke reply channel sidesteps Electron's intermittent
+  // "reply was never sent" error (a GC-timing issue with async handlers whose
+  // reply is still pending when the reply channel is collected).
+  openPDFFolder: (directoryPath: string) => ipcRenderer.send('open-pdf-folder', directoryPath),
   saveTournamentState: (state: any) => ipcRenderer.invoke('save-tournament-state', state),
   loadTournamentState: () => ipcRenderer.invoke('load-tournament-state'),
   saveAutosave: (data: string, hint?: OperationHint) => ipcRenderer.invoke('save-autosave', { data, hint }),

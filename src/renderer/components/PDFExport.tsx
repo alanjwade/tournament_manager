@@ -690,19 +690,13 @@ function PDFExport({}: PDFExportProps) {
     await savePDF(scoreSheetsPdf, `score-sheets-${division}.pdf`);
   };
 
-  const handleOpenPDFFolder = async () => {
-    try {
-      if (!fileLocations) {
-        alert('File locations not available');
-        return;
-      }
-      const result = await window.electronAPI.openPDFFolder(fileLocations.defaultPdfOutputDir);
-      if (!result.success) {
-        alert(`Error opening folder: ${result.error}`);
-      }
-    } catch (err) {
-      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+  const handleOpenPDFFolder = () => {
+    if (!fileLocations) {
+      alert('File locations not available');
+      return;
     }
+    // Fire-and-forget one-way IPC call (no reply channel).
+    window.electronAPI.openPDFFolder(fileLocations.defaultPdfOutputDir);
   };
 
   return (
