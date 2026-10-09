@@ -46,7 +46,6 @@ export interface Participant {
 export interface Division {
   name: string;
   order: number;
-  numRings?: number; // Optional for backward compatibility
   abbreviation?: string; // Short division designator (e.g., "BLKB", "LVL1")
 }
 

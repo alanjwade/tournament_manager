@@ -25,6 +25,7 @@ function CategoryManagement({}: CategoryManagementProps) {
   const setCategories = useTournamentStore((state) => state.setCategories);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
   const updateCategory = useTournamentStore((state) => state.updateCategory);
+  const removeCategories = useTournamentStore((state) => state.removeCategories);
 
   const [selectedDivision, setSelectedDivision] = useState(localStorage.getItem('division-categories') || 'Black Belt');
   const [selectedGender, setSelectedGender] = useState<'male' | 'female' | 'mixed'>('mixed');
@@ -337,23 +338,10 @@ function CategoryManagement({}: CategoryManagementProps) {
       c.maxAge === categoryToRemove.maxAge
     );
 
-    const removeIds = new Set(categoriesToRemove.map(c => c.id));
-
-    // Update categories list by removing all matching categories
-    setCategories(categories.filter((c) => !removeIds.has(c.id)));
-
-    // Clear any category IDs on participants that referenced any of these removed categories
-    const updatedParticipants = participants.map((p) => {
-      let updated = { ...p };
-      if (p.formsCategoryId && removeIds.has(p.formsCategoryId)) {
-        updated.formsCategoryId = undefined;
-      }
-      if (p.sparringCategoryId && removeIds.has(p.sparringCategoryId)) {
-        updated.sparringCategoryId = undefined;
-      }
-      return updated;
-    });
-    setParticipants(updatedParticipants);
+    // Hand the whole removal to the store so categories, participant
+    // assignments, pool/ring mappings and ring ordering are updated together in
+    // a single atomic change (and a single undo entry).
+    removeCategories(categoriesToRemove.map(c => c.id));
   };
 
   const handleRingsChange = (categoryId: string, rings: number) => {

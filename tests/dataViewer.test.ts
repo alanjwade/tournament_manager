@@ -3,6 +3,7 @@ import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
 import DataViewer from '../src/renderer/components/DataViewer';
 import { useTournamentStore } from '../src/renderer/store/tournamentStore';
+import { computeCompetitionRings } from '../src/renderer/utils/computeRings';
 import type { TournamentState } from '../types/tournament';
 import { createTestCategory, createTestParticipant, resetTestIds } from './fixtures';
 
@@ -10,7 +11,7 @@ function loadState(state: Partial<TournamentState>) {
   useTournamentStore.getState().loadStateFromData({
     participants: [],
     categories: [],
-    config: { divisions: [{ name: 'Level 1', order: 1, numRings: 2 }], physicalRings: [] },
+    config: { divisions: [{ name: 'Level 1', order: 1 }], physicalRings: [] },
     physicalRingMappings: [],
     categoryPoolMappings: [],
     ...state,
@@ -130,6 +131,52 @@ describe('DataViewer (Editor)', () => {
       categoryPoolName: 'Level 1 - Male 8-10 Pool 2',
       physicalRingName: 'Ring 2',
     });
+  });
+
+  it('assigns a pool (so the participant shows up in a ring) when a forms category is chosen inline', () => {
+    const forms = createTestCategory({
+      id: 'forms-Level 1-male-8-12',
+      name: 'Male 8-12',
+      type: 'forms',
+      division: 'Level 1',
+      gender: 'male',
+      minAge: 8,
+      maxAge: 12,
+      numPools: 2,
+    });
+    loadState({
+      categories: [forms],
+      participants: [
+        createTestParticipant({
+          id: 'p1',
+          age: 10,
+          gender: 'male',
+          formsDivision: 'Level 1',
+          competingForms: true,
+          competingSparring: false,
+        }),
+      ],
+    });
+
+    const { container } = render(React.createElement(DataViewer));
+
+    // The forms category <select> is the one offering the category id.
+    const categorySelect = Array.from(container.querySelectorAll('select')).find(select =>
+      Array.from(select.options).some(option => option.value === forms.id)
+    ) as HTMLSelectElement | undefined;
+    expect(categorySelect).toBeTruthy();
+
+    fireEvent.change(categorySelect!, { target: { value: forms.id } });
+
+    const state = useTournamentStore.getState();
+    const updated = state.participants.find(p => p.id === 'p1')!;
+    expect(updated.formsCategoryId).toBe(forms.id);
+    // Regression: previously the pool stayed empty, so the participant was
+    // invisible in every ring/PDF even though a category had been chosen.
+    expect(updated.formsPool).toBeDefined();
+
+    const rings = computeCompetitionRings(state.participants, state.categories, state.categoryPoolMappings);
+    expect(rings.some(r => r.participantIds.includes('p1'))).toBe(true);
   });
 
   it('deletes a participant when the Delete button is confirmed', () => {

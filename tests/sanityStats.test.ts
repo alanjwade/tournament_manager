@@ -3,8 +3,8 @@ import { computeSanityStats, computeConfigIssues } from '../src/renderer/utils/s
 import { createTestParticipant, createTestCategory, resetTestIds } from './fixtures';
 
 const divisions = [
-  { name: 'Black Belt', order: 1, numRings: 2 },
-  { name: 'Level 1', order: 2, numRings: 2 },
+  { name: 'Black Belt', order: 1 },
+  { name: 'Level 1', order: 2 },
 ];
 
 describe('sanityStats', () => {
@@ -90,19 +90,41 @@ describe('sanityStats', () => {
     expect(stats.unmapped.duplicateNames).toBe(1);
   });
 
-  it('reports configuration issues that drive the Configuration badge', () => {
-    const over = computeConfigIssues(
-      [{ name: 'Level 1', order: 1, numRings: 2 }],
-      [createTestCategory({ id: 'c1', division: 'Level 1', type: 'forms', numPools: 3 })]
-    );
-    expect(over).toHaveLength(1);
-    expect(over[0]).toMatchObject({ division: 'Level 1', kind: 'forms-over' });
+  it('reports pools with participants that have no physical ring (Configuration badge)', () => {
+    const cat = createTestCategory({ id: 'c1', name: 'Male 8-12', division: 'Level 1', type: 'forms', numPools: 3 });
+    const participants = [
+      createTestParticipant({ id: 'p1', formsDivision: 'Level 1', formsCategoryId: 'c1', formsPool: 'P1', competingForms: true, competingSparring: false }),
+    ];
 
-    const noRings = computeConfigIssues(
-      [{ name: 'Level 1', order: 1, numRings: 0 }],
-      [createTestCategory({ id: 'c1', division: 'Level 1', type: 'forms', numPools: 1 })]
+    // Pool 1 has a competitor and no ring mapping; Pools 2/3 are empty so ignored.
+    const issues = computeConfigIssues([{ name: 'Level 1', order: 1 }], [cat], participants, []);
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      division: 'Level 1',
+      kind: 'pool-unmapped',
+      type: 'forms',
+      poolCount: 3,
+      unmappedCount: 1,
+    });
+    expect(issues[0].pools).toEqual([{ name: 'Level 1 - Male 8-12 Pool 1', participantCount: 1 }]);
+  });
+
+  it('does not flag many pools sharing few rings (a/b) once they are on the Ring Map', () => {
+    // 12 pools but only one has a competitor; it is mapped to Ring 1a, so no issue.
+    const cat = createTestCategory({ id: 'c1', name: 'Male 8-12', division: 'Level 1', type: 'forms', numPools: 12 });
+    const participants = [
+      createTestParticipant({ id: 'p1', formsDivision: 'Level 1', formsCategoryId: 'c1', formsPool: 'P1', competingForms: true, competingSparring: false }),
+    ];
+
+    const issues = computeConfigIssues(
+      [{ name: 'Level 1', order: 1 }],
+      [cat],
+      participants,
+      [{ categoryPoolName: 'Level 1 - Male 8-12 Pool 1', physicalRingName: 'Ring 1a' }]
     );
-    expect(noRings.some(i => i.kind === 'no-rings')).toBe(true);
+
+    expect(issues).toHaveLength(0);
   });
 
   it('includes drill-down details on config issues', () => {
@@ -110,23 +132,27 @@ describe('sanityStats', () => {
     const catB = createTestCategory({ id: 'b', name: 'Female 8-12', division: 'Black Belt', type: 'forms', numPools: 1 });
     const participants = [
       createTestParticipant({ id: 'p1', formsDivision: 'Black Belt', formsCategoryId: 'a', formsPool: 'P1', competingForms: true, competingSparring: false }),
+      createTestParticipant({ id: 'p2', formsDivision: 'Black Belt', formsCategoryId: 'b', formsPool: 'P1', competingForms: true, competingSparring: false }),
     ];
 
-    const issues = computeConfigIssues([{ name: 'Black Belt', order: 1, numRings: 2 }], [catA, catB], participants);
+    const issues = computeConfigIssues([{ name: 'Black Belt', order: 1 }], [catA, catB], participants, []);
 
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
       division: 'Black Belt',
-      kind: 'forms-over',
-      configuredRings: 2,
+      kind: 'pool-unmapped',
+      type: 'forms',
       poolCount: 3,
+      unmappedCount: 2,
     });
     expect(issues[0].categories).toEqual([
       { id: 'a', name: 'Male 8-12', numPools: 2 },
       { id: 'b', name: 'Female 8-12', numPools: 1 },
     ]);
-    expect(issues[0].pools).toContainEqual({ name: 'Black Belt - Male 8-12 Pool 1', participantCount: 1 });
-    expect(issues[0].pools).toContainEqual({ name: 'Black Belt - Male 8-12 Pool 2', participantCount: 0 });
+    expect(issues[0].pools).toEqual([
+      { name: 'Black Belt - Male 8-12 Pool 1', participantCount: 1 },
+      { name: 'Black Belt - Female 8-12 Pool 1', participantCount: 1 },
+    ]);
   });
 
   it('lists the people and pools behind the problems', () => {

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { formatPoolOnly, buildCategoryPoolName } from '../utils/ringNameFormatter';
 import { assignSparringFromForms } from '../utils/categoryUtils';
+import { autoAssignAndOrderCategory } from '../utils/autoAssignAndOrder';
 import { Participant } from '../types/tournament';
 import AddParticipantModal from './AddParticipantModal';
 
@@ -330,25 +331,33 @@ function DataViewer({}: DataViewerProps) {
 
   // Update participant category assignment - clears dependent fields when category changes
   const updateParticipantCategory = (participantId: string, field: 'formsCategoryId' | 'sparringCategoryId', value: string) => {
-    const updatedParticipants = participants.map(p => {
-      if (p.id === participantId) {
-        const updates: Partial<Participant> = {
-          [field]: value || undefined
-        };
-        
-        // When changing category, clear pool and rank order since old pool may not exist in new category
-        if (field === 'formsCategoryId') {
-          updates.formsPool = undefined;
-          updates.formsRankOrder = undefined;
-        } else if (field === 'sparringCategoryId') {
-          updates.sparringPool = undefined;
-          updates.sparringRankOrder = undefined;
-        }
-        
-        return { ...p, ...updates };
+    const categoryId = value || undefined;
+
+    let updatedParticipants = participants.map(p => {
+      if (p.id !== participantId) return p;
+
+      // When changing category, clear pool and rank order since old pool may not exist in new category
+      if (field === 'formsCategoryId') {
+        return { ...p, formsCategoryId: categoryId, formsPool: undefined, formsRankOrder: undefined };
       }
-      return p;
+      return {
+        ...p,
+        sparringCategoryId: categoryId,
+        sparringPool: undefined,
+        sparringRankOrder: undefined,
+        sparringAltRing: '' as const,
+      };
     });
+
+    // Assign a pool (and order) for the newly chosen category, otherwise the
+    // participant would keep an empty pool and never appear in any ring/PDF.
+    if (categoryId) {
+      const category = categories.find(c => c.id === categoryId);
+      if (category) {
+        updatedParticipants = autoAssignAndOrderCategory(category, updatedParticipants);
+      }
+    }
+
     setParticipants(updatedParticipants);
   };
 

@@ -53,7 +53,6 @@ function Configuration() {
     const newDivision: Division = {
       name: divisionName.trim(),
       order: config.divisions.length + 1,
-      numRings: 2,
       abbreviation: '',
     };
     setDivisions([...config.divisions, newDivision]);
@@ -62,11 +61,6 @@ function Configuration() {
 
   const handleRemoveDivision = (name: string) => {
     setDivisions(config.divisions.filter((d) => d.name !== name));
-  };
-
-  const handleSetDivisionRings = (name: string, rings: number) => {
-    const safe = Number.isFinite(rings) ? Math.max(0, Math.floor(rings)) : 0;
-    setDivisions(config.divisions.map((d) => (d.name === name ? { ...d, numRings: safe } : d)));
   };
 
   const handleMoveDivision = (name: string, direction: 'up' | 'down') => {
@@ -145,7 +139,6 @@ function Configuration() {
               <tr>
                 <th>Division</th>
                 <th>Order</th>
-                <th>Rings</th>
                 <th>Reorder</th>
                 <th>Action</th>
               </tr>
@@ -155,17 +148,6 @@ function Configuration() {
                 <tr key={div.name}>
                   <td>{div.name}</td>
                   <td>{div.order}</td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="form-control"
-                      value={div.numRings ?? 0}
-                      onChange={(e) => handleSetDivisionRings(div.name, parseInt(e.target.value, 10))}
-                      style={{ width: '80px', padding: '4px' }}
-                      title="Number of physical rings available for this division"
-                    />
-                  </td>
                   <td>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button

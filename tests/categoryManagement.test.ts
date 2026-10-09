@@ -52,7 +52,7 @@ describe('CategoryManagement', () => {
       ],
       categories: [],
       config: {
-        divisions: [{ name: 'Black Belt', order: 1, numRings: 2 }],
+        divisions: [{ name: 'Black Belt', order: 1 }],
         physicalRings: [],
       },
       physicalRingMappings: [],
@@ -88,7 +88,7 @@ describe('CategoryManagement', () => {
       ],
       categories: [],
       config: {
-        divisions: [{ name: 'Black Belt', order: 1, numRings: 2 }],
+        divisions: [{ name: 'Black Belt', order: 1 }],
         physicalRings: [],
       },
       physicalRingMappings: [],

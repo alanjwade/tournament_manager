@@ -42,6 +42,55 @@ function hasAssignmentChanges(oldList: Participant[], newList: Participant[]): b
   return false;
 }
 
+/**
+ * True when a logical ring id belongs to `categoryId`. Ring ids look like
+ * `forms-<categoryId>-P1` / `sparring-<categoryId>-P1`. Category ids themselves
+ * contain hyphens (`forms-<division>-<gender>-<min-max>`), so we must match on
+ * the exact prefix rather than naively splitting on '-' and hoping the division
+ * has no hyphens.
+ */
+export function ringIdReferencesCategory(ringId: string, categoryId: string): boolean {
+  return ringId.startsWith(`forms-${categoryId}-`) || ringId.startsWith(`sparring-${categoryId}-`);
+}
+
+/**
+ * Migrate a participant from legacy/imported shapes to the current model
+ * (turns "not participating" into null, expands "same as forms/sparring",
+ * and normalises the sparringAltRing field).
+ */
+function normalizeParticipant(p: Participant): Participant {
+  const normalized: any = { ...p, sparringAltRing: (p as any).sparringAltRing || '' };
+
+  if (normalized.formsDivision === 'not participating') {
+    normalized.formsDivision = null;
+    normalized.competingForms = false;
+  }
+  if (normalized.sparringDivision === 'not participating') {
+    normalized.sparringDivision = null;
+    normalized.competingSparring = false;
+  }
+
+  if (normalized.sparringDivision === 'same as forms') {
+    normalized.sparringDivision = normalized.formsDivision;
+    normalized.sparringCategoryId = normalized.sparringCategoryId || normalized.formsCategoryId;
+    normalized.sparringPool = normalized.sparringPool || normalized.formsPool;
+    normalized.competingSparring = normalized.competingForms;
+  }
+
+  if (normalized.formsDivision === 'same as sparring') {
+    normalized.formsDivision = normalized.sparringDivision;
+    normalized.formsCategoryId = normalized.formsCategoryId || normalized.sparringCategoryId;
+    normalized.formsPool = normalized.formsPool || normalized.sparringPool;
+    normalized.competingForms = normalized.competingSparring;
+  }
+
+  return normalized as Participant;
+}
+
+function normalizeParticipants(participants: Participant[]): Participant[] {
+  return participants.map(normalizeParticipant);
+}
+
 type Snapshot = {
   participants: Participant[];
   categories: Category[];
@@ -84,6 +133,10 @@ interface TournamentState {
   withdrawParticipant: (id: string) => void;
   deleteParticipant: (id: string) => void;
   setCategories: (categories: Category[]) => void;
+  /** Replace the whole roster from an import and clear any stale category-derived state. */
+  importParticipants: (participants: Participant[]) => void;
+  /** Remove one or more categories and clear every participant/mapping reference to them. */
+  removeCategories: (categoryIds: string[]) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
   setPhysicalRingMappings: (mappings: PhysicalRingMapping[]) => void;
   updatePhysicalRingMapping: (categoryPoolName: string, physicalRingName: string) => void;
@@ -130,11 +183,11 @@ interface TournamentState {
 
 const initialConfig: TournamentConfig = {
   divisions: [
-    { name: 'Black Belt', order: 1, numRings: 2, abbreviation: 'BLKB' },
-    { name: 'Beginner', order: 2, numRings: 2, abbreviation: 'BGNR' },
-    { name: 'Level 1', order: 3, numRings: 2, abbreviation: 'LVL1' },
-    { name: 'Level 2', order: 4, numRings: 2, abbreviation: 'LVL2' },
-    { name: 'Level 3', order: 5, numRings: 2, abbreviation: 'LVL3' },
+    { name: 'Black Belt', order: 1, abbreviation: 'BLKB' },
+    { name: 'Beginner', order: 2, abbreviation: 'BGNR' },
+    { name: 'Level 1', order: 3, abbreviation: 'LVL1' },
+    { name: 'Level 2', order: 4, abbreviation: 'LVL2' },
+    { name: 'Level 3', order: 5, abbreviation: 'LVL3' },
   ],
   physicalRings: [],
   watermarkImage: undefined,
@@ -387,37 +440,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
 
   setParticipants: (participants) => {
     // Normalize participant objects - migrate from old model to new
-    const normalized = participants.map(p => {
-      const normalized: any = { ...p, sparringAltRing: (p as any).sparringAltRing || '' };
-      
-      // Migrate "not participating" string to null
-      if (normalized.formsDivision === 'not participating') {
-        normalized.formsDivision = null;
-        normalized.competingForms = false;
-      }
-      if (normalized.sparringDivision === 'not participating') {
-        normalized.sparringDivision = null;
-        normalized.competingSparring = false;
-      }
-      
-      // Migrate "same as forms" - convert to explicit values
-      if (normalized.sparringDivision === 'same as forms') {
-        normalized.sparringDivision = normalized.formsDivision;
-        normalized.sparringCategoryId = normalized.sparringCategoryId || normalized.formsCategoryId;
-        normalized.sparringPool = normalized.sparringPool || normalized.formsPool;
-        normalized.competingSparring = normalized.competingForms;
-      }
-      
-      // Migrate "same as sparring" - convert to explicit values
-      if (normalized.formsDivision === 'same as sparring') {
-        normalized.formsDivision = normalized.sparringDivision;
-        normalized.formsCategoryId = normalized.formsCategoryId || normalized.sparringCategoryId;
-        normalized.formsPool = normalized.formsPool || normalized.sparringPool;
-        normalized.competingForms = normalized.competingSparring;
-      }
-      
-      return normalized as Participant;
-    });
+    const normalized = normalizeParticipants(participants);
     const oldParticipants = get().participants;
     get().pushHistory();
     const shouldReorder = hasAssignmentChanges(oldParticipants, normalized);
@@ -519,17 +542,82 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
   setCategories: (categories) => {
     get().pushHistory();
     // Prune customOrderRings: remove IDs referencing categories that no longer exist
-    const validCategoryIds = new Set(categories.map(c => c.id));
-    const prunedCustomOrderRings = get().customOrderRings.filter(ringId => {
-      // Ring IDs are formatted as "forms-{categoryId}-{pool}" or "sparring-{categoryId}-{pool}"
-      const parts = ringId.split('-');
-      // categoryId is the middle segment (after type prefix, before pool)
-      const categoryId = parts.slice(1, -1).join('-');
-      return validCategoryIds.has(categoryId);
-    });
+    const prunedCustomOrderRings = get().customOrderRings.filter(ringId =>
+      categories.some(c => ringIdReferencesCategory(ringId, c.id))
+    );
     set({
       categories: categories.map(c => ({ ...c, type: c.type ?? 'forms' })),
       customOrderRings: prunedCustomOrderRings,
+    });
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+  },
+
+  importParticipants: (participants) => {
+    get().pushHistory();
+    // Normalize the incoming roster and strip any category/pool/rank references.
+    // The freshly imported records normally have none, but old exports or a
+    // re-imported working file may carry stale ids from the previous categories.
+    const normalized = normalizeParticipants(participants).map((p) => ({
+      ...p,
+      formsCategoryId: undefined,
+      formsPool: undefined,
+      formsRankOrder: undefined,
+      sparringCategoryId: undefined,
+      sparringPool: undefined,
+      sparringRankOrder: undefined,
+      sparringAltRing: '' as const,
+    }));
+    set({
+      participants: normalized,
+      // A brand-new roster invalidates every category (and anything derived from
+      // it — pool-to-ring maps, manual ring ordering): start from a clean slate.
+      categories: [],
+      categoryPoolMappings: [],
+      physicalRingMappings: [],
+      customOrderRings: [],
+    });
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+  },
+
+  removeCategories: (categoryIds) => {
+    if (categoryIds.length === 0) return;
+    const idSet = new Set(categoryIds);
+    get().pushHistory();
+
+    const { participants, categories, categoryPoolMappings, customOrderRings } = get();
+
+    // Clear category/pool/rank references on any participant that pointed at a
+    // removed category, otherwise they keep a stale pool assignment that no
+    // longer corresponds to a real ring.
+    const cleanedParticipants = participants.map((p) => {
+      let updated = p;
+      if (p.formsCategoryId && idSet.has(p.formsCategoryId)) {
+        updated = {
+          ...updated,
+          formsCategoryId: undefined,
+          formsPool: undefined,
+          formsRankOrder: undefined,
+        };
+      }
+      if (p.sparringCategoryId && idSet.has(p.sparringCategoryId)) {
+        updated = {
+          ...updated,
+          sparringCategoryId: undefined,
+          sparringPool: undefined,
+          sparringRankOrder: undefined,
+          sparringAltRing: '',
+        };
+      }
+      return updated;
+    });
+
+    set({
+      categories: categories.filter(c => !idSet.has(c.id)),
+      participants: cleanedParticipants,
+      categoryPoolMappings: categoryPoolMappings.filter(m => !idSet.has(m.categoryId)),
+      customOrderRings: customOrderRings.filter(
+        ringId => !categoryIds.some(id => ringIdReferencesCategory(ringId, id))
+      ),
     });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },

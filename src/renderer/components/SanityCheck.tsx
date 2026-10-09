@@ -189,8 +189,9 @@ function SanityCheck({}: SanityCheckProps) {
       {/* Configuration checks (explains the Configuration tab badge) */}
       <h3 style={{ fontSize: '15px', marginBottom: '10px' }}>Configuration checks</h3>
       <p style={{ margin: '0 0 10px', fontSize: '12px', color: 'var(--text-muted)' }}>
-        The "rings" number is each division's <strong>Rings</strong> value saved in Configuration. If it
-        doesn't match how many rings you actually have, change it on the Configuration tab.
+        A pool is only a problem once it has competitors and hasn't been placed on a physical ring.
+        Assign pools to rings on the <strong>Ring Map</strong> tab — several pools can share one ring
+        (they're split into Ring 1a / Ring 1b).
       </p>
       {configIssues.length === 0 ? (
         <div style={{ padding: '10px 12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '25px' }}>
@@ -212,8 +213,8 @@ function SanityCheck({}: SanityCheckProps) {
                 {issue.division}: {issue.message}
               </div>
               <div style={{ fontSize: '13px', marginTop: '6px', color: 'var(--text-primary)' }}>
-                Configured rings: <strong>{issue.configuredRings}</strong> (from Configuration) ·{' '}
-                {issue.type === 'forms' ? 'Forms' : 'Sparring'} pools: <strong>{issue.poolCount}</strong>
+                {issue.type === 'forms' ? 'Forms' : 'Sparring'} pools: <strong>{issue.poolCount}</strong> ·{' '}
+                without a ring: <strong>{issue.unmappedCount}</strong>
               </div>
               <details style={{ marginTop: '8px' }}>
                 <summary style={{ cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>
@@ -228,7 +229,7 @@ function SanityCheck({}: SanityCheckProps) {
                 </ul>
                 <details style={{ marginTop: '6px' }}>
                   <summary style={{ cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>
-                    Pools and participant counts
+                    Pools without a physical ring and their participant counts
                   </summary>
                   <ul style={{ margin: '6px 0 0', paddingLeft: '20px', fontSize: '13px', color: 'var(--text-primary)' }}>
                     {issue.pools.map((pool) => (

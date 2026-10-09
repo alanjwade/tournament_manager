@@ -203,8 +203,14 @@ function App() {
       changedRings = diff.ringsAffected.size;
     }
 
-    // Count configuration errors (shared with the Sanity Check tab)
-    const configErrors = computeConfigIssues(config.divisions, categories).length;
+    // Count configuration errors (shared with the Sanity Check tab): pools with
+    // participants that haven't been placed on a physical ring in the Ring Map.
+    const configErrors = computeConfigIssues(
+      config.divisions,
+      categories,
+      participants,
+      physicalRingMappings
+    ).length;
 
     return {
       categories: unassignedCategories,
@@ -212,7 +218,7 @@ function App() {
       tournamentDay: changedRings,
       configuration: configErrors,
     };
-  }, [participants, categories, competitionRings, baselineState, diffBaseline]);
+  }, [participants, categories, competitionRings, physicalRingMappings, config.divisions, baselineState, diffBaseline]);
 
   // Badge component
   const Badge = ({ count, type = 'warning' }: { count: number; type?: 'warning' | 'info' | 'success' }) => {

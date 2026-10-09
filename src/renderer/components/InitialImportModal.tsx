@@ -27,9 +27,10 @@ export default function InitialImportModal({ isOpen, onClose }: InitialImportMod
   const [isDragging, setIsDragging] = useState(false);
   const [duplicateBannerDismissed, setDuplicateBannerDismissed] = useState(false);
 
-  const setParticipants = useTournamentStore((state) => state.setParticipants);
+  const importParticipants = useTournamentStore((state) => state.importParticipants);
   const participants = useTournamentStore((state) => state.participants);
   const config = useTournamentStore((state) => state.config);
+  const categoryCount = useTournamentStore((state) => state.categories.length);
 
   const findDuplicateNames = (list: any[]): string[] => {
     const counts = new Map<string, number>();
@@ -99,7 +100,10 @@ export default function InitialImportModal({ isOpen, onClose }: InitialImportMod
 
   const confirmImport = () => {
     if (preview) {
-      setParticipants(preview.participants);
+      // A fresh import replaces the roster; existing categories (and the
+      // pool/ring assignments derived from them) no longer apply, so
+      // importParticipants clears them out for us.
+      importParticipants(preview.participants);
       setPreview(null);
       onClose();
     }
@@ -236,6 +240,15 @@ export default function InitialImportModal({ isOpen, onClose }: InitialImportMod
             <div style={{ fontSize: '14px', marginBottom: '15px' }}>
               <strong style={{ color: 'var(--text-primary)' }}>Total Participants:</strong>{' '}
               <span style={{ color: '#28a745', fontSize: '16px', fontWeight: 'bold' }}>{preview.total}</span>
+            </div>
+
+            <div style={{ marginBottom: '15px', padding: '12px 14px', backgroundColor: 'rgba(220, 53, 69, 0.08)', border: '1px solid #dc3545', borderRadius: '6px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+              <strong style={{ color: '#dc3545' }}>⚠️ This replaces the current roster</strong>
+              <div style={{ marginTop: '6px' }}>
+                Importing will overwrite all {participants.length} current participant{participants.length === 1 ? '' : 's'}
+                {categoryCount > 0 && <> and delete the {categoryCount} existing categor{categoryCount === 1 ? 'y' : 'ies'} (along with their pool/ring assignments)</>}
+                . The old categories may no longer fit the new data, so you'll set them up again afterwards.
+              </div>
             </div>
 
             {preview.duplicateNames.length > 0 && !duplicateBannerDismissed && (

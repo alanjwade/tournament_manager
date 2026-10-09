@@ -49,16 +49,16 @@ export interface ConfigIssuePool {
 
 export interface ConfigIssue {
   division: string;
-  kind: 'forms-over' | 'sparring-over' | 'no-rings';
+  kind: 'pool-unmapped';
   type: 'forms' | 'sparring';
   message: string;
-  /** division.numRings as saved in Configuration (this is the "only N rings" number). */
-  configuredRings: number;
   /** Total pools for this division + type (sum of the categories' numPools). */
   poolCount: number;
+  /** Pools that have participants but no physical ring assigned in the Ring Map. */
+  unmappedCount: number;
   /** The categories whose pools make up poolCount. */
   categories: ConfigIssueCategory[];
-  /** Every pool and how many participants are in it. */
+  /** The pools missing a physical ring (with participant counts). */
   pools: ConfigIssuePool[];
 }
 
@@ -119,23 +119,43 @@ export interface SanityStats {
 }
 
 /**
- * Configuration problems that are surfaced as the Configuration tab badge:
- * a division with more pools than physical rings, or categories but no rings.
+ * Configuration problems that are surfaced as the Configuration tab badge.
+ *
+ * A pool only needs a physical ring once it has competitors. The real problem
+ * (and the only thing the Ring Map can't fix silently) is a pool that has
+ * participants but hasn't been assigned to a physical ring yet — those matches
+ * have nowhere to run. Multiple pools routinely share one physical ring (the
+ * Ring Map splits them into Ring 1a / Ring 1b), so the number of pools is NOT
+ * compared against a ring count.
+ *
  * Kept here so the badge and the Sanity Check tab agree.
  */
 export function computeConfigIssues(
   divisions: Division[],
   categories: Category[],
-  participants: Participant[] = []
+  participants: Participant[] = [],
+  physicalRingMappings: PhysicalRingMapping[] = []
 ): ConfigIssue[] {
   const issues: ConfigIssue[] = [];
+
+  // A pool counts as mapped only when the Ring Map stored a non-empty ring name.
+  const mappedPoolNames = new Set(
+    physicalRingMappings
+      .filter((m) => m.physicalRingName && m.physicalRingName.trim() !== '')
+      .map((m) => m.categoryPoolName)
+  );
 
   const poolsFor = (
     divisionName: string,
     type: 'forms' | 'sparring'
-  ): { categories: ConfigIssueCategory[]; pools: ConfigIssuePool[] } => {
+  ): {
+    categories: ConfigIssueCategory[];
+    pools: ConfigIssuePool[];
+    unmapped: ConfigIssuePool[];
+  } => {
     const cats = categories.filter((c) => c.division === divisionName && c.type === type);
     const pools: ConfigIssuePool[] = [];
+    const unmapped: ConfigIssuePool[] = [];
 
     cats.forEach((c) => {
       const numPools = c.numPools || 1;
@@ -146,60 +166,42 @@ export function computeConfigIssues(
             ? p.competingForms && p.formsCategoryId === c.id && p.formsPool === pool
             : p.competingSparring && p.sparringCategoryId === c.id && p.sparringPool === pool
         ).length;
-        pools.push({
-          name: buildCategoryPoolName(c.division, c.name, pool),
-          participantCount,
-        });
+        const name = buildCategoryPoolName(c.division, c.name, pool);
+        pools.push({ name, participantCount });
+        // Only pools that actually have competitors need a ring.
+        if (participantCount > 0 && !mappedPoolNames.has(name)) {
+          unmapped.push({ name, participantCount });
+        }
       }
     });
 
     return {
       categories: cats.map((c) => ({ id: c.id, name: c.name, numPools: c.numPools || 1 })),
       pools,
+      unmapped,
     };
   };
 
   divisions.forEach((division) => {
-    const rings = division.numRings || 0;
-    const forms = poolsFor(division.name, 'forms');
-    const sparring = poolsFor(division.name, 'sparring');
+    (['forms', 'sparring'] as const).forEach((type) => {
+      const data = poolsFor(division.name, type);
+      if (data.unmapped.length === 0) return;
 
-    if (forms.pools.length > rings) {
+      const label = type === 'forms' ? 'Forms' : 'Sparring';
+      const allUnmapped = data.unmapped.length === data.pools.length;
       issues.push({
         division: division.name,
-        kind: 'forms-over',
-        type: 'forms',
-        configuredRings: rings,
-        poolCount: forms.pools.length,
-        categories: forms.categories,
-        pools: forms.pools,
-        message: `${forms.pools.length} Forms pool(s) but only ${rings} ring(s) configured`,
+        kind: 'pool-unmapped',
+        type,
+        poolCount: data.pools.length,
+        unmappedCount: data.unmapped.length,
+        categories: data.categories,
+        pools: data.unmapped,
+        message: allUnmapped
+          ? `${data.unmapped.length} ${label} pool(s) have participants but no physical ring yet (set them up on the Ring Map tab)`
+          : `${data.unmapped.length} of ${data.pools.length} ${label} pool(s) have participants but no physical ring yet`,
       });
-    }
-    if (sparring.pools.length > rings) {
-      issues.push({
-        division: division.name,
-        kind: 'sparring-over',
-        type: 'sparring',
-        configuredRings: rings,
-        poolCount: sparring.pools.length,
-        categories: sparring.categories,
-        pools: sparring.pools,
-        message: `${sparring.pools.length} Sparring pool(s) but only ${rings} ring(s) configured`,
-      });
-    }
-    if (forms.pools.length + sparring.pools.length > 0 && rings === 0) {
-      issues.push({
-        division: division.name,
-        kind: 'no-rings',
-        type: 'forms',
-        configuredRings: rings,
-        poolCount: forms.pools.length + sparring.pools.length,
-        categories: [...forms.categories, ...sparring.categories],
-        pools: [...forms.pools, ...sparring.pools],
-        message: 'Has categories but no physical rings configured',
-      });
-    }
+    });
   });
 
   return issues;
@@ -405,7 +407,7 @@ export function computeSanityStats(
     },
     unmappedTotal: participants.length - inAnyDivision,
     unmapped,
-    configIssues: computeConfigIssues(sortedDivisions, categories, participants),
+    configIssues: computeConfigIssues(sortedDivisions, categories, participants, physicalRingMappings),
     physicalRings,
     problemDetails,
   };

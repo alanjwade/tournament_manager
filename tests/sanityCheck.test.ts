@@ -4,13 +4,13 @@ import React from 'react';
 import SanityCheck from '../src/renderer/components/SanityCheck';
 import { useTournamentStore } from '../src/renderer/store/tournamentStore';
 import type { TournamentState } from '../types/tournament';
-import { createTestParticipant, resetTestIds } from './fixtures';
+import { createTestCategory, createTestParticipant, resetTestIds } from './fixtures';
 
 function loadState(state: Partial<TournamentState>) {
   useTournamentStore.getState().loadStateFromData({
     participants: [],
     categories: [],
-    config: { divisions: [{ name: 'Beginner', order: 1, numRings: 2 }], physicalRings: [] },
+    config: { divisions: [{ name: 'Beginner', order: 1 }], physicalRings: [] },
     physicalRingMappings: [],
     categoryPoolMappings: [],
     ...state,
@@ -62,5 +62,41 @@ describe('SanityCheck', () => {
     expect(text).toContain('Competing but no division');
     expect(text).toContain('Show who they are (1)');
     expect(text).toContain('B Two — Competing but no division');
+  });
+
+  it('reports pools with participants that have no physical ring (not a pool-count mismatch)', () => {
+    // 12 pools on a 6-ring venue split a/b is valid: only genuinely unmapped
+    // pools with competitors should be reported.
+    const cat = createTestCategory({
+      id: 'forms-Beginner-male-8-12',
+      name: 'Male 8-12',
+      type: 'forms',
+      division: 'Beginner',
+      gender: 'male',
+      minAge: 8,
+      maxAge: 12,
+      numPools: 12,
+    });
+    loadState({
+      categories: [cat],
+      participants: [
+        createTestParticipant({
+          id: 'p1',
+          formsDivision: 'Beginner',
+          formsCategoryId: cat.id,
+          formsPool: 'P1',
+          competingForms: true,
+          competingSparring: false,
+        }),
+      ],
+    });
+
+    const { container } = render(React.createElement(SanityCheck));
+    const text = container.textContent || '';
+
+    expect(text).toContain('Configuration checks');
+    expect(text).toContain('Beginner');
+    expect(text).toContain('without a ring');
+    expect(text).toContain('Beginner - Male 8-12 Pool 1');
   });
 });
