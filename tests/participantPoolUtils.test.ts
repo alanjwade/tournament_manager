@@ -9,6 +9,7 @@ import {
   withdrawParticipant,
   reinstateParticipant,
   copySparringFromForms,
+  sparringMirrorsForms,
 } from '../src/renderer/utils/participantPoolUtils';
 import {
   createTestParticipant,
@@ -306,6 +307,71 @@ describe('participantPoolUtils', () => {
       // Sparring should be unchanged
       expect(result[0].sparringCategoryId).toBe('cat2');
       expect(result[0].sparringPool).toBe('P2');
+    });
+  });
+
+  describe('sparringMirrorsForms', () => {
+    // Forms and sparring use twin categories that share division/name but have
+    // different ids (forms-/sparring- prefix).
+    const formsCategory = createTestCategory({
+      id: 'forms-Level 1-male-11-12', name: 'Male 11-12', division: 'Level 1', type: 'forms',
+    });
+    const sparringTwin = createTestCategory({
+      id: 'sparring-Level 1-male-11-12', name: 'Male 11-12', division: 'Level 1', type: 'sparring',
+    });
+    const sparringOtherAge = createTestCategory({
+      id: 'sparring-Level 1-male-13-14', name: 'Male 13-14', division: 'Level 1', type: 'sparring',
+    });
+    const categories = [formsCategory, sparringTwin, sparringOtherAge];
+
+    it('returns true when the participant is not competing in both', () => {
+      const p = createTestParticipant({
+        id: 'p1',
+        competingForms: true,
+        competingSparring: false,
+        formsCategoryId: formsCategory.id,
+        sparringCategoryId: sparringOtherAge.id,
+      });
+      expect(sparringMirrorsForms(p, categories)).toBe(true);
+    });
+
+    it('returns true when sparring points at the forms twin with the same pool', () => {
+      const p = createTestParticipant({
+        id: 'p1',
+        competingForms: true,
+        competingSparring: true,
+        formsCategoryId: formsCategory.id,
+        formsPool: 'P1',
+        sparringCategoryId: sparringTwin.id,
+        sparringPool: 'P1',
+      });
+      expect(sparringMirrorsForms(p, categories)).toBe(true);
+    });
+
+    it('returns false when the sparring pool differs (split duplicate -> separate)', () => {
+      const p = createTestParticipant({
+        id: 'p1',
+        competingForms: true,
+        competingSparring: true,
+        formsCategoryId: formsCategory.id,
+        formsPool: 'P1',
+        sparringCategoryId: sparringTwin.id,
+        sparringPool: 'P2',
+      });
+      expect(sparringMirrorsForms(p, categories)).toBe(false);
+    });
+
+    it('returns false when the sparring division/category differs', () => {
+      const p = createTestParticipant({
+        id: 'p1',
+        competingForms: true,
+        competingSparring: true,
+        formsCategoryId: formsCategory.id,
+        formsPool: 'P1',
+        sparringCategoryId: sparringOtherAge.id,
+        sparringPool: 'P1',
+      });
+      expect(sparringMirrorsForms(p, categories)).toBe(false);
     });
   });
 });

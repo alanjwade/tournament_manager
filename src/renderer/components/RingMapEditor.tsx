@@ -3,6 +3,7 @@ import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { getEffectiveDivision } from '../utils/excelParser';
 import { formatPoolNameForDisplay } from '../utils/ringNameFormatter';
+import { comparePoolsBySchedule } from '../utils/poolScheduling';
 
 interface RingAssignmentRow {
   categoryPoolName: string;
@@ -85,6 +86,7 @@ function RingMapEditor({}: RingMapEditorProps) {
       ringName: string;
       division: string;
       minAge: number;
+      gender: string;
       participantIds: Set<string>;
     }>();
 
@@ -100,6 +102,7 @@ function RingMapEditor({}: RingMapEditorProps) {
             ringName,
             division: ring.division,
             minAge: category?.minAge || 0,
+            gender: category?.gender || 'mixed',
             participantIds: new Set(ring.participantIds),
           });
         } else {
@@ -114,18 +117,10 @@ function RingMapEditor({}: RingMapEditorProps) {
         ringName: ring.ringName,
         division: ring.division,
         minAge: ring.minAge,
+        gender: ring.gender,
         participantIds: ring.participantIds,
       }))
-      .sort((a, b) => {
-        // Sort by age first
-        if (a.minAge !== b.minAge) {
-          return a.minAge - b.minAge;
-        }
-        // Then by pool number
-        const aPool = parseInt(a.ringName.match(/Pool\s*(\d+)/i)?.[1] ?? '0', 10);
-        const bPool = parseInt(b.ringName.match(/Pool\s*(\d+)/i)?.[1] ?? '0', 10);
-        return aPool - bPool;
-      });
+      .sort(comparePoolsBySchedule);
   }, [competitionRings, categories, selectedDivision]);
 
   // Load assignments when division changes - get from store

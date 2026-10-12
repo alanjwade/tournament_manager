@@ -146,6 +146,7 @@ interface TournamentState {
   setWatermark: (image: string) => void;
   setSchoolAbbreviations: (abbreviations: { [schoolName: string]: string }) => void;
   saveState: () => Promise<void>;
+  /** Import a database file. Replaces all data and clears the existing history. */
   loadState: () => Promise<void>;
   loadStateFromData: (data: SavedState) => void;
   hydrateFromAutosave: (data: SavedState) => void;
@@ -738,7 +739,26 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     const result = await window.electronAPI.loadTournamentState();
     if (result && result.success && result.data) {
       const state = result.data as SavedState;
+      // Importing a database replaces the tournament wholesale, so the old
+      // journal (commits, snapshots, tags) has no meaning for the new data.
+      // Wipe it — and the diff baseline — before adopting the imported state.
+      try {
+        await window.electronAPI.historyClear();
+      } catch (error) {
+        logger.error('Failed to clear history on import:', error);
+      }
+      set({
+        history: [],
+        historyTags: [],
+        historyHeadId: null,
+        baselineCommitId: null,
+        baselineState: null,
+      });
       get().loadStateFromData(state);
+      // Persist the imported data as the first entry of the fresh journal; this
+      // also seeds the diff baseline from it (see autoSave).
+      await get().autoSave({ kind: 'snapshot', description: 'Imported database' });
+      await get().loadHistory();
       alert('Tournament state loaded successfully!');
     } else if (result && !result.success) {
       alert('Failed to load tournament state');
@@ -776,6 +796,23 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     try {
       const result = await window.electronAPI.saveAutosave(JSON.stringify(tournamentState), hint);
       logger.debug('Autosave result:', result.success ? 'success' : result.error);
+      // Keep the HEAD pointer fresh so the UI can diff against the newest commit.
+      // On the very first commit of a fresh journal (e.g. the initial Excel
+      // import) adopt that state as the baseline: with no baseline, `diffBaseline`
+      // returns null and the first edit would never be highlighted. Once a
+      // baseline exists it is left untouched (the user resets it explicitly via
+      // "Set Baseline").
+      if (result.success && result.headId) {
+        if (!get().baselineCommitId) {
+          set({
+            historyHeadId: result.headId,
+            baselineCommitId: result.headId,
+            baselineState: structuredClone(tournamentState),
+          });
+        } else {
+          set({ historyHeadId: result.headId });
+        }
+      }
     } catch (error) {
       logger.error('Failed to save autosave:', error);
     }

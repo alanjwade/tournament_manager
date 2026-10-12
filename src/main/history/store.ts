@@ -357,6 +357,47 @@ export class HistoryStore {
   }
 
   /**
+   * Wipe the entire journal: in-memory state and every persisted artifact
+   * (commits, tags, index and snapshot blobs). Used when importing a different
+   * database, whose data bears no relation to the previous history. The head
+   * state file is removed too, so the caller must re-establish HEAD by
+   * committing the imported state.
+   */
+  clear(): void {
+    this.commits = [];
+    this.commitById = new Map();
+    this.tags = [];
+    this.index = {
+      headId: null,
+      commitCount: 0,
+      lastSnapshotId: null,
+      schemaVersion: SCHEMA_VERSION,
+    };
+    this.headState = null;
+
+    for (const file of [this.commitsPath, this.tagsPath, this.headPath]) {
+      try {
+        if (fs.existsSync(file)) fs.unlinkSync(file);
+      } catch (error) {
+        console.error('[history] Failed to remove', file, error);
+      }
+    }
+
+    if (fs.existsSync(this.snapshotsDir)) {
+      for (const name of fs.readdirSync(this.snapshotsDir)) {
+        try {
+          fs.unlinkSync(path.join(this.snapshotsDir, name));
+        } catch (error) {
+          console.error('[history] Failed to remove snapshot', name, error);
+        }
+      }
+    }
+
+    // Leave a valid (empty) index behind so a subsequent init/read is consistent.
+    this.saveIndex();
+  }
+
+  /**
    * Restore the data to a previous commit by appending a new forward-only
    * "restore" commit (non-destructive; keeps a linear, undoable history).
    */

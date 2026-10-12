@@ -222,6 +222,41 @@ export function copySparringFromForms(
 }
 
 /**
+ * Whether a participant's sparring assignment currently mirrors their forms
+ * assignment — same division, same category (the forms/sparring twin categories
+ * share a name and age range) and same pool.
+ *
+ * Forms and sparring use separate twin categories whose ids differ only by the
+ * `forms-`/`sparring-` prefix, so the comparison is done on the category's
+ * division/name rather than its id.
+ *
+ * Used to seed the Quick Edit "Use same assignment for both Forms and Sparring"
+ * checkbox so that reopening the modal reflects the saved data instead of always
+ * defaulting to checked.
+ *
+ * Returns true when the participant isn't competing in both: in that case the
+ * assignments can't meaningfully differ and "same" is the sensible default.
+ */
+export function sparringMirrorsForms(participant: Participant, categories: Category[]): boolean {
+  if (!participant.competingForms || !participant.competingSparring) return true;
+
+  const formsCategory = participant.formsCategoryId
+    ? categories.find(c => c.id === participant.formsCategoryId)
+    : undefined;
+  const sparringCategory = participant.sparringCategoryId
+    ? categories.find(c => c.id === participant.sparringCategoryId)
+    : undefined;
+
+  if (!formsCategory || !sparringCategory) return false;
+
+  return (
+    formsCategory.division === sparringCategory.division &&
+    formsCategory.name === sparringCategory.name &&
+    (participant.formsPool ?? '') === (participant.sparringPool ?? '')
+  );
+}
+
+/**
  * Normalize a participant's division field for display.
  * Converts null to "Not Participating" for UI display.
  */

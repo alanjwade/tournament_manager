@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   historyTags: () => ipcRenderer.invoke('history-tags'),
   historyAddTag: (name: string, commitId: string) => ipcRenderer.invoke('history-add-tag', { name, commitId }),
   historyRemoveTag: (tagId: string) => ipcRenderer.invoke('history-remove-tag', tagId),
+  historyClear: () => ipcRenderer.invoke('history-clear'),
   getFileLocations: () => ipcRenderer.invoke('get-file-locations'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),

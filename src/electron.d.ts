@@ -10,7 +10,7 @@ export interface ElectronAPI {
   openPDFFolder: (directoryPath: string) => void;
   saveTournamentState: (state: any) => Promise<{ success: boolean; path?: string; error?: string }>;
   loadTournamentState: () => Promise<{ success: boolean; data?: any; error?: string } | null>;
-  saveAutosave: (data: string, hint?: OperationHint) => Promise<{ success: boolean; error?: string; path?: string }>;
+  saveAutosave: (data: string, hint?: OperationHint) => Promise<{ success: boolean; error?: string; path?: string; headId?: string | null }>;
   loadAutosave: () => Promise<{ success: boolean; data?: string | null; error?: string; path?: string }>;
   historyLog: () => Promise<{ success: boolean; data?: CommitSummary[]; headId?: string | null; error?: string }>;
   historyShow: (commitId: string) => Promise<{ success: boolean; data?: any; error?: string }>;
@@ -18,6 +18,7 @@ export interface ElectronAPI {
   historyTags: () => Promise<{ success: boolean; data?: HistoryTag[]; error?: string }>;
   historyAddTag: (name: string, commitId: string) => Promise<{ success: boolean; data?: HistoryTag; error?: string }>;
   historyRemoveTag: (tagId: string) => Promise<{ success: boolean; error?: string }>;
+  historyClear: () => Promise<{ success: boolean; error?: string }>;
   getFileLocations: () => Promise<{ dataPath: string; autosavePath: string; defaultPdfOutputDir: string; exePath: string }>;
   getAppVersion: () => Promise<string>;
   checkForUpdates: () => Promise<{ success: boolean; currentVersion: string; latestVersion?: string; updateAvailable?: boolean; downloadUrl?: string; error?: string }>;

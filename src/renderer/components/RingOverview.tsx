@@ -12,6 +12,7 @@ import { printPdf, PrintMode } from '../utils/printPdf';
 import PrintButton from './PrintButton';
 import { Participant, CompetitionRing, CustomRing } from '../types/tournament';
 import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
+import { sparringMirrorsForms } from '../utils/participantPoolUtils';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 import TournamentAssistantDialog from './TournamentAssistantDialog';
 
@@ -116,8 +117,11 @@ function RingOverview({}: RingOverviewProps) {
   // Reset copySparringFromForms, pendingChanges, and preWithdrawState when quickEdit changes
   useEffect(() => {
     if (quickEdit) {
-      // Default to checked (true) - copy forms to sparring by default
-      setCopySparringFromForms(true);
+      // Seed the "same as Forms" checkbox from the saved data, so a participant
+      // whose sparring was deliberately split from their forms opens with the
+      // checkbox unchecked. Quietly default to checked when sparring isn't being
+      // competed (the two assignments can't differ).
+      setCopySparringFromForms(sparringMirrorsForms(quickEdit.participant, categories));
       // Reset pending changes
       setPendingChanges({});
       // Reset withdraw state
@@ -127,6 +131,9 @@ function RingOverview({}: RingOverviewProps) {
       setPendingChanges({});
       setPreWithdrawState(null);
     }
+    // Intentionally keyed on quickEdit only: this seeds the modal each time it
+    // opens. `categories` is read from the latest render when the modal opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickEdit]);
 
   // Track content width for responsive layout
@@ -1029,11 +1036,15 @@ function RingOverview({}: RingOverviewProps) {
           style={{
             backgroundColor: 'var(--bg-primary)',
             borderRadius: '8px',
-            padding: '24px',
+            padding: '20px',
             minWidth: '900px',
             maxWidth: '1000px',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-            maxHeight: '90vh',
+            // Cap the height so the modal clears the Windows taskbar. At 90vh a
+            // maximised 1080p window left too little bottom margin and the modal
+            // ran under the taskbar; 80vh pulls it in by roughly an inch on a 15"
+            // 1080p screen. The body scrolls when the content is taller.
+            maxHeight: '80vh',
             overflowY: 'auto',
           }}
           onClick={(e) => e.stopPropagation()}
@@ -1042,7 +1053,7 @@ function RingOverview({}: RingOverviewProps) {
             Quick Edit: {participant.firstName} {participant.lastName}
           </h3>
           
-          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
             <div><strong>Age:</strong> {participant.age} | <strong>Gender:</strong> {participant.gender}</div>
             {participant.heightFeet && (
               <div><strong>Height:</strong> {participant.heightFeet}'{participant.heightInches}"</div>
@@ -1150,7 +1161,7 @@ function RingOverview({}: RingOverviewProps) {
           {/* Copy from Forms checkbox - at the top */}
           {currentFormsDivision && currentFormsCategoryId && currentFormsPool && (
             <div style={{ 
-              marginBottom: '20px', 
+              marginBottom: '14px', 
               padding: '12px', 
               backgroundColor: copySparringFromForms ? 'var(--info-bg)' : 'var(--bg-secondary)',
               borderRadius: '6px',

@@ -16,6 +16,8 @@ const mockElectronAPI = {
   historyTags: vi.fn().mockResolvedValue({ success: true, data: [] }),
   historyAddTag: vi.fn().mockResolvedValue({ success: true }),
   saveAutosave: vi.fn().mockResolvedValue({ success: true }),
+  loadTournamentState: vi.fn().mockResolvedValue({ success: false }),
+  historyClear: vi.fn().mockResolvedValue({ success: true }),
 };
 
 global.window = {
@@ -789,6 +791,112 @@ describe('createBaseline', () => {
     expect(mockElectronAPI.historyShow).toHaveBeenCalledWith('NEW');
     expect(headId).toBe('NEW');
     expect(useTournamentStore.getState().baselineCommitId).toBe('NEW');
+  });
+});
+
+describe('initial baseline for a fresh journal', () => {
+  beforeEach(() => {
+    resetTestIds();
+    useTournamentStore.getState().reset();
+    mockElectronAPI.saveAutosave.mockReset();
+  });
+
+  afterEach(() => {
+    mockElectronAPI.saveAutosave.mockResolvedValue({ success: true });
+  });
+
+  it('adopts the first commit as the baseline so the next edit is flagged', async () => {
+    // First commit of an otherwise empty journal (e.g. the initial Excel import).
+    mockElectronAPI.saveAutosave.mockResolvedValue({ success: true, headId: 'C1' });
+    useTournamentStore.getState().setParticipants([
+      createTestParticipant({ id: 'p1', firstName: 'Alice' }),
+    ]);
+    await useTournamentStore.getState().autoSave();
+
+    const first = useTournamentStore.getState();
+    expect(first.baselineCommitId).toBe('C1');
+    expect(first.historyHeadId).toBe('C1');
+    expect(first.baselineState?.participants.map((p) => p.id)).toEqual(['p1']);
+
+    // A later commit must NOT move the baseline, so the edit stays highlighted.
+    mockElectronAPI.saveAutosave.mockResolvedValue({ success: true, headId: 'C2' });
+    useTournamentStore.getState().updateParticipant('p1', { competingForms: false });
+    await useTournamentStore.getState().autoSave();
+
+    const second = useTournamentStore.getState();
+    expect(second.baselineCommitId).toBe('C1');
+    expect(second.historyHeadId).toBe('C2');
+    expect(second.baselineState?.participants[0].competingForms).toBe(true);
+
+    // The diff against the retained baseline reports the change.
+    const diff = second.diffBaseline();
+    expect(diff).not.toBeNull();
+    expect(diff!.participantsModified.some((c) => c.field === 'competingForms')).toBe(true);
+  });
+
+  it('does not create a baseline when the commit returns no head', async () => {
+    mockElectronAPI.saveAutosave.mockResolvedValue({ success: true });
+    useTournamentStore.getState().setParticipants([
+      createTestParticipant({ id: 'p1', firstName: 'Alice' }),
+    ]);
+    await useTournamentStore.getState().autoSave();
+
+    const state = useTournamentStore.getState();
+    expect(state.baselineCommitId).toBeNull();
+    expect(state.baselineState).toBeNull();
+  });
+});
+
+describe('importing a database', () => {
+  beforeEach(() => {
+    resetTestIds();
+    useTournamentStore.getState().reset();
+    mockElectronAPI.historyClear.mockClear();
+    mockElectronAPI.loadTournamentState.mockReset();
+  });
+
+  afterEach(() => {
+    mockElectronAPI.historyClear.mockResolvedValue({ success: true });
+    mockElectronAPI.loadTournamentState.mockResolvedValue({ success: false });
+    mockElectronAPI.historyLog.mockResolvedValue({ success: true, data: [], headId: null });
+    mockElectronAPI.saveAutosave.mockResolvedValue({ success: true });
+  });
+
+  it('clears the existing journal and reseeds the baseline from the imported data', async () => {
+    // Pretend a previous tournament session left history + a baseline behind.
+    useTournamentStore.setState({
+      historyHeadId: 'OLD',
+      baselineCommitId: 'OLD',
+      baselineState: snapshotState(),
+      historyTags: [{ id: 'tag-1', name: 'Old baseline', commitId: 'OLD', timestamp: new Date().toISOString() }],
+    });
+
+    mockElectronAPI.loadTournamentState.mockResolvedValueOnce({
+      success: true,
+      data: {
+        participants: [createTestParticipant({ id: 'imported-1' })],
+        categories: [],
+        config: { divisions: [], physicalRings: [], schoolAbbreviations: {} },
+        physicalRingMappings: [],
+        categoryPoolMappings: [],
+      } as SavedState,
+    });
+    // The fresh journal's first commit, reported back after the import commit.
+    mockElectronAPI.saveAutosave.mockResolvedValue({ success: true, headId: 'FRESH' });
+    mockElectronAPI.historyLog.mockResolvedValue({ success: true, data: [], headId: 'FRESH' });
+
+    await useTournamentStore.getState().loadState();
+
+    expect(mockElectronAPI.historyClear).toHaveBeenCalled();
+    const state = useTournamentStore.getState();
+    // New data adopted...
+    expect(state.participants.map((p) => p.id)).toEqual(['imported-1']);
+    // ...old tags dropped...
+    expect(state.historyTags).toEqual([]);
+    // ...and the imported state becomes the new journal head + baseline.
+    expect(state.historyHeadId).toBe('FRESH');
+    expect(state.baselineCommitId).toBe('FRESH');
+    expect(state.baselineState?.participants.map((p) => p.id)).toEqual(['imported-1']);
   });
 });
 

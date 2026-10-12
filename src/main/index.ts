@@ -187,16 +187,20 @@ ipcMain.handle('save-autosave', async (event, payload: string | { data: string; 
     const raw = typeof payload === 'string' ? payload : payload?.data;
     const hint = typeof payload === 'string' ? undefined : payload?.hint;
 
+    let headId: string | null = null;
     if (historyStore) {
       // Recording the commit also writes the head state atomically.
       const state = JSON.parse(raw);
-      historyStore.commit(state, { operationHint: hint });
+      const record = historyStore.commit(state, { operationHint: hint });
+      // `commit` returns null when the state is unchanged, so fall back to the
+      // existing HEAD. The renderer uses this to seed its diff baseline.
+      headId = record?.id ?? historyStore.getHeadId();
     } else {
       writeFileAtomic(autosavePath, raw);
     }
 
     console.log('Saved tournament data to:', autosavePath);
-    return { success: true, path: autosavePath };
+    return { success: true, path: autosavePath, headId };
   } catch (error) {
     console.error('Error saving autosave:', error);
     return { success: false, error: String(error) };
@@ -546,6 +550,19 @@ ipcMain.handle('history-remove-tag', async (event, tagId: string) => {
     return { success: true };
   } catch (error) {
     console.error('Error removing history tag:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('history-clear', async () => {
+  if (!historyStore) {
+    return { success: false, error: 'History store unavailable' };
+  }
+  try {
+    historyStore.clear();
+    return { success: true };
+  } catch (error) {
+    console.error('Error clearing history:', error);
     return { success: false, error: String(error) };
   }
 });

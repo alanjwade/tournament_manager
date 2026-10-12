@@ -114,6 +114,32 @@ describe('HistoryStore', () => {
     const summaries = store.listCommits();
     expect(summaries[0].operation.description).toContain('Alice Smith');
   });
+
+  it('clear() wipes the journal, tags, snapshots and persisted files', () => {
+    const first = store.commit(buildState({ participants: [alice(10)] }))!;
+    store.commit(buildState({ participants: [alice(11)] }));
+    store.addTag('Round 1', first.id);
+
+    store.clear();
+
+    expect(store.getCommitCount()).toBe(0);
+    expect(store.getHeadId()).toBeNull();
+    expect(store.getHeadState()).toBeNull();
+    expect(store.listTags()).toEqual([]);
+    expect(store.listCommits()).toEqual([]);
+
+    // Persisted artifacts are gone (index remains as a valid empty file).
+    expect(fs.existsSync(path.join(dataDir, 'history', 'commits.jsonl'))).toBe(false);
+    expect(fs.existsSync(path.join(dataDir, 'history', 'tags.json'))).toBe(false);
+    expect(fs.existsSync(path.join(dataDir, 'tournament-autosave.json'))).toBe(false);
+    expect(fs.readdirSync(path.join(dataDir, 'history', 'snapshots'))).toEqual([]);
+
+    // A restarted store sees the empty journal too.
+    const reloaded = new HistoryStore(dataDir);
+    reloaded.init();
+    expect(reloaded.getCommitCount()).toBe(0);
+    expect(reloaded.getHeadId()).toBeNull();
+  });
 });
 
 describe('HistoryStore legacy migration', () => {
