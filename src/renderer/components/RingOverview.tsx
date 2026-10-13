@@ -1053,12 +1053,14 @@ function RingOverview({}: RingOverviewProps) {
             Quick Edit: {participant.firstName} {participant.lastName}
           </h3>
           
-          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-            <div><strong>Age:</strong> {participant.age} | <strong>Gender:</strong> {participant.gender}</div>
-            {participant.heightFeet && (
-              <div><strong>Height:</strong> {participant.heightFeet}'{participant.heightInches}"</div>
-            )}
-          </div>
+          {/* Age / Gender / Height on one line, with Withdraw/Restore to the right */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <strong>Age:</strong> {participant.age} | <strong>Gender:</strong> {participant.gender}
+              {participant.heightFeet ? (
+                <> | <strong>Height:</strong> {participant.heightFeet}'{participant.heightInches}"</>
+              ) : null}
+            </div>
 
           {/* Withdraw / Restore row */}
           {(() => {
@@ -1105,7 +1107,7 @@ function RingOverview({}: RingOverviewProps) {
               setPreWithdrawState(null);
             };
             return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
                 {isWithdrawn ? (
                   <>
                     <div style={{
@@ -1157,14 +1159,17 @@ function RingOverview({}: RingOverviewProps) {
               </div>
             );
           })()}
+          </div>
 
-          {/* Copy from Forms checkbox - at the top */}
-          {currentFormsDivision && currentFormsCategoryId && currentFormsPool && (
-            <div style={{ 
-              marginBottom: '14px', 
-              padding: '12px', 
-              backgroundColor: copySparringFromForms ? 'var(--info-bg)' : 'var(--bg-secondary)',
+          {/* Row: "same as Forms" box + a separate Cancel/Submit box */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', marginBottom: '14px' }}>
+            {currentFormsDivision && currentFormsCategoryId && currentFormsPool && (
+            <div style={{
+              marginRight: 'auto',
+              minWidth: 0,
+              padding: '10px 12px',
               borderRadius: '6px',
+              backgroundColor: copySparringFromForms ? 'var(--info-bg)' : 'var(--bg-secondary)',
               border: copySparringFromForms ? '1px solid var(--info-border)' : '1px solid var(--border-color)',
             }}>
               <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
@@ -1216,13 +1221,23 @@ function RingOverview({}: RingOverviewProps) {
                 />
                 {copySparringFromForms ? '✓ Sparring uses same Division, Category & Pool as Forms' : 'Use same assignment for both Forms and Sparring'}
               </label>
-              {copySparringFromForms && (
-                <div style={{ fontSize: '11px', color: 'var(--info-text)', marginTop: '6px', marginLeft: '22px' }}>
-                  Both Forms and Sparring are assigned to the same category and pool
-                </div>
-              )}
             </div>
-          )}
+            )}
+            <div style={{ display: 'flex', gap: '10px', flexShrink: 0, padding: '10px 12px', borderRadius: '6px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+              <button
+                onClick={handleCancel}
+                style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
 
           {/* Two-column layout: Forms on left, Sparring on right */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
@@ -1231,26 +1246,24 @@ function RingOverview({}: RingOverviewProps) {
               paddingRight: '20px', 
               borderRight: '1px solid var(--border-color)'
             }}>
-            <h4 style={{ marginTop: 0, marginBottom: '12px', color: '#007bff', fontSize: '15px', fontWeight: '600' }}>
-              Forms
-            </h4>
-            
-            {/* Competing Checkbox */}
-            <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: currentCompetingForms ? 'var(--success-bg)' : 'var(--bg-secondary)', borderRadius: '4px', border: `1px solid ${currentCompetingForms ? 'var(--success-border)' : 'var(--border-color)'}` }}>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px' }}>
+              <h4 style={{ margin: 0, color: '#007bff', fontSize: '15px', fontWeight: '600' }}>
+                Forms
+              </h4>
+              <label
+                title={currentCompetingForms ? 'Fields unlocked for editing' : 'Uncheck to withdraw - fields locked but data preserved'}
+                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '12px', fontWeight: '500', color: currentCompetingForms ? 'var(--success-text, #28a745)' : 'var(--text-muted)' }}
+              >
                 <input
                   type="checkbox"
                   checked={currentCompetingForms ?? false}
                   onChange={(e) => {
                     updatePending({ competingForms: e.target.checked });
                   }}
-                  style={{ marginRight: '8px' }}
+                  style={{ marginRight: '6px' }}
                 />
-                Competing in Forms
+                Competing
               </label>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '22px' }}>
-                {currentCompetingForms ? 'Fields unlocked for editing' : 'Uncheck to withdraw - fields locked but data preserved'}
-              </div>
             </div>
             
             {/* Division Selector */}
@@ -1411,13 +1424,14 @@ function RingOverview({}: RingOverviewProps) {
 
             {/* Sparring Section */}
             <div style={{ paddingLeft: '0px' }}>
-              <h4 style={{ marginTop: 0, marginBottom: '12px', color: '#dc3545', fontSize: '15px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px' }}>
+              <h4 style={{ margin: 0, color: '#dc3545', fontSize: '15px', fontWeight: '600' }}>
                 Sparring
               </h4>
-            
-            {/* Competing Checkbox */}
-            <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: currentCompetingSparring ? 'var(--success-bg)' : 'var(--bg-secondary)', borderRadius: '4px', border: `1px solid ${currentCompetingSparring ? 'var(--success-border)' : 'var(--border-color)'}` }}>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+              <label
+                title={currentCompetingSparring ? 'Fields unlocked for editing' : 'Uncheck to withdraw - fields locked but data preserved'}
+                style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '12px', fontWeight: '500', color: currentCompetingSparring ? 'var(--success-text, #28a745)' : 'var(--text-muted)' }}
+              >
                 <input
                   type="checkbox"
                   checked={currentCompetingSparring ?? false}
@@ -1438,13 +1452,10 @@ function RingOverview({}: RingOverviewProps) {
                     
                     updatePending(updates);
                   }}
-                  style={{ marginRight: '8px' }}
+                  style={{ marginRight: '6px' }}
                 />
-                Competing in Sparring
+                Competing
               </label>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', marginLeft: '22px' }}>
-                {currentCompetingSparring ? 'Fields unlocked for editing' : 'Uncheck to withdraw - fields locked but data preserved'}
-              </div>
             </div>
             
             {/* Division Selector */}
@@ -1631,35 +1642,7 @@ function RingOverview({}: RingOverviewProps) {
             </div>
           </div>
 
-          {/* Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-            <button
-              onClick={handleCancel}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#6c757d',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              Submit
-            </button>
-          </div>
+          {/* Actions live in the action bar above (same row as the "same as Forms" toggle) */}
         </div>
       </div>
     );
