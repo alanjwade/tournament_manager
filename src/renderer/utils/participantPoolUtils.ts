@@ -257,6 +257,67 @@ export function sparringMirrorsForms(participant: Participant, categories: Categ
 }
 
 /**
+ * When a Quick Edit changes a participant's division, a matching category + pool
+ * must also be chosen; otherwise the participant keeps their old (other-division)
+ * category/pool and the edit appears to do nothing. Returns the sides that are
+ * missing a valid selection so the caller can prompt the user.
+ *
+ * Only sides whose division is actually being changed are checked (a null/empty
+ * division means withdrawing, which needs no category).
+ */
+export interface DivisionSelectionGap {
+  type: 'forms' | 'sparring';
+  division: string;
+}
+
+export function findDivisionSelectionGaps(
+  updates: Partial<Participant>,
+  participant: Participant,
+  categories: Category[]
+): DivisionSelectionGap[] {
+  const gaps: DivisionSelectionGap[] = [];
+
+  const check = (
+    type: 'forms' | 'sparring',
+    newDivision: string | null | undefined,
+    updatedCategoryId: string | undefined,
+    updatedPool: string | undefined,
+    currentCategoryId: string | undefined,
+    currentPool: string | undefined
+  ) => {
+    // Not changing the division (or withdrawing) — nothing to validate.
+    if (!newDivision) return;
+
+    const categoryId = updatedCategoryId !== undefined ? updatedCategoryId : currentCategoryId;
+    const pool = updatedPool !== undefined ? updatedPool : currentPool;
+    const category = categories.find((c) => c.id === categoryId);
+
+    if (!category || !pool || category.division !== newDivision) {
+      gaps.push({ type, division: newDivision });
+    }
+  };
+
+  check(
+    'forms',
+    updates.formsDivision,
+    updates.formsCategoryId,
+    updates.formsPool,
+    participant.formsCategoryId,
+    participant.formsPool
+  );
+  check(
+    'sparring',
+    updates.sparringDivision,
+    updates.sparringCategoryId,
+    updates.sparringPool,
+    participant.sparringCategoryId,
+    participant.sparringPool
+  );
+
+  return gaps;
+}
+
+/**
  * Normalize a participant's division field for display.
  * Converts null to "Not Participating" for UI display.
  */

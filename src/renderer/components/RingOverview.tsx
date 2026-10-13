@@ -12,7 +12,7 @@ import { printPdf, PrintMode } from '../utils/printPdf';
 import PrintButton from './PrintButton';
 import { Participant, CompetitionRing, CustomRing } from '../types/tournament';
 import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
-import { sparringMirrorsForms } from '../utils/participantPoolUtils';
+import { sparringMirrorsForms, findDivisionSelectionGaps } from '../utils/participantPoolUtils';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 import TournamentAssistantDialog from './TournamentAssistantDialog';
 
@@ -54,6 +54,9 @@ function RingOverview({}: RingOverviewProps) {
   const [copySparringFromForms, setCopySparringFromForms] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Partial<Participant>>({});
   const [preWithdrawState, setPreWithdrawState] = useState<{ competingForms: boolean; competingSparring: boolean } | null>(null);
+  // Message shown in the "must choose a category & pool" popup when a submit is
+  // blocked because a division was changed without a matching selection.
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [printing, setPrinting] = useState<string | null>(null);
   const [participantSelectionModal, setParticipantSelectionModal] = useState<{
     ringId: string;
@@ -116,6 +119,8 @@ function RingOverview({}: RingOverviewProps) {
 
   // Reset copySparringFromForms, pendingChanges, and preWithdrawState when quickEdit changes
   useEffect(() => {
+    // Clear any leftover submit-validation message when the modal opens/closes.
+    setSubmitError(null);
     if (quickEdit) {
       // Seed the "same as Forms" checkbox from the saved data, so a participant
       // whose sparring was deliberately split from their forms opens with the
@@ -885,6 +890,18 @@ function RingOverview({}: RingOverviewProps) {
         }
       }
       
+      // A division change is only valid with a matching category + pool. Without
+      // one the participant would keep their old (other-division) category and
+      // appear unchanged, so block the submit and explain what's needed instead.
+      const gaps = findDivisionSelectionGaps(updates, participant, categories);
+      if (gaps.length > 0) {
+        const selections = gaps.map(
+          (gap) => `a ${gap.division} category and pool for ${gap.type === 'forms' ? 'Forms' : 'Sparring'}`
+        );
+        setSubmitError(`You must select ${selections.join(' and ')} to submit.`);
+        return;
+      }
+
       console.log('[QuickEdit] Final updates object:', updates);
       console.log('[QuickEdit] competingForms:', updates.competingForms, 'competingSparring:', updates.competingSparring);
       
@@ -1644,6 +1661,35 @@ function RingOverview({}: RingOverviewProps) {
 
           {/* Actions live in the action bar above (same row as the "same as Forms" toggle) */}
         </div>
+
+        {/* Submit-validation popup: shown when a division was changed without
+            choosing a matching category & pool. */}
+        {submitError && (
+          <div
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '8px', padding: '20px', maxWidth: '420px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)' }}>
+              <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '18px' }}>
+                {submitError}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  onClick={() => { setSubmitError(null); handleCancel(); }}
+                  style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  Cancel edit
+                </button>
+                <button
+                  onClick={() => setSubmitError(null)}
+                  style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  Continue edit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

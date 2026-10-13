@@ -10,6 +10,7 @@ import {
   reinstateParticipant,
   copySparringFromForms,
   sparringMirrorsForms,
+  findDivisionSelectionGaps,
 } from '../src/renderer/utils/participantPoolUtils';
 import {
   createTestParticipant,
@@ -372,6 +373,58 @@ describe('participantPoolUtils', () => {
         sparringPool: 'P1',
       });
       expect(sparringMirrorsForms(p, categories)).toBe(false);
+    });
+  });
+
+  describe('findDivisionSelectionGaps', () => {
+    const level1Forms = createTestCategory({
+      id: 'forms-Level 1-male-8-12', name: 'Male 8-12', division: 'Level 1', type: 'forms',
+    });
+    const beginnerForms = createTestCategory({
+      id: 'forms-Beginner-male-8-12', name: 'Male 8-12', division: 'Beginner', type: 'forms',
+    });
+    const beginnerSparring = createTestCategory({
+      id: 'sparring-Beginner-male-8-12', name: 'Male 8-12', division: 'Beginner', type: 'sparring',
+    });
+    const categories = [level1Forms, beginnerForms, beginnerSparring];
+
+    it('reports no gaps when no division is being changed', () => {
+      const p = createTestParticipant({ id: 'p1', formsCategoryId: level1Forms.id, formsPool: 'P1' });
+      expect(findDivisionSelectionGaps({ formsRankOrder: 2 }, p, categories)).toEqual([]);
+    });
+
+    it('flags a forms division change made without a category & pool', () => {
+      const p = createTestParticipant({
+        id: 'p1', formsDivision: 'Level 1', formsCategoryId: level1Forms.id, formsPool: 'P1', competingForms: true,
+      });
+      // The old (Level 1) category is left in place while the division moves to Beginner.
+      const gaps = findDivisionSelectionGaps({ formsDivision: 'Beginner' }, p, categories);
+      expect(gaps).toEqual([{ type: 'forms', division: 'Beginner' }]);
+    });
+
+    it('reports no gap once a matching category & pool is chosen', () => {
+      const p = createTestParticipant({
+        id: 'p1', formsDivision: 'Level 1', formsCategoryId: level1Forms.id, formsPool: 'P1', competingForms: true,
+      });
+      const gaps = findDivisionSelectionGaps(
+        { formsDivision: 'Beginner', formsCategoryId: beginnerForms.id, formsPool: 'P1' },
+        p,
+        categories
+      );
+      expect(gaps).toEqual([]);
+    });
+
+    it('treats a withdraw (empty division) as needing no selection', () => {
+      const p = createTestParticipant({ id: 'p1', formsCategoryId: level1Forms.id, formsPool: 'P1' });
+      expect(findDivisionSelectionGaps({ formsDivision: null }, p, categories)).toEqual([]);
+    });
+
+    it('flags a sparring division change without a category & pool', () => {
+      const p = createTestParticipant({
+        id: 'p1', sparringDivision: 'Level 1', sparringCategoryId: 'sparring-Level 1-male-8-12', sparringPool: 'P1',
+      });
+      const gaps = findDivisionSelectionGaps({ sparringDivision: 'Beginner' }, p, categories);
+      expect(gaps).toEqual([{ type: 'sparring', division: 'Beginner' }]);
     });
   });
 });
