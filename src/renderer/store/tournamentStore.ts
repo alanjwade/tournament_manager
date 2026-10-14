@@ -145,6 +145,7 @@ interface TournamentState {
   setPhysicalRings: (rings: PhysicalRing[]) => void;
   setWatermark: (image: string) => void;
   setSchoolAbbreviations: (abbreviations: { [schoolName: string]: string }) => void;
+  setDatabaseTitle: (title: string) => void;
   saveState: () => Promise<void>;
   /** Import a database file. Replaces all data and clears the existing history. */
   loadState: () => Promise<void>;
@@ -192,6 +193,7 @@ const initialConfig: TournamentConfig = {
   ],
   physicalRings: [],
   watermarkImage: undefined,
+  databaseTitle: undefined,
   schoolAbbreviations: {
     // Branch-based abbreviations (exact matches from GAS code)
     'Longmont': 'REMA LM',
@@ -714,6 +716,16 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
     get().pushHistory();
     set((state) => ({
       config: { ...state.config, schoolAbbreviations: abbreviations },
+    }));
+    debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
+  },
+
+  setDatabaseTitle: (title) => {
+    get().pushHistory();
+    // Store an empty title as undefined so it is simply omitted from saved data.
+    const databaseTitle = title.trim() || undefined;
+    set((state) => ({
+      config: { ...state.config, databaseTitle },
     }));
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
   },

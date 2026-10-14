@@ -285,7 +285,7 @@ function App() {
           textShadow: 'none',
           letterSpacing: '0.5px'
         }}>
-          Tournament Manager
+          Tournament Manager{config.databaseTitle ? ` - ${config.databaseTitle}` : ''}
         </h1>
         
         {/* Global Search and Division Selector */}

@@ -4,6 +4,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 // rendering happens off the main thread.
 // eslint-disable-next-line import/no-unresolved
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { getPrinterName } from './printerStore';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -40,7 +41,8 @@ export async function printPdf(pdf: jsPDF, mode: PrintMode): Promise<void> {
     try {
       const pdfBytes = new Uint8Array(pdf.output('arraybuffer'));
       const html = await rasterizePdfToPrintHtml(pdfBytes);
-      const result = await window.electronAPI.printHTML(html);
+      // Print to the remembered printer ('' = OS default, passed as undefined).
+      const result = await window.electronAPI.printHTML(html, getPrinterName() || undefined);
       if (!result.success) {
         alert(`Print failed: ${result.error || 'Unknown error'}`);
       }

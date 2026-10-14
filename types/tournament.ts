@@ -106,6 +106,7 @@ export interface TournamentConfig {
   physicalRings: PhysicalRing[];
   watermarkImage?: string;
   schoolAbbreviations?: { [schoolName: string]: string }; // Map of school names to abbreviations
+  databaseTitle?: string; // Optional title shown next to the app name in the header; saved with the database
 }
 
 export interface PhysicalRingMapping {

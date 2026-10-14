@@ -1,9 +1,16 @@
 import type { CommitSummary, HistoryTag, OperationHint } from './shared/history';
 
+export interface PrinterInfo {
+  name: string;
+  displayName: string;
+  description: string;
+}
+
 export interface ElectronAPI {
   selectFile: () => Promise<{ path: string; data: number[] } | null>;
   savePDF: (data: { fileName: string; data: Uint8Array; outputDirectory?: string }) => Promise<{ success: boolean; path?: string; error?: string }>;
-  printHTML: (html: string) => Promise<{ success: boolean; error?: string }>;
+  printHTML: (html: string, deviceName?: string) => Promise<{ success: boolean; error?: string }>;
+  getPrinters: () => Promise<{ success: boolean; printers: PrinterInfo[]; error?: string }>;
   selectImage: () => Promise<{ path: string; data: number[] } | null>;
   selectDirectory: () => Promise<string | null>;
   openDirectory: (directoryPath: string) => Promise<{ success: boolean; error?: string }>;

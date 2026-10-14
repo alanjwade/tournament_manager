@@ -259,7 +259,7 @@ ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint
 });
 
 // Silent print ("Print Now"): print an HTML document (containing images only)
-// to the default/last-used printer without showing the print dialog.
+// to the requested printer without showing the print dialog.
 //
 // The renderer rasterizes each PDF page to an image with pdfjs-dist and sends
 // a self-contained HTML page of those images. Printing plain HTML is reliable
@@ -267,7 +267,12 @@ ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint
 // PDF viewer, which frequently produces a solid black page. Because the HTML
 // references no external resources, we can load it from a data URL in a hidden
 // window and print without any visible window or dialogs.
-ipcMain.handle('print-html', async (_event, html: string) => {
+//
+// `deviceName` selects the target printer. When omitted, Electron falls back to
+// the OS default printer. The renderer remembers the user's choice (see
+// printerStore.ts) because the OS default is otherwise the only printer that
+// silent printing can use.
+ipcMain.handle('print-html', async (_event, html: string, deviceName?: string) => {
   let win: BrowserWindow | null = null;
 
   try {
@@ -304,7 +309,7 @@ ipcMain.handle('print-html', async (_event, html: string) => {
 
     return await new Promise<{ success: boolean; error?: string }>((resolve) => {
       win!.webContents.print(
-        { silent: true, printBackground: true },
+        { silent: true, printBackground: true, ...(deviceName ? { deviceName } : {}) },
         (success, failureReason) => {
           resolve(
             success
@@ -322,6 +327,31 @@ ipcMain.handle('print-html', async (_event, html: string) => {
       win.destroy();
       win = null;
     }
+  }
+});
+
+// List the printers the OS reports, so the renderer can offer a "Print Now"
+// printer picker that is remembered between sessions. Silent printing cannot
+// observe the printer chosen in the OS print dialog, so the choice has to live
+// in the app.
+ipcMain.handle('get-printers', async (event) => {
+  try {
+    const printers = await event.sender.getPrintersAsync();
+    return {
+      success: true,
+      printers: printers.map((printer) => ({
+        name: printer.name,
+        displayName: printer.displayName || printer.name,
+        description: printer.description || '',
+      })),
+    };
+  } catch (error) {
+    console.error('Error listing printers:', error);
+    return {
+      success: false,
+      printers: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 });
 

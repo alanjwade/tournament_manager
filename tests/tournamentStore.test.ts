@@ -658,6 +658,45 @@ describe('Tournament Store', () => {
     });
   });
 
+  describe('databaseTitle', () => {
+    it('stores a trimmed title in the config', () => {
+      useTournamentStore.getState().setDatabaseTitle('  Spring Invitational  ');
+      expect(useTournamentStore.getState().config.databaseTitle).toBe('Spring Invitational');
+    });
+
+    it('clears the title when set to an empty/whitespace value', () => {
+      useTournamentStore.getState().setDatabaseTitle('Spring Invitational');
+      expect(useTournamentStore.getState().config.databaseTitle).toBe('Spring Invitational');
+
+      useTournamentStore.getState().setDatabaseTitle('   ');
+      expect(useTournamentStore.getState().config.databaseTitle).toBeUndefined();
+    });
+
+    it('persists the title through autosave hydration', () => {
+      useTournamentStore.getState().hydrateFromAutosave({
+        participants: [],
+        categories: [],
+        config: { divisions: [], physicalRings: [], databaseTitle: 'Fall Classic' },
+        physicalRingMappings: [],
+        categoryPoolMappings: [],
+      });
+
+      expect(useTournamentStore.getState().config.databaseTitle).toBe('Fall Classic');
+    });
+
+    it('restores the title when a database is loaded', () => {
+      const participant = createTestParticipant({ id: 'p1' });
+      useTournamentStore.getState().setParticipants([participant]);
+      useTournamentStore.getState().setDatabaseTitle('State Championship');
+
+      const baseline = snapshotState();
+      useTournamentStore.getState().reset();
+
+      useTournamentStore.getState().loadStateFromData(baseline);
+      expect(useTournamentStore.getState().config.databaseTitle).toBe('State Championship');
+    });
+  });
+
   describe('deleteParticipant', () => {
     it('removes the participant and their custom-ring references', () => {
       const p1 = createTestParticipant({ id: 'p1' });

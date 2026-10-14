@@ -9,6 +9,7 @@ function Configuration() {
   const setDivisions = useTournamentStore((state) => state.setDivisions);
   const setWatermark = useTournamentStore((state) => state.setWatermark);
   const setSchoolAbbreviations = useTournamentStore((state) => state.setSchoolAbbreviations);
+  const setDatabaseTitle = useTournamentStore((state) => state.setDatabaseTitle);
   const participants = useTournamentStore((state) => state.participants);
   const reset = useTournamentStore((state) => state.reset);
 
@@ -16,6 +17,12 @@ function Configuration() {
   const [newSchoolName, setNewSchoolName] = useState('');
   const [newAbbreviation, setNewAbbreviation] = useState('');
   const [showAbbreviations, setShowAbbreviations] = useState(false);
+  const [databaseTitle, setDatabaseTitleInput] = useState(config.databaseTitle || '');
+
+  // Keep the input in sync when the stored title changes (e.g. after importing a database).
+  useEffect(() => {
+    setDatabaseTitleInput(config.databaseTitle || '');
+  }, [config.databaseTitle]);
   const [fileLocations, setFileLocations] = useState<{
     dataPath: string;
     autosavePath: string;
@@ -106,6 +113,15 @@ function Configuration() {
     setSchoolAbbreviations(updatedAbbreviations);
   };
 
+  const handleSaveDatabaseTitle = () => {
+    setDatabaseTitle(databaseTitle);
+  };
+
+  const handleClearDatabaseTitle = () => {
+    setDatabaseTitleInput('');
+    setDatabaseTitle('');
+  };
+
   return (
     <div className="card">
       <h2 className="card-title">Tournament Configuration</h2>
@@ -113,6 +129,35 @@ function Configuration() {
       <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '20px' }}>
         Use the <strong>File</strong> menu to import the initial Excel file, or to export / import the database.
       </p>
+
+      <div style={{ marginBottom: '30px' }}>
+        <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Database Title (Optional)</h3>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '14px' }}>
+          Add a title for this tournament. When set, it is shown next to the app name at the top
+          (e.g., <strong>Tournament Manager - Spring Invitational</strong>) and saved with the database.
+        </p>
+        <div className="flex">
+          <input
+            type="text"
+            className="form-control"
+            value={databaseTitle}
+            onChange={(e) => setDatabaseTitleInput(e.target.value)}
+            placeholder="Database title (e.g., Spring Invitational 2026)"
+            onKeyPress={(e) => e.key === 'Enter' && handleSaveDatabaseTitle()}
+          />
+          <button className="btn btn-primary" onClick={handleSaveDatabaseTitle}>
+            Save
+          </button>
+          <button className="btn btn-secondary" onClick={handleClearDatabaseTitle}>
+            Clear
+          </button>
+        </div>
+        {config.databaseTitle && (
+          <p style={{ marginTop: '10px', color: '#2e7d32' }}>
+            ✓ Title set: <strong>{config.databaseTitle}</strong>
+          </p>
+        )}
+      </div>
 
       <div>
         <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Divisions</h3>

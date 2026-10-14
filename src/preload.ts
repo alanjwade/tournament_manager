@@ -4,7 +4,8 @@ import type { OperationHint } from './shared/history';
 contextBridge.exposeInMainWorld('electronAPI', {
   selectFile: () => ipcRenderer.invoke('select-file'),
   savePDF: (data: { fileName: string; data: Uint8Array; outputDirectory?: string }) => ipcRenderer.invoke('save-pdf', data),
-  printHTML: (html: string) => ipcRenderer.invoke('print-html', html),
+  printHTML: (html: string, deviceName?: string) => ipcRenderer.invoke('print-html', html, deviceName),
+  getPrinters: () => ipcRenderer.invoke('get-printers'),
   selectImage: () => ipcRenderer.invoke('select-image'),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   openDirectory: (directoryPath: string) => ipcRenderer.invoke('open-directory', directoryPath),
