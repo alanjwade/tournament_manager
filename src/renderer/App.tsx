@@ -285,7 +285,20 @@ function App() {
           textShadow: 'none',
           letterSpacing: '0.5px'
         }}>
-          Tournament Manager{config.databaseTitle ? ` - ${config.databaseTitle}` : ''}
+          Tournament Manager
+          {config.databaseTitle && (
+            // The gradient above uses `-webkit-text-fill-color: transparent`, so
+            // the override must set WebkitTextFillColor (color alone is ignored).
+            <span
+              style={{
+                color: '#dc3545',
+                WebkitTextFillColor: '#dc3545',
+                fontStyle: 'italic',
+              }}
+            >
+              {' - '}{config.databaseTitle}
+            </span>
+          )}
         </h1>
         
         {/* Global Search and Division Selector */}

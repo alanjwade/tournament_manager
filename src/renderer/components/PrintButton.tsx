@@ -14,7 +14,9 @@ import {
  * A split "print" button used across the Tournament tab.
  *
  * - The main button carries the label of the currently selected action
- *   ('Print...' for the print dialog, or 'Print Now' for a silent print).
+ *   ('Print...' for the print dialog, or 'Print Now' for a silent print). The
+ *   silent label can be overridden per button — the "Print Changed" action reads
+ *   'Print Changed & Set Baseline' because it also resets the change baseline.
  * - A caret dropdown on the right lets the user pick between the two actions.
  * - All print buttons share a single app-wide mode (persisted in localStorage),
  *   so changing one updates every button currently on screen in unison.
@@ -36,6 +38,14 @@ interface PrintButtonProps {
   icon?: string;
   /** Optional text appended after the label (e.g. ' (5)'). */
   labelSuffix?: string;
+  /**
+   * Overrides the silent-mode ('now') label for this button. Use it when the
+   * action does more than print (e.g. the "Print Changed" action also sets a
+   * baseline). The dialog label is unaffected.
+   */
+  nowLabel?: string;
+  /** When true, the silent action is described as also setting a new baseline. */
+  setsBaseline?: boolean;
   /** Extra style overrides merged into the main button's style. */
   style?: React.CSSProperties;
 }
@@ -83,7 +93,20 @@ function PrinterMenuItem({
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {label}
       </span>
-      {hint && <span style={{ fontSize: 10, color: 'var(--text-muted, #777)' }}>{hint}</span>}
+      {hint && (
+        <span
+          style={{
+            fontSize: 10,
+            color: 'var(--text-muted, #777)',
+            maxWidth: 120,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {hint}
+        </span>
+      )}
     </button>
   );
 }
@@ -99,6 +122,8 @@ function PrintButton({
   fontWeight,
   icon = '🖨️ ',
   labelSuffix = '',
+  nowLabel,
+  setsBaseline = false,
   style,
 }: PrintButtonProps) {
   const [mode, setMode] = useState<PrintMode>(getPrintMode);
@@ -150,16 +175,22 @@ function PrintButton({
   };
 
   const isDialog = mode === 'dialog';
-  const label = `${icon}${isDialog ? PRINT_MODE_LABELS.dialog : PRINT_MODE_LABELS.now}${labelSuffix}`;
+  // Per-button label for a mode; only the silent label can be overridden.
+  const modeLabel = (option: PrintMode) =>
+    option === 'now' && nowLabel ? nowLabel : PRINT_MODE_LABELS[option];
+  const label = `${icon}${modeLabel(mode)}${labelSuffix}`;
 
   // Human-readable name of the remembered silent-print target.
   const selectedPrinter = printers.find((p) => p.name === printerName);
   const printerLabel = printerName
     ? selectedPrinter?.displayName || printerName
     : 'System default printer';
+  const nowDescription = setsBaseline
+    ? `Print to ${printerLabel}, then set a new baseline`
+    : `Print immediately to ${printerLabel}`;
   const buttonTitle = isDialog
     ? title
-    : `${title ? `${title} — ` : ''}Prints to: ${printerLabel}`;
+    : `${title ? `${title} — ` : ''}Prints to ${printerLabel}${setsBaseline ? ' and sets a new baseline' : ''}`;
 
   const base: React.CSSProperties = {
     backgroundColor: color,
@@ -198,7 +229,7 @@ function PrintButton({
         type="button"
         onClick={() => setMenuOpen((open) => !open)}
         disabled={disabled}
-        aria-label={`Choose print action (currently ${PRINT_MODE_LABELS[mode]})`}
+        aria-label={`Choose print action (currently ${modeLabel(mode)})`}
         title={title}
         style={{
           ...base,
@@ -223,7 +254,10 @@ function PrintButton({
             right: 0,
             marginTop: '2px',
             zIndex: 1000,
-            minWidth: '230px',
+            // Fixed width so the menu does not resize when the selected printer
+            // name (shown in the subtitle) changes.
+            width: '300px',
+            maxWidth: '90vw',
             maxHeight: '60vh',
             overflowY: 'auto',
             backgroundColor: 'var(--bg-secondary, #ffffff)',
@@ -259,19 +293,28 @@ function PrintButton({
                 }}
               >
                 <div style={{ fontWeight: 600 }}>
-                  {option === 'dialog' ? 'Print...' : 'Print Now'}
+                  {modeLabel(option)}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted, #777)' }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-muted, #777)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={option === 'dialog' ? undefined : nowDescription}
+                >
                   {option === 'dialog'
                     ? 'Show print dialog to pick a printer / options'
-                    : `Print immediately to ${printerLabel}`}
+                    : nowDescription}
                 </div>
               </button>
             );
           })}
 
           {/* Silent-print printer picker. Remembered app-wide and used by every
-              "Print Now" action. */}
+              silent ("Print Now") action. */}
           <div
             style={{
               borderTop: '1px solid var(--border-color, #ddd)',

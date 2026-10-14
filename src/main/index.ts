@@ -258,8 +258,8 @@ ipcMain.handle('save-pdf', async (event, pdfData: { fileName: string; data: Uint
   }
 });
 
-// Silent print ("Print Now"): print an HTML document (containing images only)
-// to the requested printer without showing the print dialog.
+// Silent print ("Print & Set Baseline"): print an HTML document (containing
+// images only) to the requested printer without showing the print dialog.
 //
 // The renderer rasterizes each PDF page to an image with pdfjs-dist and sends
 // a self-contained HTML page of those images. Printing plain HTML is reliable
@@ -330,7 +330,7 @@ ipcMain.handle('print-html', async (_event, html: string, deviceName?: string) =
   }
 });
 
-// List the printers the OS reports, so the renderer can offer a "Print Now"
+// List the printers the OS reports, so the renderer can offer a silent-print
 // printer picker that is remembered between sessions. Silent printing cannot
 // observe the printer chosen in the OS print dialog, so the choice has to live
 // in the app.

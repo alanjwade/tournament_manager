@@ -19,7 +19,8 @@ export type PrintMode = 'dialog' | 'now';
 
 /**
  * The two label variants shown on a print button. Default labels are
- * 'Print...' (dialog) and 'Print Now' (silent).
+ * 'Print...' (dialog) and 'Print Now' (silent). Individual buttons can override
+ * the silent label (e.g. the "Print Changed" action, which also sets a baseline).
  */
 export const PRINT_MODE_LABELS: { [k in PrintMode]: string } = {
   dialog: 'Print...',
@@ -35,8 +36,13 @@ export const PRINT_MODE_LABELS: { [k in PrintMode]: string } = {
  *   HTML page of those images via the main process. This is reliable, unlike
  *   asking Chromium to silently print a PDF through its built-in viewer (which
  *   frequently results in a solid black page).
+ *
+ * Resolves to `true` when the print was dispatched successfully, or `false`
+ * when it failed (silent print errors are also surfaced via alert). Callers use
+ * this to decide whether post-print bookkeeping (e.g. setting a baseline)
+ * should run.
  */
-export async function printPdf(pdf: jsPDF, mode: PrintMode): Promise<void> {
+export async function printPdf(pdf: jsPDF, mode: PrintMode): Promise<boolean> {
   if (mode === 'now') {
     try {
       const pdfBytes = new Uint8Array(pdf.output('arraybuffer'));
@@ -45,11 +51,13 @@ export async function printPdf(pdf: jsPDF, mode: PrintMode): Promise<void> {
       const result = await window.electronAPI.printHTML(html, getPrinterName() || undefined);
       if (!result.success) {
         alert(`Print failed: ${result.error || 'Unknown error'}`);
+        return false;
       }
+      return true;
     } catch (err) {
       alert(`Print failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      return false;
     }
-    return;
   }
 
   // 'dialog' mode — preview window + print dialog (original behavior)
@@ -70,6 +78,7 @@ export async function printPdf(pdf: jsPDF, mode: PrintMode): Promise<void> {
   } else {
     URL.revokeObjectURL(pdfUrl);
   }
+  return true;
 }
 
 // Standard US Letter page size, used to size each rasterized page for print.

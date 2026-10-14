@@ -190,6 +190,18 @@ function RingOverview({}: RingOverviewProps) {
     setNewBaselineName('');
   };
 
+  // The "Print Changed" action prints every changed ring and, in the silent
+  // ("Print Now") mode, tags the printed state as the new baseline so the
+  // "changed ring" indicators reset. Individual ring prints never touch the
+  // baseline (there is no changed-ring tracking for a single ring).
+  const printChangedAndSetBaseline = async (pdf: jsPDF, mode: PrintMode) => {
+    const printed = await printPdf(pdf, mode);
+    if (printed && mode === 'now') {
+      const label = `Printed ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      await createBaseline(label);
+    }
+  };
+
   const handlePrintGCRing = async (ring: CustomRing, ringParticipants: Participant[], mode: PrintMode) => {
     setPrinting(ring.id);
     try {
@@ -441,8 +453,9 @@ function RingOverview({}: RingOverviewProps) {
         masterPdf.deletePage(masterPdf.getNumberOfPages());
       }
 
-      // Print/export the combined PDF using the requested mode
-      await printPdf(masterPdf, mode);
+      // Print/export the combined PDF. In the silent mode this also sets a new
+      // baseline (see printChangedAndSetBaseline).
+      await printChangedAndSetBaseline(masterPdf, mode);
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -2558,12 +2571,15 @@ function RingOverview({}: RingOverviewProps) {
               📍 Set Baseline
             </button>
 
-            {/* Print Changed — only appears when there are changes */}
+            {/* Print Changed — only appears when there are changes. The silent
+                mode also sets a new baseline. */}
             {baselineState && changedRingsCounts.total > 0 && (
               <PrintButton
                 onPrint={(mode) => handlePrintAllChanged(mode)}
                 disabled={printing === 'all-changed'}
-                title={`Print all ${changedRingsCounts.total} changed ring(s)`}
+                title={`Print all ${changedRingsCounts.total} changed ring(s) and set a new baseline`}
+                nowLabel="Print Changed & Set Baseline"
+                setsBaseline
                 color="#ffc107"
                 textColor="#000"
                 fontSize={13}
@@ -2950,9 +2966,9 @@ function RingOverview({}: RingOverviewProps) {
             <div style={{ backgroundColor: '#fff3cd', color: '#856404', borderRadius: '8px', padding: '15px', marginBottom: '25px', border: '2px solid #ffc107', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <strong style={{ fontSize: '15px' }}>⚠️ {changedRings.size} ring(s) changed since baseline</strong>
-                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>Print updated PDFs for rings that have been modified.</p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>Print updated PDFs for rings that have been modified. In the silent mode this also sets a new baseline.</p>
               </div>
-              <PrintButton onPrint={(mode) => { if (changedRings.size > 0) handlePrintAllChanged(mode); }} disabled={changedRings.size === 0} color="#ffc107" textColor="#000" fontSize={14} padding="8px 16px" fontWeight="600" />
+              <PrintButton onPrint={(mode) => { if (changedRings.size > 0) handlePrintAllChanged(mode); }} disabled={changedRings.size === 0} title={`Print all ${changedRings.size} changed ring(s) and set a new baseline`} nowLabel="Print Changed & Set Baseline" setsBaseline color="#ffc107" textColor="#000" fontSize={14} padding="8px 16px" fontWeight="600" />
             </div>
           )}
 

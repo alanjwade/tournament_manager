@@ -1,10 +1,10 @@
 /**
- * Remembered target printer for the silent ("Print Now") print mode.
+ * Remembered target printer for the silent ("Print & Set Baseline") print mode.
  *
  * Electron's silent print always goes to the OS default printer unless an
  * explicit `deviceName` is supplied, and the printer chosen in the OS print
- * dialog ('Print...') is not observable from the app. To let "Print Now" reuse
- * the printer the user last sent jobs to, the user picks one here and we persist
+ * dialog ('Print...') is not observable from the app. To let the silent mode
+ * reuse the printer the user last sent jobs to, the user picks one here and we persist
  * it in localStorage. A single module-level value is shared by every PrintButton
  * on screen (mirroring printModeStore), so changing it in one place updates all
  * of them at once and survives restarts.
