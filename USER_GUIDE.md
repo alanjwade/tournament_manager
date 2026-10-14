@@ -102,6 +102,14 @@ Categories group participants who will compete against each other. Typically, ca
    - Choose gender category (Male/Female/Mixed)
    - Check the ages to include (youngest first; "18 and Up" covers adults)
    - Specify number of pools this category will need
+   - Choose **Pool by** — how participants in the category are split across pools:
+     **Height** (default) or **Age**. Age always defines the category itself; this
+     setting only controls how members are dealt into the pools.
+     - **Height** makes *strict height bands*: the shortest competitors go in Pool 1,
+       the next band in Pool 2, and so on, so each pool covers a distinct height
+       range (useful so no sparring pool is stacked with the tallest competitors).
+     - **Age** deals participants round-robin, so each pool gets an even spread of
+       the age range.
 3. Click **Add Category** — matching participants are assigned to it automatically
 4. Repeat for all categories needed
 
@@ -110,6 +118,19 @@ Categories group participants who will compete against each other. Typically, ca
 - Smaller categories may only need 1 pool
 - Larger categories may need multiple pools to avoid delays
 
+#### Pool by (Age or Height)
+
+Each category row has a **Pool by** selector. Changing it only *records* the choice —
+it does not immediately move anyone. To apply it:
+
+- Click **Reassign** on that one category row to re-deal just that category (and its
+  Forms/Sparring twin), or
+- Click **Reassign Participants** to re-deal everything using each category's setting.
+
+With **Height**, pools are contiguous bands (Pool 1 = shortest, last pool = tallest);
+competitors who share the exact same height that lands on a pool boundary may still be
+split between the two neighbouring pools.
+
 #### Manual Adjustments
 
 After initial category assignment:
@@ -117,7 +138,7 @@ After initial category assignment:
 2. Individual participants can be moved between categories using the Editor tab or Quick Edit
 3. Check for unassigned participants
 
-⚠️ **Warning:** Clicking **Reassign Participants** resets all pool assignments (your category definitions are kept) — all manual pool edits are lost!
+⚠️ **Warning:** Clicking **Reassign Participants** resets all pool assignments and re-deals them using each category's **Pool by** setting (your category definitions are kept) — all manual pool edits are lost!
 
 ### Step 4: Ring Map
 

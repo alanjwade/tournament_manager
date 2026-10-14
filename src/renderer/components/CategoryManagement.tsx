@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
-import { Category, Participant } from '../types/tournament';
+import { Category, Participant, PoolCriteria } from '../types/tournament';
 import { getEffectiveDivision } from '../utils/excelParser';
-import { autoAssignAndOrderCategory } from '../utils/autoAssignAndOrder';
+import { autoAssignAndOrderCategory, DEFAULT_POOL_CRITERIA } from '../utils/autoAssignAndOrder';
 import { AGE_THRESHOLDS, DEFAULT_DIVISION_ORDER } from '../utils/constants';
 
 // Generate deterministic category ID based on properties
@@ -31,6 +31,7 @@ function CategoryManagement({}: CategoryManagementProps) {
   const [selectedGender, setSelectedGender] = useState<'male' | 'female' | 'mixed'>('mixed');
   const [selectedAges, setSelectedAges] = useState<Set<string>>(new Set());
   const [numPools, setNumPools] = useState(1);
+  const [poolCriteria, setPoolCriteria] = useState<PoolCriteria>(DEFAULT_POOL_CRITERIA);
 
   // Persist division selection per-page
   useEffect(() => {
@@ -266,6 +267,7 @@ function CategoryManagement({}: CategoryManagementProps) {
         minAge: minAgeValue,
         maxAge: maxAgeValue,
         numPools,
+        poolCriteria,
         type: 'forms',
       };
       newCategories.push(formsCategory);
@@ -293,6 +295,7 @@ function CategoryManagement({}: CategoryManagementProps) {
         minAge: minAgeValue,
         maxAge: maxAgeValue,
         numPools,
+        poolCriteria,
         type: 'sparring',
       };
       newCategories.push(sparringCategory);
@@ -322,6 +325,7 @@ function CategoryManagement({}: CategoryManagementProps) {
     setSelectedGender('mixed');
     setSelectedAges(new Set());
     setNumPools(1);
+    setPoolCriteria(DEFAULT_POOL_CRITERIA);
   };
 
   const handleRemoveCategory = (categoryId: string) => {
@@ -343,6 +347,16 @@ function CategoryManagement({}: CategoryManagementProps) {
     // a single atomic change (and a single undo entry).
     removeCategories(categoriesToRemove.map(c => c.id));
   };
+
+  // The opposite-type category (Forms <-> Sparring) describing the same competitor group.
+  const findTwinCategoryInList = (category: Category) =>
+    categories.find(
+      (c) =>
+        c.id !== category.id &&
+        c.name === category.name &&
+        c.division === category.division &&
+        c.type !== category.type
+    );
 
   const handleRingsChange = (categoryId: string, rings: number) => {
     const category = categories.find((c) => c.id === categoryId);
@@ -381,6 +395,33 @@ function CategoryManagement({}: CategoryManagementProps) {
     setParticipants(finalParticipants);
   };
 
+  // Change how a category splits participants into pools, keeping its twin in sync.
+  // This only records the choice — pools are re-dealt when the user runs a Reassign.
+  const handlePoolCriteriaChange = (categoryId: string, criteria: PoolCriteria) => {
+    const category = categories.find((c) => c.id === categoryId);
+    if (!category) return;
+
+    const twin = findTwinCategoryInList(category);
+    const changedIds = new Set([category.id, ...(twin ? [twin.id] : [])]);
+
+    setCategories(
+      categories.map((c) => (changedIds.has(c.id) ? { ...c, poolCriteria: criteria } : c))
+    );
+  };
+
+  // Re-deal just this category (and its Forms/Sparring twin) using its Pool by setting.
+  const handleReassignCategory = (categoryId: string) => {
+    const category = categories.find((c) => c.id === categoryId);
+    if (!category) return;
+
+    const twin = findTwinCategoryInList(category);
+    let finalParticipants = autoAssignAndOrderCategory(category, participants);
+    if (twin) {
+      finalParticipants = autoAssignAndOrderCategory(twin, finalParticipants);
+    }
+    setParticipants(finalParticipants);
+  };
+
   const handleReassignParticipants = () => {
     if (categories.length === 0) {
       alert('No categories to reassign to. Please create categories first.');
@@ -388,7 +429,7 @@ function CategoryManagement({}: CategoryManagementProps) {
     }
 
     const confirmed = window.confirm(
-      'This will reset all participant pool assignments and re-run auto-assignment for all categories. Are you sure?'
+      'This will reset all participant pool assignments and re-run auto-assignment for all categories, using each category\'s "Pool by" setting (Age or Height). Are you sure?'
     );
     if (!confirmed) return;
 
@@ -582,6 +623,19 @@ function CategoryManagement({}: CategoryManagementProps) {
             />
           </div>
 
+          <div className="form-group">
+            <label className="form-label">Pool by</label>
+            <select
+              className="form-control"
+              value={poolCriteria}
+              onChange={(e) => setPoolCriteria(e.target.value as PoolCriteria)}
+              title="Default pool split for categories you create"
+            >
+              <option value="height">Height</option>
+              <option value="age">Age</option>
+            </select>
+          </div>
+
           {selectedDivision && (
             <div className="info" style={{ marginBottom: '15px' }}>
               <p style={{ margin: '5px 0' }}>
@@ -620,7 +674,7 @@ function CategoryManagement({}: CategoryManagementProps) {
               <button
                 className="btn btn-warning"
                 onClick={handleReassignParticipants}
-                title="Reset all participant pool assignments but keep category definitions"
+                title="Reset all participant pool assignments and re-deal them using each category's Pool by setting"
                 style={{ fontSize: '12px', padding: '6px 12px' }}
               >
                 Reassign Participants
@@ -636,6 +690,7 @@ function CategoryManagement({}: CategoryManagementProps) {
                     <th>Gender</th>
                     <th>Age</th>
                     <th>Participants</th>
+                    <th>Pool by</th>
                     <th>Pools</th>
                     <th>Action</th>
                   </tr>
@@ -674,6 +729,19 @@ function CategoryManagement({}: CategoryManagementProps) {
                           {participantCount > 0 ? participantCount : '-'}
                         </td>
                         <td>
+                          <select
+                            value={category.poolCriteria ?? DEFAULT_POOL_CRITERIA}
+                            onChange={(e) =>
+                              handlePoolCriteriaChange(category.id, e.target.value as PoolCriteria)
+                            }
+                            title="How participants are distributed across this category's pools"
+                            style={{ padding: '4px' }}
+                          >
+                            <option value="height">Height</option>
+                            <option value="age">Age</option>
+                          </select>
+                        </td>
+                        <td>
                           <input
                             type="number"
                             min={1}
@@ -686,13 +754,23 @@ function CategoryManagement({}: CategoryManagementProps) {
                           />
                         </td>
                         <td>
-                          <button
-                            className="btn btn-danger"
-                            onClick={() => handleRemoveCategory(category.id)}
-                            style={{ padding: '5px 10px', fontSize: '12px' }}
-                          >
-                            Remove
-                          </button>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => handleReassignCategory(category.id)}
+                              title="Re-deal this category's pools using its current Pool by setting"
+                              style={{ padding: '5px 10px', fontSize: '12px' }}
+                            >
+                              Reassign
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => handleRemoveCategory(category.id)}
+                              style={{ padding: '5px 10px', fontSize: '12px' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

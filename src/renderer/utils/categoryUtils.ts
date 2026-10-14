@@ -52,6 +52,7 @@ export function ensureTwinCategory(
     minAge: category.minAge,
     maxAge: category.maxAge,
     numPools: category.numPools,
+    poolCriteria: category.poolCriteria,
   };
 
   return { categories: [...categories, twin], twin };

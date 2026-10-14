@@ -1,5 +1,60 @@
-import { Participant, Category } from '../types/tournament';
+import { Participant, Category, PoolCriteria } from '../types/tournament';
 import { orderFormsRing, orderSparringRing } from './ringOrdering';
+
+/** Fallback split when a category was created before the criteria existed. */
+export const DEFAULT_POOL_CRITERIA: PoolCriteria = 'height';
+
+/** Resolve a category's pool-splitting criteria (defaults to height). */
+export function getPoolCriteria(category: Category): PoolCriteria {
+  return category.poolCriteria ?? DEFAULT_POOL_CRITERIA;
+}
+
+/**
+ * Numeric sort key used to distribute participants across pools: total height
+ * (feet*12 + inches) for a height split, otherwise age. Participants are first
+ * sorted by this key, then split into pools by `computePoolIndex`.
+ */
+function poolSortKey(participant: Participant, criteria: PoolCriteria): number {
+  if (criteria === 'height') {
+    const feet = Number.isFinite(participant.heightFeet) ? participant.heightFeet : 0;
+    const inches = Number.isFinite(participant.heightInches) ? participant.heightInches : 0;
+    return feet * 12 + inches;
+  }
+  return Number.isFinite(participant.age) ? participant.age : 0;
+}
+
+/**
+ * Which pool (0-based) the participant at `index` of the sorted list belongs to.
+ *
+ * - height: **strict contiguous height bands** — the shortest competitors fill
+ *   P1, the next band fills P2, and so on, so each pool covers a distinct height
+ *   range instead of mixing the shortest with the tallest.
+ * - age: round-robin, so each pool gets an even spread across the age range.
+ *
+ * Height bands are sized as evenly as possible; when the count doesn't divide
+ * evenly the earliest pools take one extra participant.
+ */
+export function computePoolIndex(
+  index: number,
+  total: number,
+  poolsNeeded: number,
+  criteria: PoolCriteria
+): number {
+  if (poolsNeeded <= 1) return 0;
+
+  if (criteria === 'height') {
+    const base = Math.floor(total / poolsNeeded);
+    const remainder = total % poolsNeeded;
+    let cumulative = 0;
+    for (let i = 0; i < poolsNeeded; i++) {
+      cumulative += base + (i < remainder ? 1 : 0);
+      if (index < cumulative) return i;
+    }
+    return poolsNeeded - 1;
+  }
+
+  return index % poolsNeeded;
+}
 
 /**
  * Automatically assigns participants to pools and orders them
@@ -28,10 +83,11 @@ export function autoAssignAndOrderCategory(
   }
 
   const poolsNeeded = category.numPools;
-  
-  // Sort participants by age for distribution
+
+  // Distribute by the category's chosen criteria (age or height)
+  const criteria = getPoolCriteria(category);
   const sortedParticipants = [...categoryParticipants].sort(
-    (a, b) => a.age - b.age
+    (a, b) => poolSortKey(a, criteria) - poolSortKey(b, criteria)
   );
 
   // Distribute participants across pools
@@ -41,25 +97,23 @@ export function autoAssignAndOrderCategory(
   }
 
   sortedParticipants.forEach((participant, index) => {
-    let poolName: string;
-    
+    let poolName: string | undefined;
+
     // If this is sparring and the participant already has a forms pool assigned,
-    // try to use the same pool number (if it exists in this category)
+    // try to use the same pool number (if it exists in this category), so a
+    // competitor stays on the same physical ring number across both events.
     if (categoryType === 'sparring' && participant.formsPool) {
       const formsPoolNum = parseInt(participant.formsPool.replace('P', ''));
       if (formsPoolNum <= poolsNeeded) {
         poolName = participant.formsPool;
-      } else {
-        // Forms pool number is too high, use round-robin
-        const poolIndex = (index % poolsNeeded) + 1;
-        poolName = `P${poolIndex}`;
       }
-    } else {
-      // For forms, or sparring without forms pool, use round-robin
-      const poolIndex = (index % poolsNeeded) + 1;
-      poolName = `P${poolIndex}`;
     }
-    
+
+    if (!poolName) {
+      const poolIndex = computePoolIndex(index, sortedParticipants.length, poolsNeeded, criteria);
+      poolName = `P${poolIndex + 1}`;
+    }
+
     poolAssignments.get(poolName)!.push(participant);
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
 import CategoryManagement from '../src/renderer/components/CategoryManagement';
 import { useTournamentStore } from '../src/renderer/store/tournamentStore';
@@ -110,5 +110,47 @@ describe('CategoryManagement', () => {
     expect(checkboxes.length).toBeGreaterThan(0);
     expect(container.textContent).not.toContain('No participants in this division');
     expect(container.textContent).toContain('Matching participants:');
+  });
+
+  it('lets each category choose its pool split, defaulting to height', () => {
+    const state = {
+      participants: [],
+      categories: [
+        {
+          id: 'forms-Black Belt-mixed-8-12',
+          name: 'Mixed 8-12',
+          division: 'Black Belt',
+          type: 'forms',
+          gender: 'mixed',
+          minAge: 8,
+          maxAge: 12,
+          numPools: 2,
+        },
+      ],
+      config: {
+        divisions: [{ name: 'Black Belt', order: 1 }],
+        physicalRings: [],
+      },
+      physicalRingMappings: [],
+      categoryPoolMappings: [],
+    } as unknown as TournamentState;
+
+    useTournamentStore.getState().loadStateFromData(state);
+
+    // Older saves carry no poolCriteria; hydration should default it to height.
+    expect(useTournamentStore.getState().categories[0].poolCriteria).toBe('height');
+
+    const { container } = render(React.createElement(CategoryManagement));
+
+    const rowSelect = Array.from(container.querySelectorAll('select')).find(
+      (s) => s.getAttribute('title') === "How participants are distributed across this category's pools"
+    ) as HTMLSelectElement | undefined;
+
+    expect(rowSelect).toBeTruthy();
+    expect(rowSelect!.value).toBe('height');
+
+    fireEvent.change(rowSelect!, { target: { value: 'age' } });
+
+    expect(useTournamentStore.getState().categories[0].poolCriteria).toBe('age');
   });
 });

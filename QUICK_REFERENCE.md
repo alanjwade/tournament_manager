@@ -42,6 +42,7 @@ Optional columns:
 | Task | How |
 |------|-----|
 | **Move to another ring** | Tournament → click name → Quick Edit → change Category/Pool → Save |
+| **Change how a category pools people** | Categories → set the row's **Pool by** (Height/Age) → click that row's **Reassign** |
 | **Withdraw from sparring** | Quick Edit → uncheck "Competing in Sparring" → Save |
 | **Add to sparring** | Quick Edit → check "Competing in Sparring" → select Division/Category/Pool → Save |
 | **Withdraw completely** | Quick Edit → uncheck both Forms and Sparring → Save |
@@ -70,6 +71,8 @@ Optional columns:
 | Action | Warning | Impact |
 |--------|---------|--------|
 | Re-run Category Assignment | ⚠️ Destroys previous assignments | All manual edits lost |
+| Change a category's Pool by | ✅ Records choice only (no move) | Click the row's Reassign (or Reassign Participants) to apply |
+| Pool by = Height | ✅ Strict height bands (Pool 1 shortest → last pool tallest) | Age = even round-robin spread instead |
 | Restore Commit | ⚠️ Replaces current state (kept in History) | Create a baseline first |
 | Uncheck Custom Order | ✅ Re-orders that ring only | Other rings unaffected |
 

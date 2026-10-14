@@ -49,6 +49,14 @@ export interface Division {
   abbreviation?: string; // Short division designator (e.g., "BLKB", "LVL1")
 }
 
+/**
+ * Determines how participants inside a single category are split into pools.
+ * Age spreads the age range evenly; height spreads the height range evenly
+ * (commonly chosen for sparring so no pool is stacked with tall competitors).
+ * The category's own age range is unaffected — this only controls the split.
+ */
+export type PoolCriteria = 'age' | 'height';
+
 export interface Category {
   id: string;
   name: string;
@@ -58,6 +66,8 @@ export interface Category {
   minAge: number;
   maxAge: number;
   numPools: number;
+  /** How this category's participants are distributed across pools. Defaults to 'height'. */
+  poolCriteria?: PoolCriteria;
 }
 
 export interface PhysicalRing {

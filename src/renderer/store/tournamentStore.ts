@@ -307,6 +307,9 @@ function buildHydratedState(savedState: SavedState): Snapshot {
     // Legacy saves may omit `type`; default it to 'forms' (the historical model)
     // so no consumer ever has to guess what a missing type means.
     type: c.type ?? 'forms',
+    // Pool-splitting criteria post-dates older saves; default it to 'height'
+    // so existing categories adopt the new default without re-pooling anyone.
+    poolCriteria: c.poolCriteria ?? 'height',
   }));
   const validCategoryIds = new Set(categories.map(c => c.id));
   let orphanCount = 0;
@@ -547,7 +550,7 @@ export const useTournamentStore = create<TournamentState>((set, get) => ({
       categories.some(c => ringIdReferencesCategory(ringId, c.id))
     );
     set({
-      categories: categories.map(c => ({ ...c, type: c.type ?? 'forms' })),
+      categories: categories.map(c => ({ ...c, type: c.type ?? 'forms', poolCriteria: c.poolCriteria ?? 'height' })),
       customOrderRings: prunedCustomOrderRings,
     });
     debounce(() => useTournamentStore.getState().autoSave(), AUTOSAVE_DELAY_MS);
