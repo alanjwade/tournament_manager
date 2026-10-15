@@ -10,6 +10,7 @@ import {
   reinstateParticipant,
   copySparringFromForms,
   sparringMirrorsForms,
+  shouldMirrorSparringFromForms,
   findDivisionSelectionGaps,
 } from '../src/renderer/utils/participantPoolUtils';
 import {
@@ -373,6 +374,23 @@ describe('participantPoolUtils', () => {
         sparringPool: 'P1',
       });
       expect(sparringMirrorsForms(p, categories)).toBe(false);
+    });
+  });
+
+  describe('shouldMirrorSparringFromForms', () => {
+    // Regression: the Quick Edit "same as Forms" checkbox is seeded checked for
+    // participants who aren't competing in sparring. Moving only their forms pool
+    // must not copy a sparring assignment, otherwise they silently start sparring.
+    it('does not mirror when the participant is not competing in sparring', () => {
+      expect(shouldMirrorSparringFromForms(true, false)).toBe(false);
+    });
+
+    it('mirrors when the checkbox is checked and the participant is competing', () => {
+      expect(shouldMirrorSparringFromForms(true, true)).toBe(true);
+    });
+
+    it('does not mirror when the checkbox is unchecked', () => {
+      expect(shouldMirrorSparringFromForms(false, true)).toBe(false);
     });
   });
 

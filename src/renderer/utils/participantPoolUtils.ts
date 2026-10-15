@@ -257,6 +257,25 @@ export function sparringMirrorsForms(participant: Participant, categories: Categ
 }
 
 /**
+ * Whether a change to a participant's Forms category/pool should also update
+ * their Sparring assignment.
+ *
+ * The Quick Edit "Use same assignment for both Forms and Sparring" checkbox is
+ * seeded as checked for participants who aren't competing in sparring (their two
+ * assignments can't differ), so copying must be gated on the participant
+ * actually competing in sparring. Without that gate, moving a forms pool would
+ * silently re-enable sparring for a competitor who had deliberately withdrawn
+ * from it (they'd gain a sparring category/pool, which the submit logic then
+ * treats as "competing").
+ */
+export function shouldMirrorSparringFromForms(
+  copySparringFromForms: boolean,
+  competingSparring: boolean
+): boolean {
+  return copySparringFromForms && competingSparring;
+}
+
+/**
  * When a Quick Edit changes a participant's division, a matching category + pool
  * must also be chosen; otherwise the participant keeps their old (other-division)
  * category/pool and the edit appears to do nothing. Returns the sides that are

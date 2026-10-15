@@ -8,8 +8,7 @@ import { generateRingOverviewPDF } from '../utils/pdfGenerators/ringOverview';
 import { generateScoreSheetsPerDivision } from '../utils/pdfGenerators/scoreSheetsPerDivision';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { getEffectiveDivision } from '../utils/excelParser';
-import { computeStateDiff } from '../utils/stateDiff';
-import { CompetitionRing, TournamentState as SavedState } from '../types/tournament';
+import { CompetitionRing } from '../types/tournament';
 import logoImage from '../assets/logos/logo_orig_dark_letters.png';
 
 interface PDFExportProps {}
@@ -20,9 +19,6 @@ function PDFExport({}: PDFExportProps) {
   const categoryPoolMappings = useTournamentStore((state) => state.categoryPoolMappings);
   const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const config = useTournamentStore((state) => state.config);
-  const history = useTournamentStore((state) => state.history);
-  const customRings = useTournamentStore((state) => state.customRings);
-  const customOrderRings = useTournamentStore((state) => state.customOrderRings);
   
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
   
@@ -61,9 +57,9 @@ function PDFExport({}: PDFExportProps) {
     [participants, categories, categoryPoolMappings]
   );
   
-  const [selectedDivision, setSelectedDivision] = useState<string>(
-    localStorage.getItem('division-export') || 'Black Belt'
-  );
+  // Always default to "all divisions" — no persistence, so the selector resets
+  // to "All Divisions" every time the Export tab is opened.
+  const [selectedDivision, setSelectedDivision] = useState<string>('all');
   const [exporting, setExporting] = useState(false);
   const [fileLocations, setFileLocations] = useState<{
     dataPath: string;
@@ -72,185 +68,6 @@ function PDFExport({}: PDFExportProps) {
     exePath: string;
   } | null>(null);
   
-  // State for forms/sparring advanced options
-  const [formsExpanded, setFormsExpanded] = useState(false);
-  const [sparringExpanded, setSparringExpanded] = useState(false);
-  const [selectedFormsRings, setSelectedFormsRings] = useState<Set<string>>(new Set());
-  const [selectedSparringRings, setSelectedSparringRings] = useState<Set<string>>(new Set());
-  const [selectedBaseline, setSelectedBaseline] = useState<string>('');
-  const [baselineState, setBaselineState] = useState<SavedState | null>(null);
-  
-  // Persist division selection per-page
-  useEffect(() => {
-    localStorage.setItem('division-export', selectedDivision);
-  }, [selectedDivision]);
-  
-  // Sorted history commits (latest first) available as diff baselines
-  const sortedCommits = useMemo(() => {
-    return [...history].sort((a, b) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-  }, [history]);
-
-  // Default to the latest commit
-  useEffect(() => {
-    if (sortedCommits.length > 0 && !selectedBaseline) {
-      setSelectedBaseline(sortedCommits[0].id);
-    }
-  }, [sortedCommits, selectedBaseline]);
-
-  // Load the selected baseline's full state for diffing
-  useEffect(() => {
-    let cancelled = false;
-    if (!selectedBaseline) {
-      setBaselineState(null);
-      return;
-    }
-    window.electronAPI.historyShow(selectedBaseline).then((result) => {
-      if (!cancelled && result.success && result.data) {
-        setBaselineState(result.data as SavedState);
-      }
-    }).catch(() => { /* ignore */ });
-    return () => { cancelled = true; };
-  }, [selectedBaseline]);
-  
-  // Get available rings for selected division
-  const availableFormsRings = useMemo(() => {
-    if (!selectedDivision) return [];
-    return competitionRings
-      .filter(r => r.division === selectedDivision && r.type === 'forms')
-      .sort((a, b) => {
-        const getPhysicalRingNum = (ring: CompetitionRing) => {
-          const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
-          if (!mapping) return 999;
-          const match = mapping.physicalRingName.match(/(\d+)([a-z]?)/i);
-          if (!match) return 999;
-          return parseInt(match[1]) * 100 + (match[2] ? match[2].charCodeAt(0) : 0);
-        };
-        return getPhysicalRingNum(a) - getPhysicalRingNum(b);
-      });
-  }, [selectedDivision, competitionRings, physicalRingMappings]);
-  
-  const availableSparringRings = useMemo(() => {
-    if (!selectedDivision) return [];
-    return competitionRings
-      .filter(r => r.division === selectedDivision && r.type === 'sparring')
-      .sort((a, b) => {
-        const getPhysicalRingNum = (ring: CompetitionRing) => {
-          const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
-          if (!mapping) return 999;
-          const match = mapping.physicalRingName.match(/(\d+)([a-z]?)/i);
-          if (!match) return 999;
-          return parseInt(match[1]) * 100 + (match[2] ? match[2].charCodeAt(0) : 0);
-        };
-        return getPhysicalRingNum(a) - getPhysicalRingNum(b);
-      });
-  }, [selectedDivision, competitionRings, physicalRingMappings]);
-  
-  // Update selected rings when division changes
-  useEffect(() => {
-    if (selectedDivision && formsExpanded) {
-      setSelectedFormsRings(new Set(availableFormsRings.map(r => r.id)));
-    }
-  }, [selectedDivision, availableFormsRings, formsExpanded]);
-  
-  useEffect(() => {
-    if (selectedDivision && sparringExpanded) {
-      setSelectedSparringRings(new Set(availableSparringRings.map(r => r.id)));
-    }
-  }, [selectedDivision, availableSparringRings, sparringExpanded]);
-
-  // Select rings that changed since the chosen baseline commit
-  const buildCurrentState = (): SavedState => ({
-    participants,
-    categories,
-    config,
-    physicalRingMappings,
-    categoryPoolMappings,
-    customRings,
-    customOrderRings,
-  });
-
-  const handleSelectFormsDiff = () => {
-    if (!selectedBaseline) {
-      alert('Please select a baseline commit');
-      return;
-    }
-    
-    const diff = baselineState ? computeStateDiff(baselineState, buildCurrentState()) : null;
-    if (!diff) {
-      alert('Failed to compute diff');
-      return;
-    }
-    
-    // Get affected ring names for the selected division
-    const affectedRings = new Set<string>();
-    diff.ringsAffected.forEach(ringName => {
-      // Ring names in diff may have suffixes like _forms, _sparring, _a, _b
-      // For forms, skip if this is explicitly a sparring ring (has _sparring suffix)
-      if (ringName.endsWith('_sparring')) {
-        return;
-      }
-      
-      // Strip suffixes to match against competition ring names
-      const baseRingName = ringName.replace(/_(forms|sparring|[a-z])$/i, '');
-      
-      // Find corresponding competition ring - check both exact match and base name match
-      const ring = availableFormsRings.find(r => 
-        (r.name === ringName || r.name === baseRingName) && r.type === 'forms'
-      );
-      if (ring) {
-        affectedRings.add(ring.id);
-      }
-    });
-    
-    if (affectedRings.size === 0) {
-      alert(`No forms rings changed in ${selectedDivision} division since baseline`);
-    } else {
-      setSelectedFormsRings(affectedRings);
-    }
-  };
-  
-  const handleSelectSparringDiff = () => {
-    if (!selectedBaseline) {
-      alert('Please select a baseline commit');
-      return;
-    }
-    
-    const diff = baselineState ? computeStateDiff(baselineState, buildCurrentState()) : null;
-    if (!diff) {
-      alert('Failed to compute diff');
-      return;
-    }
-    
-    // Get affected ring names for the selected division
-    const affectedRings = new Set<string>();
-    diff.ringsAffected.forEach(ringName => {
-      // Ring names in diff may have suffixes like _forms, _sparring, _a, _b
-      // For sparring, skip if this is explicitly a forms ring (has _forms suffix)
-      if (ringName.endsWith('_forms')) {
-        return;
-      }
-      
-      // Strip suffixes to match against competition ring names
-      const baseRingName = ringName.replace(/_(forms|sparring|[a-z])$/i, '');
-      
-      // Find corresponding competition ring - check both exact match and base name match
-      const ring = availableSparringRings.find(r => 
-        (r.name === ringName || r.name === baseRingName) && r.type === 'sparring'
-      );
-      if (ring) {
-        affectedRings.add(ring.id);
-      }
-    });
-    
-    if (affectedRings.size === 0) {
-      alert(`No sparring rings changed in ${selectedDivision} division since baseline`);
-    } else {
-      setSelectedSparringRings(affectedRings);
-    }
-  };
-
   const savePDF = async (pdf: any, filename: string) => {
     try {
       setExporting(true);
@@ -307,132 +124,6 @@ function PDFExport({}: PDFExportProps) {
       config.schoolAbbreviations
     );
     await savePDF(pdf, `check-in-${selectedDivision}.pdf`);
-  };
-
-  const handleExportFormsScoring = async () => {
-    if (!selectedDivision) {
-      alert('Please select a division');
-      return;
-    }
-
-    const pdf = generateFormsScoringSheets(
-      participants,
-      competitionRings,
-      config.physicalRings,
-      selectedDivision,
-      config.watermarkImage,
-      physicalRingMappings
-    );
-    await savePDF(pdf, `forms-scoring-${selectedDivision}.pdf`);
-  };
-  
-  const handleExportFormsAdvanced = async (printDirectly: boolean = false) => {
-    if (!selectedDivision) {
-      alert('Please select a division');
-      return;
-    }
-    
-    if (selectedFormsRings.size === 0) {
-      alert('Please select at least one ring');
-      return;
-    }
-    
-    // Get current checkbox state - create new Set to ensure fresh snapshot
-    const currentSelectedRings = new Set(selectedFormsRings);
-    
-    // Filter competition rings to only selected ones
-    const filteredRings = competitionRings.filter(r => currentSelectedRings.has(r.id));
-    
-    const pdf = generateFormsScoringSheets(
-      participants,
-      filteredRings,
-      config.physicalRings,
-      selectedDivision,
-      config.watermarkImage,
-      physicalRingMappings
-    );
-    
-    if (printDirectly) {
-      // Open print dialog
-      const pdfBlob = pdf.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      const printWindow = window.open(pdfUrl);
-      if (printWindow) {
-        printWindow.addEventListener('load', () => {
-          printWindow.print();
-          // Clean up blob URL after a delay
-          setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
-        });
-      } else {
-        // If popup was blocked, clean up immediately
-        URL.revokeObjectURL(pdfUrl);
-      }
-    } else {
-      await savePDF(pdf, `forms-scoring-${selectedDivision}.pdf`);
-    }
-  };
-
-  const handleExportSparringBrackets = async () => {
-    if (!selectedDivision) {
-      alert('Please select a division');
-      return;
-    }
-
-    const pdf = generateSparringBrackets(
-      participants,
-      competitionRings,
-      config.physicalRings,
-      selectedDivision,
-      config.watermarkImage,
-      physicalRingMappings
-    );
-    await savePDF(pdf, `sparring-brackets-${selectedDivision}.pdf`);
-  };
-  
-  const handleExportSparringAdvanced = async (printDirectly: boolean = false) => {
-    if (!selectedDivision) {
-      alert('Please select a division');
-      return;
-    }
-    
-    if (selectedSparringRings.size === 0) {
-      alert('Please select at least one ring');
-      return;
-    }
-    
-    // Get current checkbox state - create new Set to ensure fresh snapshot
-    const currentSelectedRings = new Set(selectedSparringRings);
-    
-    // Filter competition rings to only selected ones
-    const filteredRings = competitionRings.filter(r => currentSelectedRings.has(r.id));
-    
-    const pdf = generateSparringBrackets(
-      participants,
-      filteredRings,
-      config.physicalRings,
-      selectedDivision,
-      config.watermarkImage,
-      physicalRingMappings
-    );
-    
-    if (printDirectly) {
-      // Open print dialog
-      const pdfBlob = pdf.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      const printWindow = window.open(pdfUrl);
-      if (printWindow) {
-        printWindow.addEventListener('load', () => {
-          printWindow.print();
-          // Clean up blob URL after a delay
-          setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
-        });
-      } else {
-        // If popup was blocked, clean up immediately
-        URL.revokeObjectURL(pdfUrl);
-      }
-    } else {
-      await savePDF(pdf, `sparring-brackets-${selectedDivision}.pdf`);
-    }
   };
 
   const handleExportScoreSheets = async () => {
@@ -543,14 +234,15 @@ function PDFExport({}: PDFExportProps) {
 
         // Export PDFs for each division
         for (const division of Array.from(divisionsWithParticipants).sort()) {
-          // Temporarily set division and export
+          // Reflect the in-progress division in the selector; the id passed to
+          // the generator is what drives output, so this is display only.
           setSelectedDivision(division);
-          
-          // Export all 5 PDFs for this division
+
           await exportPDFsForDivision(division);
         }
+        // Always return the selector to "All Divisions" once the run completes.
+        setSelectedDivision('all');
       } else {
-        // Export all 5 PDFs for the selected division
         await exportPDFsForDivision(selectedDivision);
       }
     } finally {
@@ -559,7 +251,7 @@ function PDFExport({}: PDFExportProps) {
   };
 
   const exportPDFsForDivision = async (division: string) => {
-    // Export all 5 PDFs for a specific division
+    // Export the PDFs for a specific division
     const divisionParticipants = participants.filter((p) => {
       const formsDiv = getEffectiveDivision(p, 'forms');
       const sparringDiv = getEffectiveDivision(p, 'sparring');
@@ -651,31 +343,9 @@ function PDFExport({}: PDFExportProps) {
     const ringOverviewPdf = generateRingOverviewPDF(participants, ringPairs, categories, division, config.schoolAbbreviations);
     await savePDF(ringOverviewPdf, `ring-overview-${division}.pdf`);
 
-    // Export forms scoring sheets
-    const formsPdf = generateFormsScoringSheets(
-      participants,
-      competitionRings,
-      config.physicalRings,
-      division,
-      config.watermarkImage,
-      physicalRingMappings,
-      undefined,
-      undefined,
-      false,
-      config.schoolAbbreviations
-    );
-    await savePDF(formsPdf, `forms-scoring-${division}.pdf`);
-
-    // Export sparring brackets
-    const sparringPdf = generateSparringBrackets(
-      participants,
-      competitionRings,
-      config.physicalRings,
-      division,
-      config.watermarkImage,
-      physicalRingMappings
-    );
-    await savePDF(sparringPdf, `sparring-brackets-${division}.pdf`);
+    // Forms scoring sheets and sparring brackets are intentionally NOT exported
+    // as separate PDFs here — they are encompassed in the combined score sheets
+    // per division that are generated below.
 
     // Export combined score sheets per division (forms + sparring interleaved by ring)
     const scoreSheetsPdf = generateScoreSheetsPerDivision(
@@ -727,7 +397,7 @@ function PDFExport({}: PDFExportProps) {
           disabled={!selectedDivision || exporting}
           style={{ width: '100%' }}
         >
-          {exporting ? 'Exporting All PDFs...' : `Export All ${selectedDivision} PDFs`}
+          {exporting ? 'Exporting All PDFs...' : `Export All ${selectedDivision === 'all' ? 'Divisions' : selectedDivision} PDFs`}
         </button>
       </div>
 
@@ -804,182 +474,6 @@ function PDFExport({}: PDFExportProps) {
           </div>
         </div>
 
-        {/* Forms Scoring Sheets - All */}
-        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ fontSize: '16px', marginBottom: '10px', marginTop: 0 }}>Forms Scoring Sheets (All)</h3>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: 0 }}>
-                Print scoring sheets for all forms rings in the selected division.
-              </p>
-            </div>
-            <button
-              className="btn btn-primary"
-              onClick={handleExportFormsScoring}
-              disabled={!selectedDivision || exporting}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              {exporting ? 'Exporting...' : `Export ${selectedDivision} Forms`}
-            </button>
-          </div>
-        </div>
-
-        {/* Forms Scoring Sheets - Advanced */}
-        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--info-bg)' }}>
-          <div 
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              cursor: 'pointer',
-            }}
-            onClick={() => setFormsExpanded(!formsExpanded)}
-          >
-            <h3 style={{ fontSize: '16px', margin: 0 }}>
-              Select Specific Forms Rings
-            </h3>
-            <span style={{ fontSize: '20px' }}>{formsExpanded ? '▼' : '▶'}</span>
-          </div>
-          
-          {formsExpanded && (
-            <div style={{ marginTop: '15px' }}>
-              {selectedDivision && availableFormsRings.length > 0 && (
-                <>
-                  <div className="form-group mt-2">
-                    <label className="form-label">Select Rings to Print</label>
-                    <div style={{ 
-                      display: 'flex', 
-                      gap: '10px',
-                      marginBottom: '10px',
-                      flexWrap: 'wrap'
-                    }}>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setSelectedFormsRings(new Set(availableFormsRings.map(r => r.id)))}
-                        style={{ fontSize: '12px', padding: '5px 10px' }}
-                      >
-                        Select All
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setSelectedFormsRings(new Set())}
-                        style={{ fontSize: '12px', padding: '5px 10px' }}
-                      >
-                        Deselect All
-                      </button>
-                      {sortedCommits.length > 0 && (
-                        <>
-                          <button
-                            className="btn btn-secondary"
-                            onClick={handleSelectFormsDiff}
-                            style={{ fontSize: '12px', padding: '5px 10px' }}
-                          >
-                            Select Diff from Commit
-                          </button>
-                          <select
-                            value={selectedBaseline}
-                            onChange={(e) => setSelectedBaseline(e.target.value)}
-                            style={{ fontSize: '12px', padding: '5px 10px' }}
-                          >
-                            {sortedCommits.map(cp => (
-                              <option key={cp.id} value={cp.id}>
-                                {cp.operation.description} ({new Date(cp.timestamp).toLocaleString()})
-                              </option>
-                            ))}
-                          </select>
-                        </>
-                      )}
-                    </div>
-                    <div style={{ 
-                      maxHeight: '200px', 
-                      overflowY: 'auto',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '4px',
-                      padding: '10px'
-                    }}>
-                      {availableFormsRings.map((ring) => {
-                        const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
-                        const physicalRing = mapping?.physicalRingName || 'No Physical Ring';
-                        
-                        return (
-                          <div key={ring.id} style={{ marginBottom: '8px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedFormsRings.has(ring.id)}
-                                onChange={(e) => {
-                                  const newSet = new Set(selectedFormsRings);
-                                  if (e.target.checked) {
-                                    newSet.add(ring.id);
-                                  } else {
-                                    newSet.delete(ring.id);
-                                  }
-                                  setSelectedFormsRings(newSet);
-                                }}
-                                style={{ marginRight: '8px' }}
-                              />
-                              <span>{ring.name || 'Unnamed Ring'} - {physicalRing} ({ring.participantIds.length} participants)</span>
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => handleExportFormsAdvanced(false)}
-                      disabled={selectedFormsRings.size === 0 || exporting}
-                    >
-                      {exporting ? 'Exporting...' : 'Export to File'}
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => handleExportFormsAdvanced(true)}
-                      disabled={selectedFormsRings.size === 0 || exporting}
-                    >
-                      Print Directly
-                    </button>
-                  </div>
-                </>
-              )}
-              
-              {!selectedDivision && (
-                <div className="warning mt-2">
-                  Please select a division at the top to view forms rings.
-                </div>
-              )}
-              
-              {selectedDivision && availableFormsRings.length === 0 && (
-                <div className="warning mt-2">
-                  No forms rings found for {selectedDivision}.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Sparring Brackets - All */}
-        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ fontSize: '16px', marginBottom: '10px', marginTop: 0 }}>Sparring Brackets (All)</h3>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: 0 }}>
-                Print 16-person tournament brackets for all sparring rings.
-              </p>
-            </div>
-            <button
-              className="btn btn-primary"
-              onClick={handleExportSparringBrackets}
-              disabled={!selectedDivision || exporting}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              {exporting ? 'Exporting...' : `Export ${selectedDivision} Sparring`}
-            </button>
-          </div>
-        </div>
-
         {/* Score Sheets Per Division (Forms + Sparring interleaved by ring) */}
         <div className="card" style={{ padding: '15px', backgroundColor: 'var(--bg-tertiary)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '15px' }}>
@@ -998,142 +492,6 @@ function PDFExport({}: PDFExportProps) {
               {exporting ? 'Exporting...' : `Export ${selectedDivision} Score Sheets`}
             </button>
           </div>
-        </div>
-
-        {/* Sparring Brackets - Advanced */}
-        <div className="card" style={{ padding: '15px', backgroundColor: 'var(--info-bg)' }}>
-          <div 
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              cursor: 'pointer',
-            }}
-            onClick={() => setSparringExpanded(!sparringExpanded)}
-          >
-            <h3 style={{ fontSize: '16px', margin: 0 }}>
-              Select Specific Sparring Rings
-            </h3>
-            <span style={{ fontSize: '20px' }}>{sparringExpanded ? '▼' : '▶'}</span>
-          </div>
-          
-          {sparringExpanded && (
-            <div style={{ marginTop: '15px' }}>
-              {selectedDivision && availableSparringRings.length > 0 && (
-                <>
-                  <div className="form-group mt-2">
-                    <label className="form-label">Select Rings to Print</label>
-                    <div style={{ 
-                      display: 'flex', 
-                      gap: '10px',
-                      marginBottom: '10px',
-                      flexWrap: 'wrap'
-                    }}>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setSelectedSparringRings(new Set(availableSparringRings.map(r => r.id)))}
-                        style={{ fontSize: '12px', padding: '5px 10px' }}
-                      >
-                        Select All
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setSelectedSparringRings(new Set())}
-                        style={{ fontSize: '12px', padding: '5px 10px' }}
-                      >
-                        Deselect All
-                      </button>
-                      {sortedCommits.length > 0 && (
-                        <>
-                          <button
-                            className="btn btn-secondary"
-                            onClick={handleSelectSparringDiff}
-                            style={{ fontSize: '12px', padding: '5px 10px' }}
-                          >
-                            Select Diff from Commit
-                          </button>
-                          <select
-                            value={selectedBaseline}
-                            onChange={(e) => setSelectedBaseline(e.target.value)}
-                            style={{ fontSize: '12px', padding: '5px 10px' }}
-                          >
-                            {sortedCommits.map(cp => (
-                              <option key={cp.id} value={cp.id}>
-                                {cp.operation.description} ({new Date(cp.timestamp).toLocaleString()})
-                              </option>
-                            ))}
-                          </select>
-                        </>
-                      )}
-                    </div>
-                    <div style={{ 
-                      maxHeight: '200px', 
-                      overflowY: 'auto',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '4px',
-                      padding: '10px'
-                    }}>
-                      {availableSparringRings.map((ring) => {
-                        const mapping = physicalRingMappings.find(m => m.categoryPoolName === ring.name);
-                        const physicalRing = mapping?.physicalRingName || 'No Physical Ring';
-                        
-                        return (
-                          <div key={ring.id} style={{ marginBottom: '8px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedSparringRings.has(ring.id)}
-                                onChange={(e) => {
-                                  const newSet = new Set(selectedSparringRings);
-                                  if (e.target.checked) {
-                                    newSet.add(ring.id);
-                                  } else {
-                                    newSet.delete(ring.id);
-                                  }
-                                  setSelectedSparringRings(newSet);
-                                }}
-                                style={{ marginRight: '8px' }}
-                              />
-                              <span>{ring.name || 'Unnamed Ring'} - {physicalRing} ({ring.participantIds.length} participants)</span>
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => handleExportSparringAdvanced(false)}
-                      disabled={selectedSparringRings.size === 0 || exporting}
-                    >
-                      {exporting ? 'Exporting...' : 'Export to File'}
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => handleExportSparringAdvanced(true)}
-                      disabled={selectedSparringRings.size === 0 || exporting}
-                    >
-                      Print Directly
-                    </button>
-                  </div>
-                </>
-              )}
-              
-              {!selectedDivision && (
-                <div className="warning mt-2">
-                  Please select a division at the top to view sparring rings.
-                </div>
-              )}
-              
-              {selectedDivision && availableSparringRings.length === 0 && (
-                <div className="warning mt-2">
-                  No sparring rings found for {selectedDivision}.
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Blank Sheets */}

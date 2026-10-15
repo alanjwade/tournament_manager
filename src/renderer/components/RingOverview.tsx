@@ -12,7 +12,7 @@ import { printPdf, PrintMode } from '../utils/printPdf';
 import PrintButton from './PrintButton';
 import { Participant, CompetitionRing, CustomRing } from '../types/tournament';
 import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
-import { sparringMirrorsForms, findDivisionSelectionGaps } from '../utils/participantPoolUtils';
+import { sparringMirrorsForms, findDivisionSelectionGaps, shouldMirrorSparringFromForms } from '../utils/participantPoolUtils';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 import TournamentAssistantDialog from './TournamentAssistantDialog';
 
@@ -1343,9 +1343,13 @@ function RingOverview({}: RingOverviewProps) {
                       console.log('[QuickEdit] Parsed categoryId:', categoryId, 'pool:', pool);
                       const updates: Partial<Participant> = { formsCategoryId: categoryId, formsPool: pool };
                       
-                      // If copySparringFromForms is checked, also update sparring
-                      if (copySparringFromForms) {
-                        console.log('[QuickEdit] copySparringFromForms is true, also updating sparring');
+                      // If copySparringFromForms is checked AND the participant is
+                      // actually competing in sparring, also update sparring.
+                      // (The checkbox is seeded checked for competitors who aren't
+                      // in sparring, so an unguarded copy would re-enable sparring
+                      // whenever a forms pool is changed.)
+                      if (shouldMirrorSparringFromForms(copySparringFromForms, !!currentCompetingSparring)) {
+                        console.log('[QuickEdit] copySparringFromForms is true and competing in sparring, also updating sparring');
                         // Convert forms category ID to sparring category ID
                         // Format: "forms-{division}-{gender}-{minAge}-{maxAge}" -> "sparring-{division}-{gender}-{minAge}-{maxAge}"
                         const sparringCategoryId = categoryId.replace(/^forms-/, 'sparring-');
