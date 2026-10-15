@@ -131,7 +131,87 @@ describe('describeOperation', () => {
     const delta = computeDelta(prev, next);
 
     expect(describeOperation(delta, prev, next).description).toBe(
-      'Moved Mason Crosby from Beginner - Mixed 7-9 Pool 1 to Beginner - Mixed 7-9 Pool 2 (forms)'
+      'Moved Mason Crosby to Beginner - Mixed 7-9 Pool 2'
+    );
+  });
+
+  it('describes a move where forms and sparring stay locked together', () => {
+    const sparringCategory: Category = { ...category, id: 'c1s', type: 'sparring' };
+    const both = () =>
+      createTestParticipant({
+        id: 'p1',
+        firstName: 'Mason',
+        lastName: 'Crosby',
+        formsCategoryId: 'c1',
+        formsPool: 'P1',
+        sparringCategoryId: 'c1s',
+        sparringPool: 'P1',
+        competingForms: true,
+        competingSparring: true,
+      });
+    const prev = buildState({ participants: [both()], categories: [category, sparringCategory] });
+    const next = buildState({
+      participants: [{ ...both(), formsPool: 'P2', sparringPool: 'P2' }],
+      categories: [category, sparringCategory],
+    });
+    const delta = computeDelta(prev, next);
+
+    expect(describeOperation(delta, prev, next).description).toBe(
+      'Moved Mason Crosby to Beginner - Mixed 7-9 Pool 2'
+    );
+  });
+
+  it('names each competition when forms and sparring diverge', () => {
+    const sparringCategory: Category = { ...category, id: 'c1s', type: 'sparring' };
+    const both = () =>
+      createTestParticipant({
+        id: 'p1',
+        firstName: 'Mason',
+        lastName: 'Crosby',
+        formsCategoryId: 'c1',
+        formsPool: 'P1',
+        sparringCategoryId: 'c1s',
+        sparringPool: 'P1',
+        competingForms: true,
+        competingSparring: true,
+      });
+    const prev = buildState({ participants: [both()], categories: [category, sparringCategory] });
+    const next = buildState({
+      participants: [{ ...both(), formsPool: 'P2' }],
+      categories: [category, sparringCategory],
+    });
+    const delta = computeDelta(prev, next);
+
+    expect(describeOperation(delta, prev, next).description).toBe(
+      'Moved Mason Crosby forms to Beginner - Mixed 7-9 Pool 2'
+    );
+  });
+
+  it('ignores ordering-only churn when counting other changes', () => {
+    const other = () =>
+      createTestParticipant({
+        id: 'p2',
+        firstName: 'Other',
+        lastName: 'Person',
+        formsCategoryId: 'c1',
+        formsPool: 'P1',
+        formsRankOrder: 1,
+        competingForms: true,
+      });
+    const prev = buildState({
+      participants: [{ ...mason(), formsRankOrder: 1 }, other()],
+      categories: [category],
+    });
+    // Moving Mason re-ranks Other within their shared pool, but that automatic
+    // reorder must not surface as "+1 other change".
+    const next = buildState({
+      participants: [{ ...mason(), formsPool: 'P2', formsRankOrder: 1 }, { ...other(), formsRankOrder: 2 }],
+      categories: [category],
+    });
+    const delta = computeDelta(prev, next);
+
+    expect(describeOperation(delta, prev, next).description).toBe(
+      'Moved Mason Crosby to Beginner - Mixed 7-9 Pool 2'
     );
   });
 
@@ -195,7 +275,7 @@ describe('describeOperation', () => {
     const delta = computeDelta(prev, next);
 
     expect(describeOperation(delta, prev, next).description).toBe(
-      'Moved Mason Crosby from Beginner - Mixed 7-9 Pool 1 to Beginner - Mixed 7-9 Pool 2 (forms) (+1 other change)'
+      'Moved Mason Crosby to Beginner - Mixed 7-9 Pool 2 (+1 other change)'
     );
   });
 

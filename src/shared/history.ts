@@ -319,6 +319,12 @@ export function isEmptyDelta(delta: StateDelta): boolean {
 // Operation description
 // ---------------------------------------------------------------------------
 
+/** From/to pool labels for a single competition type within a move. */
+interface MoveChange {
+  fromLabel?: string;
+  toLabel?: string;
+}
+
 interface ParticipantEvent {
   id: string;
   name: string;
@@ -326,6 +332,14 @@ interface ParticipantEvent {
   type: 'forms' | 'sparring';
   fromLabel?: string;
   toLabel?: string;
+  /** For `move` events: the destination details for each competition that moved. */
+  formsMove?: MoveChange;
+  sparringMove?: MoveChange;
+  /**
+   * True when forms and sparring should be reported as a single move (they end
+   * up in the same place, or only one competition has a destination).
+   */
+  locked?: boolean;
 }
 
 /** Human-readable category pool label, e.g. "Beginner - Mixed 7-9 Pool 1". */
@@ -363,14 +377,76 @@ function addedPoolSuffix(record: Participant, categories: Category[]): string {
   return '';
 }
 
+/**
+ * True when forms and sparring end up in the same place after a move, so the
+ * history can report a single destination. When only one competition has a
+ * destination (the participant doesn't compete in the other, or it has no
+ * assignment) there is nothing to distinguish, so it also counts as locked.
+ */
+function isLockedTogether(
+  participant: Participant | undefined,
+  categories: Category[],
+  formsMove?: MoveChange,
+  sparringMove?: MoveChange
+): boolean {
+  if (!participant) return true;
+
+  const formsTarget = participant.competingForms
+    ? formsMove?.toLabel ??
+      poolLabel(categories, participant.formsCategoryId, participant.formsPool)
+    : undefined;
+  const sparringTarget = participant.competingSparring
+    ? sparringMove?.toLabel ??
+      poolLabel(
+        categories,
+        participant.sparringCategoryId,
+        participant.sparringPool,
+        participant.sparringAltRing || undefined
+      )
+    : undefined;
+
+  if (!formsTarget || !sparringTarget) return true;
+  return formsTarget === sparringTarget;
+}
+
+/** One side of a diverging move, e.g. `forms to Beginner - Mixed 7-9 Pool 2`. */
+function describeMoveSide(type: 'forms' | 'sparring', move: MoveChange): string {
+  if (move.toLabel) return `${type} to ${move.toLabel}`;
+  if (move.fromLabel) return `${type} out of ${move.fromLabel}`;
+  return `${type} assignment`;
+}
+
 function describeMove(event: ParticipantEvent): string {
-  const typeLabel = event.type;
-  if (event.fromLabel && event.toLabel) {
-    return `Moved ${event.name} from ${event.fromLabel} to ${event.toLabel} (${typeLabel})`;
+  const forms = event.formsMove;
+  const sparring = event.sparringMove;
+
+  if (!forms && !sparring) {
+    // Fallback when no per-type details were captured.
+    const typeLabel = event.type;
+    if (event.fromLabel && event.toLabel) {
+      return `Moved ${event.name} from ${event.fromLabel} to ${event.toLabel} (${typeLabel})`;
+    }
+    if (event.toLabel) return `Moved ${event.name} to ${event.toLabel} (${typeLabel})`;
+    if (event.fromLabel) return `Removed ${event.name} from ${event.fromLabel} (${typeLabel})`;
+    return `Changed ${event.name}'s ${typeLabel} pool`;
   }
-  if (event.toLabel) return `Moved ${event.name} to ${event.toLabel} (${typeLabel})`;
-  if (event.fromLabel) return `Removed ${event.name} from ${event.fromLabel} (${typeLabel})`;
-  return `Changed ${event.name}'s ${typeLabel} pool`;
+
+  // Forms and sparring locked together (or only one side moved): a single
+  // destination reads best, e.g. "Moved Mason Crosby to Beginner - Mixed 7-9 Pool 2".
+  if (event.locked) {
+    const target = forms?.toLabel ?? sparring?.toLabel;
+    if (target) return `Moved ${event.name} to ${target}`;
+    const from = forms?.fromLabel ?? sparring?.fromLabel;
+    if (from) return `Removed ${event.name} from ${from}`;
+    return `Changed ${event.name}'s pool`;
+  }
+
+  // Rarer case: forms and sparring diverge, so name each competition that moved.
+  const parts: string[] = [];
+  if (forms) parts.push(describeMoveSide('forms', forms));
+  if (sparring) parts.push(describeMoveSide('sparring', sparring));
+  if (parts.length === 0) return `Changed ${event.name}'s pool`;
+  return `Moved ${event.name} ${parts.join(' and ')}`;
 }
 
 function collectParticipantEvents(
@@ -411,26 +487,37 @@ function collectParticipantEvents(
       keys.has('sparringCategoryId') || keys.has('sparringPool') || keys.has('sparringAltRing');
 
     if (formsMoved || sparringMoved) {
-      const type: 'forms' | 'sparring' = formsMoved ? 'forms' : 'sparring';
-      const fromLabel =
-        type === 'forms'
-          ? poolLabel(prevCategories, previous?.formsCategoryId, previous?.formsPool)
-          : poolLabel(
+      const formsMove: MoveChange | undefined = formsMoved
+        ? {
+            fromLabel: poolLabel(prevCategories, previous?.formsCategoryId, previous?.formsPool),
+            toLabel: poolLabel(nextCategories, current?.formsCategoryId, current?.formsPool),
+          }
+        : undefined;
+      const sparringMove: MoveChange | undefined = sparringMoved
+        ? {
+            fromLabel: poolLabel(
               prevCategories,
               previous?.sparringCategoryId,
               previous?.sparringPool,
               previous?.sparringAltRing || undefined
-            );
-      const toLabel =
-        type === 'forms'
-          ? poolLabel(nextCategories, current?.formsCategoryId, current?.formsPool)
-          : poolLabel(
+            ),
+            toLabel: poolLabel(
               nextCategories,
               current?.sparringCategoryId,
               current?.sparringPool,
               current?.sparringAltRing || undefined
-            );
-      events.push({ id: change.id, name, kind: 'move', type, fromLabel, toLabel });
+            ),
+          }
+        : undefined;
+      events.push({
+        id: change.id,
+        name,
+        kind: 'move',
+        type: formsMoved ? 'forms' : 'sparring',
+        formsMove,
+        sparringMove,
+        locked: isLockedTogether(current, nextCategories, formsMove, sparringMove),
+      });
       continue;
     }
 
@@ -455,6 +542,18 @@ function collectParticipantEvents(
   return events;
 }
 
+/**
+ * True when a participant update only moves them within their pool's ordering.
+ * Automatic re-ranking (e.g. after someone else is moved) produces many of
+ * these; they shouldn't inflate the "+N other changes" count on a title.
+ */
+function isOrderingOnlyChange(change: FieldChange<Participant>): boolean {
+  const keys = [
+    ...Object.keys(change.changes),
+    ...(change.removed ?? []).map((key) => String(key)),
+  ];
+  return keys.length > 0 && keys.every((key) => key === 'formsRankOrder' || key === 'sparringRankOrder');
+}
 
 interface Candidate {
   priority: number;
@@ -488,7 +587,11 @@ export function describeOperation(
     (delta.categoryPoolMappings ? 1 : 0) +
     (delta.customRings ? 1 : 0) +
     (delta.customOrderRings ? 1 : 0);
-  const totalUnits = addedCount + removedCount + updatedCount + componentCount;
+  // Automatic within-pool re-ranking rides along with moves/adds/removes; ignore
+  // it here so it doesn't show up as bogus "other changes".
+  const orderingOnlyCount = (participants?.updated ?? []).filter(isOrderingOnlyChange).length;
+  const totalUnits =
+    addedCount + removedCount + (updatedCount - orderingOnlyCount) + componentCount;
 
   const events = collectParticipantEvents(delta, prev, next);
   const candidates: Candidate[] = [];
@@ -590,8 +693,10 @@ export function describeOperation(
   candidates.sort((a, b) => b.priority - a.priority);
   const chosen = candidates[0];
   // On the initial commit (no prior state) the other "changes" are just the
-  // first-time import of categories/config, so keep the message clean.
-  const others = prev ? totalUnits - chosen.units : 0;
+  // first-time import of categories/config, so keep the message clean. A reorder
+  // is itself ordering-only, so it contributes no units to `totalUnits`.
+  const chosenUnits = chosen.kind === 'participant.reorder' ? 0 : chosen.units;
+  const others = prev ? totalUnits - chosenUnits : 0;
   const description = others > 0 ? `${chosen.description} (+${others} other change${others === 1 ? '' : 's'})` : chosen.description;
   return { kind: chosen.kind, description };
 }
