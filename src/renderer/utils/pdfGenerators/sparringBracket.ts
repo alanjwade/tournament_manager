@@ -305,22 +305,44 @@ function calculateBracketPlacements(participants: Participant[], maxRounds: numb
   startRound: number;
   matchCount: number;
 } {
-  const totalPeople = participants.length;
-  
+  const slotCapacity = Math.pow(2, maxRounds);
+  // The printed bracket has a fixed number of slots. If a pool somehow holds more
+  // competitors than slots, only the first `slotCapacity` can be shown — guard so
+  // we never index past the end of the array.
+  const field = participants.length > slotCapacity
+    ? participants.slice(0, slotCapacity)
+    : participants;
+  if (participants.length > slotCapacity) {
+    console.warn(`⚠️  Sparring pool has ${participants.length} competitors but the bracket only holds ${slotCapacity}; extra competitors will not be placed`);
+  }
+  const totalPeople = field.length;
+
+  const computeMatchCount = (fromRound: number): number => {
+    let count = 0;
+    for (let round = fromRound; round <= maxRounds; round++) {
+      count += Math.pow(2, maxRounds - round);
+    }
+    return count + 1; // + 3rd place match
+  };
+
   console.log(`Calculating placements for ${totalPeople} people, maxRounds=${maxRounds}`);
 
   // If there are no participants, return an empty placement set
   // but still compute the matchCount for a full blank bracket visual.
   if (totalPeople === 0) {
-    const startRound = 1;
-    let matchCount = 0;
-    for (let round = startRound; round <= maxRounds; round++) {
-      const matchesInRound = Math.pow(2, maxRounds - round);
-      matchCount += matchesInRound;
-    }
-    // Add 3rd place match
-    matchCount += 1;
-    return { placements: [], startRound, matchCount };
+    return { placements: [], startRound: 1, matchCount: computeMatchCount(1) };
+  }
+
+  // A lone competitor can't be placed by the general algorithm below (no round
+  // has more competitors than half its slots, so the loop finds nothing). Seat
+  // them in the final match with a bye instead of indexing past the array.
+  if (totalPeople === 1) {
+    console.log('  Single competitor - placing in final round');
+    return {
+      placements: [{ round: maxRounds, position: 0, participantId: field[0].id, matchNumber: 0 }],
+      startRound: maxRounds,
+      matchCount: computeMatchCount(maxRounds),
+    };
   }
 
   // Determine starting round based on participant count
@@ -342,8 +364,17 @@ function calculateBracketPlacements(participants: Participant[], maxRounds: numb
   // Calculate how many compete in start round vs get byes
   // numCompeting compete in startRound, numWithByes get byes to nextRound
   // numCompeting winners + numWithByes must equal slotsInNextRound
-  const numCompeting = 2 * (totalPeople - slotsInNextRound);
-  const numWithByes = totalPeople - numCompeting;
+  // Clamp both so the placement loops below always stay within `field`.
+  let numCompeting = 2 * (totalPeople - slotsInNextRound);
+  let numWithByes = totalPeople - numCompeting;
+  if (numWithByes < 0) {
+    numWithByes = 0;
+    numCompeting = totalPeople;
+  }
+  if (numCompeting > slotsInStartRound) {
+    numCompeting = slotsInStartRound;
+    numWithByes = totalPeople - numCompeting;
+  }
   
   console.log(`  StartRound=${startRound}, slots=${slotsInStartRound}`);
   console.log(`  Competing in start round: ${numCompeting}, Getting byes: ${numWithByes}`);
@@ -355,10 +386,10 @@ function calculateBracketPlacements(participants: Participant[], maxRounds: numb
     placements.push({
       round: startRound + 1,
       position: i,
-      participantId: participants[i].id,
+      participantId: field[i].id,
       matchNumber: 0
     });
-    console.log(`  Placement ${i}: ${participants[i].firstName} at round=${startRound + 1}, pos=${i} (bye)`);
+    console.log(`  Placement ${i}: ${field[i].firstName} at round=${startRound + 1}, pos=${i} (bye)`);
   }
   
   // Last p(1) participants (lower-ranked) compete in start round, filling from BOTTOM up
@@ -367,22 +398,13 @@ function calculateBracketPlacements(participants: Participant[], maxRounds: numb
     placements.push({
       round: startRound,
       position: position,
-      participantId: participants[i].id,
+      participantId: field[i].id,
       matchNumber: 0
     });
-    console.log(`  Placement ${i}: ${participants[i].firstName} at round=${startRound}, pos=${position} (competing)`);
+    console.log(`  Placement ${i}: ${field[i].firstName} at round=${startRound}, pos=${position} (competing)`);
   }
 
-  // Calculate total match count
-  let matchCount = 0;
-  for (let round = startRound; round <= maxRounds; round++) {
-    const matchesInRound = Math.pow(2, maxRounds - round);
-    matchCount += matchesInRound;
-  }
-  // Add 3rd place match
-  matchCount += 1;
-
-  return { placements, startRound, matchCount };
+  return { placements, startRound, matchCount: computeMatchCount(startRound) };
 }
 
 function generate16PersonBracket(participants: Participant[]): Match[] {

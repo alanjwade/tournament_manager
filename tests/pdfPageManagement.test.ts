@@ -546,5 +546,35 @@ describe('PDF Page Management', () => {
       masterPdf.deletePage(masterPdf.getNumberOfPages());
       expect(masterPdf.getNumberOfPages()).toBe(2); // youth, adult
     });
+
+    it('single-competitor sparring ring should not throw', () => {
+      // Regression: a pool with exactly one competitor has no starting round
+      // (no round has more competitors than half its slots), which used to make
+      // calculateBracketPlacements index past the participant array and throw
+      // "Cannot read properties of undefined (reading 'id')".
+      const participants = [createParticipant('1')];
+      const rings = [createSparringRing('Adult - Adult Pool 1', 'Adult', ['1'])];
+
+      const doc = generateSparringBrackets(
+        participants,
+        rings,
+        physicalRings,
+        'Adult',
+        undefined,
+        physicalRingMappings
+      );
+
+      expect(doc.getNumberOfPages()).toBe(1);
+    });
+
+    it('sparring pool larger than the 16-slot bracket should not throw', () => {
+      const participants = Array.from({ length: 20 }, (_, i) => createParticipant(String(i + 1)));
+      const ids = participants.map((p) => p.id);
+      const rings = [createSparringRing('Adult - Adult Pool 1', 'Adult', ids)];
+
+      expect(() =>
+        generateSparringBrackets(participants, rings, physicalRings, 'Adult', undefined, physicalRingMappings)
+      ).not.toThrow();
+    });
   });
 });
