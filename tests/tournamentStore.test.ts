@@ -593,6 +593,51 @@ describe('Tournament Store', () => {
       expect(shouldExportForms).toBe(true);  // Should export forms
       expect(shouldExportSparring).toBe(false); // Should NOT export sparring
     });
+
+    it('should report a participant name change as a delta and refresh both of their rings', () => {
+      const participant = createTestParticipant({
+        id: 'p1',
+        firstName: 'Old',
+        lastName: 'Name',
+        competingForms: true,
+        formsCategoryId: 'cat1',
+        formsPool: 'P1',
+        formsRankOrder: 1,
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+        sparringAltRing: '',
+        sparringRankOrder: 1,
+      });
+
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        type: 'forms',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([participant]);
+      useTournamentStore.getState().setCategories([category]);
+
+      const baseline = snapshotState();
+
+      useTournamentStore.getState().updateParticipant('p1', {
+        firstName: 'New',
+        lastName: 'Person',
+      });
+
+      const diff = computeStateDiff(baseline, snapshotState());
+
+      expect(diff).not.toBeNull();
+      expect(diff!.participantsModified.map((c) => c.field)).toEqual(
+        expect.arrayContaining(['firstName', 'lastName'])
+      );
+      // A rename changes the printed roster, so the forms and sparring rings
+      // containing this participant must both count as affected.
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_forms')).toBe(true);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring')).toBe(true);
+    });
   });
 
   describe('hydrateFromAutosave', () => {

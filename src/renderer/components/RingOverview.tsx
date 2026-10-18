@@ -787,6 +787,8 @@ function RingOverview({}: RingOverviewProps) {
     const { participant } = quickEdit;
     
     // Get current values (either from pending changes or participant)
+    const currentFirstName = pendingChanges.firstName !== undefined ? pendingChanges.firstName : participant.firstName;
+    const currentLastName = pendingChanges.lastName !== undefined ? pendingChanges.lastName : participant.lastName;
     const currentCompetingForms = pendingChanges.competingForms !== undefined ? pendingChanges.competingForms : participant.competingForms;
     const currentCompetingSparring = pendingChanges.competingSparring !== undefined ? pendingChanges.competingSparring : participant.competingSparring;
     
@@ -836,6 +838,25 @@ function RingOverview({}: RingOverviewProps) {
       
       // Remove internal marker flags that don't affect participant data
       delete (updates as any)._sparringDecoupled;
+
+      // Names are edited locally and only committed here, on submit. Trim them
+      // and refuse to save a blank first or last name.
+      if (updates.firstName !== undefined) {
+        const firstName = (updates.firstName ?? '').trim();
+        if (!firstName) {
+          setSubmitError('First name cannot be empty.');
+          return;
+        }
+        updates.firstName = firstName;
+      }
+      if (updates.lastName !== undefined) {
+        const lastName = (updates.lastName ?? '').trim();
+        if (!lastName) {
+          setSubmitError('Last name cannot be empty.');
+          return;
+        }
+        updates.lastName = lastName;
+      }
       
       // If all that's left is empty after removing markers, just close
       if (Object.keys(updates).length === 0) {
@@ -1079,9 +1100,45 @@ function RingOverview({}: RingOverviewProps) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <h3 style={{ marginTop: 0, marginBottom: '10px', color: 'var(--text-primary)' }}>
-            Quick Edit: {participant.firstName} {participant.lastName}
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0, marginBottom: '10px' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)', flexShrink: 0 }}>
+              Quick Edit:
+            </h3>
+            <input
+              type="text"
+              value={currentFirstName}
+              onChange={(e) => updatePending({ firstName: e.target.value })}
+              placeholder="First name"
+              aria-label="First name"
+              style={{
+                width: '180px',
+                padding: '6px 8px',
+                fontSize: '15px',
+                fontWeight: '600',
+                color: 'var(--text-primary)',
+                backgroundColor: 'var(--input-bg)',
+                border: '1px solid var(--input-border)',
+                borderRadius: '4px',
+              }}
+            />
+            <input
+              type="text"
+              value={currentLastName}
+              onChange={(e) => updatePending({ lastName: e.target.value })}
+              placeholder="Last name"
+              aria-label="Last name"
+              style={{
+                width: '180px',
+                padding: '6px 8px',
+                fontSize: '15px',
+                fontWeight: '600',
+                color: 'var(--text-primary)',
+                backgroundColor: 'var(--input-bg)',
+                border: '1px solid var(--input-border)',
+                borderRadius: '4px',
+              }}
+            />
+          </div>
           
           {/* Age / Gender / Height on one line, with Withdraw/Restore to the right */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>

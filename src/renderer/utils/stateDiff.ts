@@ -43,6 +43,7 @@ export function computeStateDiff(baseline: SavedState, current: SavedState): Sta
   const ringsAffected = new Set<string>();
 
   const fieldsToCheck: (keyof Participant)[] = [
+    'firstName', 'lastName',
     'formsCategoryId', 'sparringCategoryId',
     'formsPool', 'sparringPool', 'sparringAltRing',
     'competingForms', 'competingSparring',
@@ -101,6 +102,19 @@ export function computeStateDiff(baseline: SavedState, current: SavedState): Sta
             const category = current.categories.find((c) => c.id === currentP.sparringCategoryId);
             if (category) ringsAffected.add(buildRingId(category.division, category.name, currentP.sparringPool || 'P1', 'sparring', currentP.sparringAltRing || undefined));
           }
+        }
+      }
+
+      // A name change alters the printed roster, so both of the participant's
+      // rings need refreshing even though their assignment is unchanged.
+      if (field === 'firstName' || field === 'lastName') {
+        if (currentP.competingForms && currentP.formsCategoryId) {
+          const category = current.categories.find((c) => c.id === currentP.formsCategoryId);
+          if (category) ringsAffected.add(buildRingId(category.division, category.name, currentP.formsPool || 'P1', 'forms'));
+        }
+        if (currentP.competingSparring && currentP.sparringCategoryId) {
+          const category = current.categories.find((c) => c.id === currentP.sparringCategoryId);
+          if (category) ringsAffected.add(buildRingId(category.division, category.name, currentP.sparringPool || 'P1', 'sparring', currentP.sparringAltRing || undefined));
         }
       }
     });

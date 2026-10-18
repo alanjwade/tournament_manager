@@ -1,4 +1,4 @@
-\/**
+/**
  * Tests for PDF page management to ensure content never overlays
  * 
  * These tests verify that when multiple PDF generators are called in sequence,
