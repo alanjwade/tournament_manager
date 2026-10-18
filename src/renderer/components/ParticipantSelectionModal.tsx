@@ -15,20 +15,20 @@ function ParticipantSelectionModal({
   excludeIds = [],
   title = 'Select Participant'
 }: ParticipantSelectionModalProps) {
-  const [searchFirstName, setSearchFirstName] = useState('');
-  const [searchLastName, setSearchLastName] = useState('');
+  const [searchName, setSearchName] = useState('');
   const participants = useTournamentStore((state) => state.participants);
 
-  // Filter participants based on search criteria
+  // Filter participants based on the combined name search. Every whitespace-
+  // separated token must appear somewhere in "first last", so "jo sm" and
+  // "smith john" both find "John Smith".
   const filteredParticipants = useMemo(() => {
+    const terms = searchName.trim().toLowerCase().split(/\s+/).filter(Boolean);
     return participants
       .filter(p => !excludeIds.includes(p.id))
       .filter(p => {
-        const firstNameMatch = !searchFirstName || 
-          p.firstName.toLowerCase().includes(searchFirstName.toLowerCase());
-        const lastNameMatch = !searchLastName || 
-          p.lastName.toLowerCase().includes(searchLastName.toLowerCase());
-        return firstNameMatch && lastNameMatch;
+        if (terms.length === 0) return true;
+        const fullName = `${p.firstName} ${p.lastName}`.toLowerCase();
+        return terms.every(term => fullName.includes(term));
       })
       .sort((a, b) => {
         // Sort by last name, then first name
@@ -36,7 +36,7 @@ function ParticipantSelectionModal({
         if (lastNameCompare !== 0) return lastNameCompare;
         return a.firstName.localeCompare(b.firstName);
       });
-  }, [participants, searchFirstName, searchLastName, excludeIds]);
+  }, [participants, searchName, excludeIds]);
 
   const handleSelect = (participant: Participant) => {
     onSelect(participant);
@@ -77,58 +77,31 @@ function ParticipantSelectionModal({
           {title}
         </h3>
 
-        {/* Search fields */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '5px', 
-              fontSize: '13px',
-              color: 'var(--text-secondary)' 
-            }}>
-              First Name
-            </label>
-            <input
-              type="text"
-              value={searchFirstName}
-              onChange={(e) => setSearchFirstName(e.target.value)}
-              placeholder="Search by first name..."
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: '4px',
-                border: '1px solid var(--input-border)',
-                fontSize: '14px',
-                backgroundColor: 'var(--input-bg)',
-                color: 'var(--text-primary)',
-              }}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '5px', 
-              fontSize: '13px',
-              color: 'var(--text-secondary)' 
-            }}>
-              Last Name
-            </label>
-            <input
-              type="text"
-              value={searchLastName}
-              onChange={(e) => setSearchLastName(e.target.value)}
-              placeholder="Search by last name..."
-              style={{
-                width: '100%',
-                padding: '8px',
-                borderRadius: '4px',
-                border: '1px solid var(--input-border)',
-                fontSize: '14px',
-                backgroundColor: 'var(--input-bg)',
-                color: 'var(--text-primary)',
-              }}
-            />
-          </div>
+        {/* Search field */}
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '5px', 
+            fontSize: '13px',
+            color: 'var(--text-secondary)' 
+          }}>
+            Name
+          </label>
+          <input
+            type="text"
+            value={searchName}
+            onChange={(e) => setSearchName(e.target.value)}
+            placeholder="Search by first or last name..."
+            style={{
+              width: '100%',
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid var(--input-border)',
+              fontSize: '14px',
+              backgroundColor: 'var(--input-bg)',
+              color: 'var(--text-primary)',
+            }}
+          />
         </div>
 
         {/* Results count */}
