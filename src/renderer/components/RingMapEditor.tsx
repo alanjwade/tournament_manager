@@ -3,7 +3,7 @@ import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings } from '../utils/computeRings';
 import { getEffectiveDivision } from '../utils/excelParser';
 import { formatPoolNameForDisplay } from '../utils/ringNameFormatter';
-import { comparePoolsBySchedule } from '../utils/poolScheduling';
+import { comparePoolsBySchedule, assignPhysicalRingNames } from '../utils/poolScheduling';
 
 interface RingAssignmentRow {
   categoryPoolName: string;
@@ -148,39 +148,14 @@ function RingMapEditor({}: RingMapEditorProps) {
 
   // Auto-assign physical rings sequentially (updates local state only)
   const handleAutoAssign = () => {
-    const physicalRingNames: string[] = [];
-
-    // Generate physical ring names based on numPhysicalRings
-    for (let i = 1; i <= numPhysicalRings; i++) {
-      physicalRingNames.push(`Ring ${i}`);
-    }
-
-    // Assign all pools sequentially
-    const needsSuffixes = sortedPools.length > numPhysicalRings;
-    const newAssignments: RingAssignmentRow[] = sortedPools.map((ring, index) => {
-      let physicalRingName: string;
-      
-      if (needsSuffixes) {
-        // Use pairs with suffixes: Ring 1a, Ring 1b, Ring 2a, Ring 2b, etc.
-        const pairIndex = Math.floor(index / 2);
-        const withinPair = index % 2;
-        const ringIndex = pairIndex % numPhysicalRings;
-        const basePhysicalRing = physicalRingNames[ringIndex];
-        const suffixes = 'abcdefghijklmnopqrstuvwxyz';
-        physicalRingName = `${basePhysicalRing}${suffixes[withinPair]}`;
-      } else {
-        // Enough rings - assign sequentially: Ring 1, Ring 2, Ring 3, etc.
-        physicalRingName = physicalRingNames[index];
-      }
-      
-      return {
-        categoryPoolName: ring.ringName,
-        division: ring.division,
-        minAge: ring.minAge,
-        participantCount: ring.participantIds.size,
-        physicalRingName,
-      };
-    });
+    const physicalRingNames = assignPhysicalRingNames(sortedPools, numPhysicalRings);
+    const newAssignments: RingAssignmentRow[] = sortedPools.map((ring, index) => ({
+      categoryPoolName: ring.ringName,
+      division: ring.division,
+      minAge: ring.minAge,
+      participantCount: ring.participantIds.size,
+      physicalRingName: physicalRingNames[index],
+    }));
 
     setAssignments(newAssignments);
     setIsDirty(true); // Mark as dirty

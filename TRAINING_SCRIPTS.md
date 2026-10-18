@@ -289,7 +289,7 @@ Three-part training series covering the complete Tournament Manager workflow.
 
 **[DEMO: Set the ring count and click Auto Assign.]**
 
-> The app distributes your pools sequentially. If you have more pools than rings, it'll add letter suffixes — Ring 1a, Ring 1b, Ring 2a, etc.
+> The app distributes your pools sequentially. If you have more pools than rings, it splits them into two waves: the first uses the "a" rings (Ring 1a, Ring 2a, Ring 3a...) and the second uses the "b" rings (Ring 1b, Ring 2b, Ring 3b...). A category is never split across the two waves — the split is moved to the nearest category boundary that still fits both waves within the available rings.
 
 > After auto-assigning, review the table and adjust any ring assignments manually if needed.
 

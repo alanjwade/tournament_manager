@@ -3,7 +3,7 @@
  * gender (female before male before mixed), then pool number.
  */
 import { describe, it, expect } from 'vitest';
-import { comparePoolsBySchedule, genderRank, normalizeGender } from '../src/renderer/utils/poolScheduling';
+import { comparePoolsBySchedule, genderRank, normalizeGender, assignPhysicalRingNames } from '../src/renderer/utils/poolScheduling';
 import type { SchedulablePool } from '../src/renderer/utils/poolScheduling';
 
 const pool = (ringName: string, minAge: number, gender: string): SchedulablePool => ({
@@ -106,5 +106,106 @@ describe('poolScheduling', () => {
       'Black Belt - Male 11-12 Pool 1',
       'Black Belt - Male 11-12 Pool 2',
     ]);
+  });
+});
+
+describe('assignPhysicalRingNames', () => {
+  const pools = (...names: string[]) => names.map((ringName) => ({ ringName }));
+
+  it('assigns pools sequentially when there are enough physical rings', () => {
+    const result = assignPhysicalRingNames(
+      pools('A Pool 1', 'B Pool 1', 'C Pool 1'),
+      5
+    );
+    expect(result).toEqual(['Ring 1', 'Ring 2', 'Ring 3']);
+  });
+
+  it('uses all a-rings before b-rings, splitting at the halfway point', () => {
+    const result = assignPhysicalRingNames(
+      pools(
+        'A Pool 1', 'B Pool 1', 'C Pool 1',
+        'D Pool 1', 'E Pool 1', 'F Pool 1'
+      ),
+      4
+    );
+    expect(result).toEqual([
+      'Ring 1a', 'Ring 2a', 'Ring 3a',
+      'Ring 1b', 'Ring 2b', 'Ring 3b',
+    ]);
+  });
+
+  it('keeps a category that straddles the halfway point together in the a wave', () => {
+    // "C Pool 1" and "C Pool 2" fall either side of the nominal half (index 3),
+    // so the boundary moves forward and both stay in the a wave.
+    const result = assignPhysicalRingNames(
+      pools(
+        'A Pool 1', 'B Pool 1',
+        'C Pool 1', 'C Pool 2',
+        'D Pool 1', 'E Pool 1'
+      ),
+      4
+    );
+    expect(result).toEqual([
+      'Ring 1a', 'Ring 2a', 'Ring 3a', 'Ring 4a',
+      'Ring 1b', 'Ring 2b',
+    ]);
+  });
+
+  it('starts the second wave after the first half of a large schedule', () => {
+    const manyPools = Array.from({ length: 20 }, (_, i) => ({
+      ringName: `Category ${i + 1} Pool 1`,
+    }));
+    const result = assignPhysicalRingNames(manyPools, 14);
+
+    expect(result.slice(0, 10)).toEqual([
+      'Ring 1a', 'Ring 2a', 'Ring 3a', 'Ring 4a', 'Ring 5a',
+      'Ring 6a', 'Ring 7a', 'Ring 8a', 'Ring 9a', 'Ring 10a',
+    ]);
+    expect(result.slice(10)).toEqual([
+      'Ring 1b', 'Ring 2b', 'Ring 3b', 'Ring 4b', 'Ring 5b',
+      'Ring 6b', 'Ring 7b', 'Ring 8b', 'Ring 9b', 'Ring 10b',
+    ]);
+  });
+
+  it('moves the split back to a category edge when the forward edge would exceed the rings', () => {
+    // Black Belt has 15 pools and 8 rings. The halfway point lies inside
+    // Female 13-14, but keeping that whole category in the a wave would need 9
+    // rings, so the split moves back to the edge after Male 11-12: 7 a-rings
+    // and 8 b-rings.
+    const blackBeltPools = [
+      'Black Belt - Mixed 9-10 Pool 1',
+      'Black Belt - Mixed 9-10 Pool 2',
+      'Black Belt - Female 11-12 Pool 1',
+      'Black Belt - Female 11-12 Pool 2',
+      'Black Belt - Male 11-12 Pool 1',
+      'Black Belt - Male 11-12 Pool 2',
+      'Black Belt - Male 11-12 Pool 3',
+      'Black Belt - Female 13-14 Pool 1',
+      'Black Belt - Female 13-14 Pool 2',
+      'Black Belt - Male 13-14 Pool 1',
+      'Black Belt - Male 13-14 Pool 2',
+      'Black Belt - Female 15-17 Pool 1',
+      'Black Belt - Male 15-17 Pool 1',
+      'Black Belt - Female 18+ Pool 1',
+      'Black Belt - Male 18+ Pool 1',
+    ].map((ringName) => ({ ringName }));
+
+    const result = assignPhysicalRingNames(blackBeltPools, 8);
+
+    const firstWave = result.slice(0, 7);
+    const secondWave = result.slice(7);
+
+    // Black Belt Female 11-12 and Male 11-12 are entirely in the a wave.
+    expect(firstWave).toEqual([
+      'Ring 1a', 'Ring 2a', 'Ring 3a', 'Ring 4a', 'Ring 5a', 'Ring 6a', 'Ring 7a',
+    ]);
+    expect(secondWave).toEqual([
+      'Ring 1b', 'Ring 2b', 'Ring 3b', 'Ring 4b',
+      'Ring 5b', 'Ring 6b', 'Ring 7b', 'Ring 8b',
+    ]);
+    expect(result.every((name, index) => {
+      const wave = index < 7 ? 'a' : 'b';
+      return name.endsWith(wave);
+    })).toBe(true);
   });
 });

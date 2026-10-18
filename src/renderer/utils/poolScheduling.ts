@@ -71,3 +71,74 @@ export function comparePoolsBySchedule(a: SchedulablePool, b: SchedulablePool): 
 
   return poolNumber(a.ringName) - poolNumber(b.ringName);
 }
+
+/** Strip the trailing "Pool N" from a pool name to identify its category. */
+function categoryKey(ringName: string): string {
+  return ringName.replace(/\s*Pool\s*\d+\s*$/i, '').trim();
+}
+
+/**
+ * Build the physical-ring names for an ordered list of pools.
+ *
+ * When there are no more pools than physical rings, pools are assigned
+ * sequentially to `Ring 1`, `Ring 2`, ...
+ *
+ * When there are more pools than rings, the schedule is split into two waves:
+ * the first uses the `a` suffix (`Ring 1a`, `Ring 2a`, ...) and the second uses
+ * `b` (`Ring 1b`, `Ring 2b`, ...). The split is placed on the category edge
+ * closest to the halfway point while keeping both waves within the physical
+ * ring count, so a category is never spread across `a` and `b`.
+ */
+export function assignPhysicalRingNames(
+  pools: { ringName: string }[],
+  numPhysicalRings: number
+): string[] {
+  const ringCount = Math.max(1, Math.floor(numPhysicalRings));
+  const poolCount = pools.length;
+
+  if (poolCount === 0) return [];
+  if (poolCount <= ringCount) {
+    return pools.map((_, index) => `Ring ${index + 1}`);
+  }
+
+  // Positions where a new category starts. Splitting here keeps every
+  // category's pools inside a single wave.
+  const categoryEdges: number[] = [];
+  for (let index = 1; index < poolCount; index++) {
+    if (categoryKey(pools[index - 1].ringName) !== categoryKey(pools[index].ringName)) {
+      categoryEdges.push(index);
+    }
+  }
+
+  // Each wave must fit on the available physical rings.
+  const minSplit = Math.max(1, poolCount - ringCount);
+  const maxSplit = Math.min(ringCount, poolCount - 1);
+  const halfway = poolCount / 2;
+
+  const pickClosestEdge = (edges: number[]): number | null =>
+    edges.reduce<number | null>((best, edge) => {
+      if (best === null) return edge;
+      const edgeDistance = Math.abs(edge - halfway);
+      const bestDistance = Math.abs(best - halfway);
+      if (edgeDistance < bestDistance) return edge;
+      // On a tie, put the extra pool (and the category) in the `a` wave.
+      if (edgeDistance === bestDistance && edge > best) return edge;
+      return best;
+    }, null);
+
+  const fittingEdges = categoryEdges.filter(
+    (edge) => edge >= minSplit && edge <= maxSplit
+  );
+
+  const splitIndex =
+    pickClosestEdge(fittingEdges) ??
+    pickClosestEdge(categoryEdges) ??
+    Math.min(maxSplit, Math.max(minSplit, Math.ceil(halfway)));
+
+  return pools.map((_, index) => {
+    const isFirstWave = index < splitIndex;
+    const suffix = isFirstWave ? 'a' : 'b';
+    const withinWave = isFirstWave ? index : index - splitIndex;
+    return `Ring ${(withinWave % ringCount) + 1}${suffix}`;
+  });
+}
