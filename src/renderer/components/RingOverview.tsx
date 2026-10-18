@@ -1305,7 +1305,15 @@ function RingOverview({}: RingOverviewProps) {
                 value={currentFormsDivision ?? ''}
                 onChange={(e) => {
                   const value = e.target.value || null;
-                  updatePending({ formsDivision: value });
+                  const updates: Partial<Participant> = { formsDivision: value };
+                  // When sparring mirrors Forms, reflect the new division on the
+                  // (disabled/grayed-out) sparring side immediately — before the
+                  // user hits Submit. The sparring category & pool are re-mirrored
+                  // when a matching Forms category & pool is chosen below.
+                  if (shouldMirrorSparringFromForms(copySparringFromForms, !!currentCompetingSparring)) {
+                    updates.sparringDivision = value;
+                  }
+                  updatePending(updates);
                 }}
                 disabled={!currentCompetingForms}
                 style={{
