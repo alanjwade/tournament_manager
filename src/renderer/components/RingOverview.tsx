@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import { useTournamentStore } from '../store/tournamentStore';
 import { computeCompetitionRings, getEffectiveFormsInfo, getEffectiveSparringInfo } from '../utils/computeRings';
 import { checkSparringAltRingStatus } from '../utils/ringOrdering';
-import { formatPoolNameForDisplay, isRingAffected, isRingAffectedSimple, buildCategoryPoolName, extractPoolId } from '../utils/ringNameFormatter';
+import { formatPoolNameForDisplay, isRingAffectedSimple, buildCategoryPoolName, extractPoolId } from '../utils/ringNameFormatter';
 import { getSchoolAbbreviation } from '../utils/schoolAbbreviations';
 import { generateFormsScoringSheets } from '../utils/pdfGenerators/formsScoringSheet';
 import { generateSparringBrackets } from '../utils/pdfGenerators/sparringBracket';
@@ -12,6 +12,7 @@ import { printPdf, PrintMode } from '../utils/printPdf';
 import PrintButton from './PrintButton';
 import { Participant, CompetitionRing, CustomRing } from '../types/tournament';
 import { RING_BALANCE, DEFAULT_DIVISION_ORDER } from '../utils/constants';
+import { collectChangedRings } from '../utils/changedRingOrder';
 import { sparringMirrorsForms, findDivisionSelectionGaps, shouldMirrorSparringFromForms } from '../utils/participantPoolUtils';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 import TournamentAssistantDialog from './TournamentAssistantDialog';
@@ -350,48 +351,19 @@ function RingOverview({}: RingOverviewProps) {
     );
   };
 
-  // Print all changed rings combined into one PDF
+  // Print all changed rings combined into one PDF. This always spans every
+  // division (not just the one currently filtered) and follows the order:
+  // division -> category -> pool -> forms -> sparring.
   const handlePrintAllChanged = async (mode: PrintMode) => {
-    if (changedRingsCounts.total === 0) {
+    const changedRingItems = collectChangedRings(
+      competitionRings,
+      changedRings,
+      categories,
+      config.divisions
+    );
+
+    if (changedRingItems.length === 0) {
       alert('No rings have changed since the baseline.');
-      return;
-    }
-
-    // Don't filter when viewing Grand Champion or Checkpoints
-    const divisionFilterForPrint = (selectedDivision === 'grand-champion' || selectedDivision === 'baselines') ? 'all' : selectedDivision;
-
-    // Get all competition rings that have changed, filtered by selected division
-    // For forms, we just need to know if the ring changed
-    const changedFormsRings = competitionRings
-      .filter(ring => 
-        ring.type === 'forms' && 
-        isRingAffected(ring.name || ring.division, 'forms', changedRings).isAffected &&
-        (divisionFilterForPrint === 'all' || ring.division === divisionFilterForPrint)
-      );
-    
-    // For sparring, we need to track which specific alt rings changed
-    interface SparringRingWithAltFilter {
-      ring: CompetitionRing;
-      altRings?: Set<string>;
-    }
-    const changedSparringRingsWithFilter: SparringRingWithAltFilter[] = [];
-    
-    competitionRings.forEach(ring => {
-      if (ring.type !== 'sparring') return;
-      if (divisionFilterForPrint !== 'all' && ring.division !== divisionFilterForPrint) return;
-      
-      const baseRingName = ring.name || ring.division;
-      const result = isRingAffected(baseRingName, 'sparring', changedRings);
-      if (result.isAffected) {
-        changedSparringRingsWithFilter.push({
-          ring,
-          altRings: result.altRings,
-        });
-      }
-    });
-
-    if (changedFormsRings.length === 0 && changedSparringRingsWithFilter.length === 0) {
-      alert('No forms or sparring rings found for changed rings.');
       return;
     }
 
@@ -404,57 +376,37 @@ function RingOverview({}: RingOverviewProps) {
         format: 'letter',
       });
 
-      // Group by division for forms
-      const formsByDivision = new Map<string, CompetitionRing[]>();
-      changedFormsRings.forEach(ring => {
-        const existing = formsByDivision.get(ring.division) || [];
-        formsByDivision.set(ring.division, [...existing, ring]);
-      });
+      // Generate one sheet/bracket at a time so the defined order is preserved.
+      for (const item of changedRingItems) {
+        const ring = item.ring;
 
-      // Generate all forms PDFs, adding directly to master
-      for (const [division, rings] of formsByDivision) {
-        if (rings.length > 0) {
+        if (ring.type === 'forms') {
           generateFormsScoringSheets(
             participants,
-            rings,
+            [ring],
             config.physicalRings,
-            division,
+            ring.division,
             config.watermarkImage,
             physicalRingMappings,
-            masterPdf  // Pass master PDF to add to
+            masterPdf
           );
-        }
-      }
-
-      // Group by division for sparring, keeping track of alt ring filters per ring
-      const sparringByDivision = new Map<string, SparringRingWithAltFilter[]>();
-      changedSparringRingsWithFilter.forEach(item => {
-        const existing = sparringByDivision.get(item.ring.division) || [];
-        sparringByDivision.set(item.ring.division, [...existing, item]);
-      });
-
-      // Generate all sparring PDFs, adding directly to master
-      // We need to process each ring individually to apply the correct alt ring filter
-      for (const [division, ringItems] of sparringByDivision) {
-        for (const item of ringItems) {
+        } else {
           generateSparringBrackets(
             participants,
-            [item.ring],
+            [ring],
             config.physicalRings,
-            division,
+            ring.division,
             config.watermarkImage,
             physicalRingMappings,
-            masterPdf,  // Pass master PDF to add to
+            masterPdf,
             undefined,  // titleOverride
             false,      // isCustomRing
-            { altRingFilter: item.altRings }  // Pass the alt ring filter
+            { altRingFilter: item.altRings }
           );
         }
       }
 
       // Remove the trailing blank page that generators add for page management
-      // Each generator adds a blank page at the end to prevent the next generator from overlaying
-      // We need to remove the final blank page before printing
       if (masterPdf.getNumberOfPages() > 1) {
         masterPdf.deletePage(masterPdf.getNumberOfPages());
       }
@@ -685,32 +637,6 @@ function RingOverview({}: RingOverviewProps) {
 
     return result;
   }, [latestDiff, baselineState, participants, categories]);
-
-  // Count changed rings for display
-  const changedRingsCounts = useMemo(() => {
-    // Don't filter when viewing Grand Champion or Checkpoints
-    const divisionFilter = (selectedDivision === 'grand-champion' || selectedDivision === 'baselines') ? 'all' : selectedDivision;
-    
-    const changedFormsRings = competitionRings.filter(
-      ring => ring.type === 'forms' && 
-              isRingAffected(ring.name || ring.division, 'forms', changedRings).isAffected &&
-              (divisionFilter === 'all' || ring.division === divisionFilter)
-    );
-    const changedSparringRings = competitionRings.filter(
-      ring => {
-        if (ring.type !== 'sparring') return false;
-        if (divisionFilter !== 'all' && ring.division !== divisionFilter) return false;
-        
-        const baseRingName = ring.name || ring.division;
-        return isRingAffected(baseRingName, 'sparring', changedRings).isAffected;
-      }
-    );
-    return {
-      forms: changedFormsRings.length,
-      sparring: changedSparringRings.length,
-      total: changedFormsRings.length + changedSparringRings.length
-    };
-  }, [competitionRings, changedRings, selectedDivision]);
 
   // Filter ring pairs by selected division
   const filteredRingPairs = useMemo(() => {
@@ -2664,11 +2590,11 @@ function RingOverview({}: RingOverviewProps) {
 
             {/* Print Changed — only appears when there are changes. The silent
                 mode also sets a new baseline. */}
-            {baselineState && changedRingsCounts.total > 0 && (
+            {baselineState && changedRings.size > 0 && (
               <PrintButton
                 onPrint={(mode) => handlePrintAllChanged(mode)}
                 disabled={printing === 'all-changed'}
-                title={`Print all ${changedRingsCounts.total} changed ring(s) and set a new baseline`}
+                title={`Print all ${changedRings.size} changed ring(s) across all divisions and set a new baseline`}
                 nowLabel="Print Changed & Set Baseline"
                 setsBaseline
                 color="#ffc107"
@@ -2676,7 +2602,7 @@ function RingOverview({}: RingOverviewProps) {
                 fontSize={13}
                 padding="5px 12px"
                 fontWeight="600"
-                labelSuffix={` (${changedRingsCounts.total})`}
+                labelSuffix={` (${changedRings.size})`}
               />
             )}
           </div>
@@ -3056,8 +2982,8 @@ function RingOverview({}: RingOverviewProps) {
           {baselineState && changedRings.size > 0 && (
             <div style={{ backgroundColor: '#fff3cd', color: '#856404', borderRadius: '8px', padding: '15px', marginBottom: '25px', border: '2px solid #ffc107', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <strong style={{ fontSize: '15px' }}>⚠️ {changedRings.size} ring(s) changed since baseline</strong>
-                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>Print updated PDFs for rings that have been modified. In the silent mode this also sets a new baseline.</p>
+                <strong style={{ fontSize: '15px' }}>⚠️ {changedRings.size} ring(s) changed since baseline across all divisions</strong>
+                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>Print updated PDFs for every changed ring in every division. In the silent mode this also sets a new baseline.</p>
               </div>
               <PrintButton onPrint={(mode) => { if (changedRings.size > 0) handlePrintAllChanged(mode); }} disabled={changedRings.size === 0} title={`Print all ${changedRings.size} changed ring(s) and set a new baseline`} nowLabel="Print Changed & Set Baseline" setsBaseline color="#ffc107" textColor="#000" fontSize={14} padding="8px 16px" fontWeight="600" />
             </div>
