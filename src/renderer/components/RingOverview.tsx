@@ -30,6 +30,12 @@ interface QuickEditState {
   ringName: string;
 }
 
+interface RingMemberChanges {
+  added: string[];
+  removed: string[];
+  renamed: { from: string; to: string }[];
+}
+
 interface RingOverviewProps {}
 
 // Ring balance indicator helper
@@ -489,7 +495,10 @@ function RingOverview({}: RingOverviewProps) {
   const changedRings = useMemo(() => {
     const diff = diffBaseline();
     return diff ? diff.ringsAffected : new Set<string>();
-  }, [baselineState, diffBaseline, participants, categories]);
+  }, [
+    baselineState, diffBaseline, participants, categories,
+    config, physicalRingMappings, categoryPoolMappings,
+  ]);
 
   // Compute competition rings from participant data
   const competitionRings = useMemo(() => 
@@ -588,17 +597,20 @@ function RingOverview({}: RingOverviewProps) {
   const latestDiff = useMemo(() => {
     if (!baselineState) return null;
     return diffBaseline();
-  }, [baselineState, diffBaseline, participants, categories]);
+  }, [
+    baselineState, diffBaseline, participants, categories,
+    config, physicalRingMappings, categoryPoolMappings,
+  ]);
 
-  // Per-ring member diff: maps ringId -> { added: string[], removed: string[] }
+  // Per-ring member diff: maps ringId -> added/removed/renamed participants.
   // ringId format: "Division - CategoryName Pool N_forms" or "..._sparring" or "..._sparring_a"
   const ringMemberDiff = useMemo(() => {
-    const empty = new Map<string, { added: string[]; removed: string[] }>();
+    const empty = new Map<string, RingMemberChanges>();
     if (!latestDiff || !baselineState) return empty;
 
-    const result = new Map<string, { added: string[]; removed: string[] }>();
+    const result = new Map<string, RingMemberChanges>();
     const getOrCreate = (rid: string) => {
-      if (!result.has(rid)) result.set(rid, { added: [], removed: [] });
+      if (!result.has(rid)) result.set(rid, { added: [], removed: [], renamed: [] });
       return result.get(rid)!;
     };
 
@@ -659,6 +671,16 @@ function RingOverview({}: RingOverviewProps) {
       const isNow = new Set(getRingIdsForParticipant(currentP, categories));
       isNow.forEach(rid => { if (!wasBefore.has(rid)) getOrCreate(rid).added.push(`${currentP.firstName} ${currentP.lastName}`); });
       wasBefore.forEach(rid => { if (!isNow.has(rid)) getOrCreate(rid).removed.push(`${currentP.firstName} ${currentP.lastName}`); });
+
+      // A rename affects every ring the participant belonged to before or
+      // after the change, so both printed rosters get refreshed.
+      const oldName = `${checkpointP.firstName} ${checkpointP.lastName}`;
+      const newName = `${currentP.firstName} ${currentP.lastName}`;
+      if (oldName !== newName) {
+        new Set([...wasBefore, ...isNow]).forEach(rid =>
+          getOrCreate(rid).renamed.push({ from: oldName, to: newName })
+        );
+      }
     });
 
     return result;
@@ -3205,6 +3227,7 @@ function RingOverview({}: RingOverviewProps) {
               // Count for collapsed label
               const totalAdded   = (fChanges?.added.length   ?? 0) + (sBase?.added.length   ?? 0) + (sAltA?.added.length   ?? 0) + (sAltB?.added.length   ?? 0);
               const totalRemoved = (fChanges?.removed.length ?? 0) + (sBase?.removed.length ?? 0) + (sAltA?.removed.length ?? 0) + (sAltB?.removed.length ?? 0);
+              const totalRenamed = (fChanges?.renamed.length ?? 0) + (sBase?.renamed.length ?? 0) + (sAltA?.renamed.length ?? 0) + (sAltB?.renamed.length ?? 0);
 
               const changesOpen = expandedRingChanges.has(pair.categoryPoolName);
               const toggleChanges = (e: React.MouseEvent) => {
@@ -3217,6 +3240,16 @@ function RingOverview({}: RingOverviewProps) {
               };
 
               const hasSparringAltSplit = !!(sAltA || sAltB);
+
+              const renderRenamed = (prefix: string, changes: RingMemberChanges | null) =>
+                changes?.renamed.map(({ from, to }) => (
+                  <span
+                    key={`${prefix}-${from}-${to}`}
+                    style={{ fontSize: '12px', color: '#856404', backgroundColor: 'rgba(255,193,7,0.15)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}
+                  >
+                    {from} changed to {to}
+                  </span>
+                ));
 
               return (
                 <div style={{ borderTop: '1px solid rgba(220,53,69,0.3)', backgroundColor: 'var(--bg-secondary)' }}>
@@ -3241,14 +3274,15 @@ function RingOverview({}: RingOverviewProps) {
                     <span style={{ fontWeight: '600' }}>Changes since baseline</span>
                     {totalAdded > 0 && <span style={{ color: '#28a745', fontWeight: '700' }}>+{totalAdded}</span>}
                     {totalRemoved > 0 && <span style={{ color: '#dc3545', fontWeight: '700' }}>−{totalRemoved}</span>}
-                    {totalAdded === 0 && totalRemoved === 0 && <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>reordered only</span>}
+                    {totalRenamed > 0 && <span style={{ color: '#856404', fontWeight: '700' }}>{totalRenamed} renamed</span>}
+                    {totalAdded === 0 && totalRemoved === 0 && totalRenamed === 0 && <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>reordered only</span>}
                   </button>
 
                   {/* Expanded detail */}
                   {changesOpen && (
                     <div style={{ padding: '6px 15px 10px 15px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {/* Forms section */}
-                      {fChanges && (fChanges.added.length + fChanges.removed.length > 0) && (
+                      {fChanges && (fChanges.added.length + fChanges.removed.length + fChanges.renamed.length > 0) && (
                         <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: '700', color: '#007bff', marginRight: '4px', whiteSpace: 'nowrap' }}>Forms:</span>
                           {fChanges.added.map(name => (
@@ -3257,11 +3291,12 @@ function RingOverview({}: RingOverviewProps) {
                           {fChanges.removed.map(name => (
                             <span key={`fr-${name}`} style={{ fontSize: '12px', color: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>−{name}</span>
                           ))}
+                          {renderRenamed('f', fChanges)}
                         </div>
                       )}
 
                       {/* Sparring — base (no alt ring split) */}
-                      {!hasSparringAltSplit && sBase && (sBase.added.length + sBase.removed.length > 0) && (
+                      {!hasSparringAltSplit && sBase && (sBase.added.length + sBase.removed.length + sBase.renamed.length > 0) && (
                         <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: '700', color: '#dc3545', marginRight: '4px', whiteSpace: 'nowrap' }}>Sparring:</span>
                           {sBase.added.map(name => (
@@ -3270,11 +3305,12 @@ function RingOverview({}: RingOverviewProps) {
                           {sBase.removed.map(name => (
                             <span key={`sr-${name}`} style={{ fontSize: '12px', color: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>−{name}</span>
                           ))}
+                          {renderRenamed('s', sBase)}
                         </div>
                       )}
 
                       {/* Sparring Alt A */}
-                      {sAltA && (sAltA.added.length + sAltA.removed.length > 0) && (
+                      {sAltA && (sAltA.added.length + sAltA.removed.length + sAltA.renamed.length > 0) && (
                         <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: '700', color: '#dc3545', marginRight: '4px', whiteSpace: 'nowrap' }}>Sparring Alt A:</span>
                           {sAltA.added.map(name => (
@@ -3283,11 +3319,12 @@ function RingOverview({}: RingOverviewProps) {
                           {sAltA.removed.map(name => (
                             <span key={`sar-${name}`} style={{ fontSize: '12px', color: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>−{name}</span>
                           ))}
+                          {renderRenamed('saa', sAltA)}
                         </div>
                       )}
 
                       {/* Sparring Alt B */}
-                      {sAltB && (sAltB.added.length + sAltB.removed.length > 0) && (
+                      {sAltB && (sAltB.added.length + sAltB.removed.length + sAltB.renamed.length > 0) && (
                         <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: '700', color: '#dc3545', marginRight: '4px', whiteSpace: 'nowrap' }}>Sparring Alt B:</span>
                           {sAltB.added.map(name => (
@@ -3296,6 +3333,7 @@ function RingOverview({}: RingOverviewProps) {
                           {sAltB.removed.map(name => (
                             <span key={`sbr-${name}`} style={{ fontSize: '12px', color: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', padding: '1px 6px', borderRadius: '3px', whiteSpace: 'nowrap' }}>−{name}</span>
                           ))}
+                          {renderRenamed('sab', sAltB)}
                         </div>
                       )}
                     </div>

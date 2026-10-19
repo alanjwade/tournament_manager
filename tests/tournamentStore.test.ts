@@ -638,6 +638,137 @@ describe('Tournament Store', () => {
       expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_forms')).toBe(true);
       expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring')).toBe(true);
     });
+
+    it('marks the pool as changed when its physical ring assignment changes', () => {
+      const participant = createTestParticipant({
+        id: 'p1',
+        competingForms: true,
+        formsCategoryId: 'cat1',
+        formsPool: 'P1',
+        competingSparring: false,
+      });
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        type: 'forms',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([participant]);
+      useTournamentStore.getState().setCategories([category]);
+
+      const baseline = snapshotState();
+      const current: SavedState = {
+        ...baseline,
+        physicalRingMappings: [
+          { categoryPoolName: 'Youth - Beginner Pool 1', physicalRingName: 'Ring 2' },
+        ],
+      };
+
+      const diff = computeStateDiff(baseline, current);
+
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_forms')).toBe(true);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring')).toBe(true);
+      // Unrelated pools stay unchanged.
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 2_forms')).toBe(false);
+    });
+
+    it('marks every pool as changed when the category is edited', () => {
+      const participant = createTestParticipant({
+        id: 'p1',
+        competingForms: true,
+        formsCategoryId: 'cat1',
+        formsPool: 'P1',
+        competingSparring: false,
+      });
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        type: 'forms',
+        division: 'Youth',
+        numPools: 2,
+      });
+
+      useTournamentStore.getState().setParticipants([participant]);
+      useTournamentStore.getState().setCategories([category]);
+
+      const baseline = snapshotState();
+      const current: SavedState = {
+        ...baseline,
+        categories: baseline.categories.map((c) =>
+          c.id === 'cat1' ? { ...c, name: 'Novice' } : c
+        ),
+      };
+
+      const diff = computeStateDiff(baseline, current);
+
+      expect(diff!.ringsAffected.has('Youth - Novice Pool 1_forms')).toBe(true);
+      expect(diff!.ringsAffected.has('Youth - Novice Pool 2_forms')).toBe(true);
+    });
+
+    it('marks all rings as changed when global config changes', () => {
+      const participant = createTestParticipant({
+        id: 'p1',
+        competingForms: true,
+        formsCategoryId: 'cat1',
+        formsPool: 'P1',
+        competingSparring: false,
+      });
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        type: 'forms',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([participant]);
+      useTournamentStore.getState().setCategories([category]);
+
+      const baseline = snapshotState();
+      const current: SavedState = {
+        ...baseline,
+        config: { ...baseline.config, schoolAbbreviations: { 'Test School': 'TS' } },
+      };
+
+      const diff = computeStateDiff(baseline, current);
+
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_forms')).toBe(true);
+    });
+
+    it('marks the participant rings when an editor field such as school changes', () => {
+      const participant = createTestParticipant({
+        id: 'p1',
+        competingForms: true,
+        formsCategoryId: 'cat1',
+        formsPool: 'P1',
+        competingSparring: true,
+        sparringCategoryId: 'cat1',
+        sparringPool: 'P1',
+      });
+      const category = createTestCategory({
+        id: 'cat1',
+        name: 'Beginner',
+        type: 'forms',
+        division: 'Youth',
+      });
+
+      useTournamentStore.getState().setParticipants([participant]);
+      useTournamentStore.getState().setCategories([category]);
+
+      const baseline = snapshotState();
+      const current: SavedState = {
+        ...baseline,
+        participants: baseline.participants.map((p) =>
+          p.id === 'p1' ? { ...p, school: 'A Different School' } : p
+        ),
+      };
+
+      const diff = computeStateDiff(baseline, current);
+
+      expect(diff!.participantsModified.some((c) => c.field === 'school')).toBe(true);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_forms')).toBe(true);
+      expect(diff!.ringsAffected.has('Youth - Beginner Pool 1_sparring')).toBe(true);
+    });
   });
 
   describe('hydrateFromAutosave', () => {

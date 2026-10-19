@@ -29,6 +29,71 @@ function buildRingId(
   return id;
 }
 
+/** Mark the forms ring a participant belongs to (if any). */
+function addFormsRing(
+  state: SavedState,
+  participant: Participant,
+  ringsAffected: Set<string>
+): void {
+  if (!participant.competingForms || !participant.formsCategoryId) return;
+  const category = state.categories.find((c) => c.id === participant.formsCategoryId);
+  if (category) {
+    ringsAffected.add(
+      buildRingId(category.division, category.name, participant.formsPool || 'P1', 'forms')
+    );
+  }
+}
+
+/** Mark the sparring ring (including alt-ring suffix) a participant belongs to. */
+function addSparringRing(
+  state: SavedState,
+  participant: Participant,
+  ringsAffected: Set<string>
+): void {
+  if (!participant.competingSparring || !participant.sparringCategoryId) return;
+  const category = state.categories.find((c) => c.id === participant.sparringCategoryId);
+  if (category) {
+    ringsAffected.add(
+      buildRingId(
+        category.division,
+        category.name,
+        participant.sparringPool || 'P1',
+        'sparring',
+        participant.sparringAltRing || undefined
+      )
+    );
+  }
+}
+
+/** Mark both rings a participant belongs to. */
+function addParticipantRings(
+  state: SavedState,
+  participant: Participant,
+  ringsAffected: Set<string>
+): void {
+  addFormsRing(state, participant, ringsAffected);
+  addSparringRing(state, participant, ringsAffected);
+}
+
+/** Mark every configured pool of a category. */
+function addCategoryRings(
+  category: SavedState['categories'][number],
+  ringsAffected: Set<string>
+): void {
+  const poolCount = Math.max(1, Number(category.numPools) || 1);
+  for (let pool = 1; pool <= poolCount; pool++) {
+    ringsAffected.add(
+      buildRingId(category.division, category.name, `P${pool}`, category.type)
+    );
+  }
+}
+
+/** Mark every ring represented by the given state (used for global changes). */
+function addAllRings(state: SavedState, ringsAffected: Set<string>): void {
+  (state.participants ?? []).forEach((p) => addParticipantRings(state, p, ringsAffected));
+  (state.categories ?? []).forEach((c) => addCategoryRings(c, ringsAffected));
+}
+
 export function computeStateDiff(baseline: SavedState, current: SavedState): StateDiff {
   const currentParticipants = current.participants ?? [];
   const baselineParticipants = baseline.participants ?? [];
@@ -42,19 +107,20 @@ export function computeStateDiff(baseline: SavedState, current: SavedState): Sta
   const participantsModified: ParticipantChange[] = [];
   const ringsAffected = new Set<string>();
 
-  const fieldsToCheck: (keyof Participant)[] = [
-    'firstName', 'lastName',
-    'formsCategoryId', 'sparringCategoryId',
-    'formsPool', 'sparringPool', 'sparringAltRing',
-    'competingForms', 'competingSparring',
-    'formsRankOrder', 'sparringRankOrder',
-  ];
-
   currentParticipants.forEach((currentP) => {
     const baselineP = baselineMap.get(currentP.id);
     if (!baselineP) return; // Already counted in participantsAdded
 
-    fieldsToCheck.forEach((field) => {
+    // Compare every field, not just assignments: anything that differs from
+    // the baseline means the ring's printed documents are stale.
+    const fields = new Set<string>([
+      ...Object.keys(baselineP),
+      ...Object.keys(currentP),
+    ]);
+
+    fields.forEach((field) => {
+      if (field === 'id') return;
+
       const currentValue = (currentP as any)[field];
       const baselineValue = (baselineP as any)[field];
       if (JSON.stringify(currentValue) === JSON.stringify(baselineValue)) return;
@@ -67,82 +133,83 @@ export function computeStateDiff(baseline: SavedState, current: SavedState): Sta
         newValue: currentValue,
       });
 
-      // Track affected rings for forms changes
-      if (field === 'formsCategoryId' || field === 'formsPool' || field === 'formsRankOrder' || field === 'competingForms') {
-        if (field === 'formsRankOrder') {
-          const category = current.categories.find((c) => c.id === currentP.formsCategoryId);
-          if (category && currentP.competingForms) {
-            ringsAffected.add(buildRingId(category.division, category.name, currentP.formsPool || 'P1', 'forms'));
-          }
-        } else {
-          if (baselineP.competingForms && baselineP.formsCategoryId) {
-            const category = baseline.categories.find((c) => c.id === baselineP.formsCategoryId);
-            if (category) ringsAffected.add(buildRingId(category.division, category.name, baselineP.formsPool || 'P1', 'forms'));
-          }
-          if (currentP.competingForms && currentP.formsCategoryId) {
-            const category = current.categories.find((c) => c.id === currentP.formsCategoryId);
-            if (category) ringsAffected.add(buildRingId(category.division, category.name, currentP.formsPool || 'P1', 'forms'));
-          }
-        }
-      }
+      const formsAssignmentFields = [
+        'formsDivision', 'formsCategoryId', 'formsPool', 'competingForms',
+      ];
+      const sparringAssignmentFields = [
+        'sparringDivision', 'sparringCategoryId', 'sparringPool',
+        'sparringAltRing', 'competingSparring',
+      ];
 
-      // Track affected rings for sparring changes
-      if (field === 'sparringCategoryId' || field === 'sparringPool' || field === 'sparringAltRing' || field === 'sparringRankOrder' || field === 'competingSparring') {
-        if (field === 'sparringRankOrder') {
-          const category = current.categories.find((c) => c.id === currentP.sparringCategoryId);
-          if (category && currentP.competingSparring) {
-            ringsAffected.add(buildRingId(category.division, category.name, currentP.sparringPool || 'P1', 'sparring', currentP.sparringAltRing || undefined));
-          }
-        } else {
-          if (baselineP.competingSparring && baselineP.sparringCategoryId) {
-            const category = baseline.categories.find((c) => c.id === baselineP.sparringCategoryId);
-            if (category) ringsAffected.add(buildRingId(category.division, category.name, baselineP.sparringPool || 'P1', 'sparring', baselineP.sparringAltRing || undefined));
-          }
-          if (currentP.competingSparring && currentP.sparringCategoryId) {
-            const category = current.categories.find((c) => c.id === currentP.sparringCategoryId);
-            if (category) ringsAffected.add(buildRingId(category.division, category.name, currentP.sparringPool || 'P1', 'sparring', currentP.sparringAltRing || undefined));
-          }
-        }
-      }
-
-      // A name change alters the printed roster, so both of the participant's
-      // rings need refreshing even though their assignment is unchanged.
-      if (field === 'firstName' || field === 'lastName') {
-        if (currentP.competingForms && currentP.formsCategoryId) {
-          const category = current.categories.find((c) => c.id === currentP.formsCategoryId);
-          if (category) ringsAffected.add(buildRingId(category.division, category.name, currentP.formsPool || 'P1', 'forms'));
-        }
-        if (currentP.competingSparring && currentP.sparringCategoryId) {
-          const category = current.categories.find((c) => c.id === currentP.sparringCategoryId);
-          if (category) ringsAffected.add(buildRingId(category.division, category.name, currentP.sparringPool || 'P1', 'sparring', currentP.sparringAltRing || undefined));
-        }
+      if (formsAssignmentFields.includes(field)) {
+        // Assignment changed: both the old and new forms ring are affected.
+        addFormsRing(baseline, baselineP, ringsAffected);
+        addFormsRing(current, currentP, ringsAffected);
+      } else if (field === 'formsRankOrder') {
+        addFormsRing(current, currentP, ringsAffected);
+      } else if (sparringAssignmentFields.includes(field)) {
+        // Assignment changed: both the old and new sparring ring are affected.
+        addSparringRing(baseline, baselineP, ringsAffected);
+        addSparringRing(current, currentP, ringsAffected);
+      } else if (field === 'sparringRankOrder') {
+        addSparringRing(current, currentP, ringsAffected);
+      } else {
+        // Name, age, school, height, withdrawn state, etc. all appear on the
+        // printed documents, so refresh every ring the participant belongs to.
+        addParticipantRings(baseline, baselineP, ringsAffected);
+        addParticipantRings(current, currentP, ringsAffected);
       }
     });
   });
 
   // Track rings for newly added participants
-  participantsAdded.forEach((p) => {
-    if (p.competingForms && p.formsCategoryId) {
-      const category = current.categories.find((c) => c.id === p.formsCategoryId);
-      if (category) ringsAffected.add(buildRingId(category.division, category.name, p.formsPool || 'P1', 'forms'));
-    }
-    if (p.competingSparring && p.sparringCategoryId) {
-      const category = current.categories.find((c) => c.id === p.sparringCategoryId);
-      if (category) ringsAffected.add(buildRingId(category.division, category.name, p.sparringPool || 'P1', 'sparring', p.sparringAltRing || undefined));
+  participantsAdded.forEach((p) => addParticipantRings(current, p, ringsAffected));
+
+  // Track rings for removed participants (use baseline categories to resolve their ring)
+  participantsRemoved.forEach((p) => addParticipantRings(baseline, p, ringsAffected));
+
+  // Physical-ring assignments changed in the Ring Map. The mapping is keyed by
+  // the category-pool name and shared by forms and sparring.
+  const baselinePhysicalMappings = new Map(
+    (baseline.physicalRingMappings ?? []).map((m) => [m.categoryPoolName, m.physicalRingName])
+  );
+  const currentPhysicalMappings = new Map(
+    (current.physicalRingMappings ?? []).map((m) => [m.categoryPoolName, m.physicalRingName])
+  );
+  new Set([
+    ...baselinePhysicalMappings.keys(),
+    ...currentPhysicalMappings.keys(),
+  ]).forEach((poolName) => {
+    if (baselinePhysicalMappings.get(poolName) !== currentPhysicalMappings.get(poolName)) {
+      ringsAffected.add(`${poolName}_forms`);
+      ringsAffected.add(`${poolName}_sparring`);
     }
   });
 
-  // Track rings for removed participants (use baseline categories to resolve their ring)
-  participantsRemoved.forEach((p) => {
-    if (p.competingForms && p.formsCategoryId) {
-      const category = baseline.categories.find((c) => c.id === p.formsCategoryId);
-      if (category) ringsAffected.add(buildRingId(category.division, category.name, p.formsPool || 'P1', 'forms'));
-    }
-    if (p.competingSparring && p.sparringCategoryId) {
-      const category = baseline.categories.find((c) => c.id === p.sparringCategoryId);
-      if (category) ringsAffected.add(buildRingId(category.division, category.name, p.sparringPool || 'P1', 'sparring', p.sparringAltRing || undefined));
-    }
+  // Category changes (rename, division, pools, criteria) affect every pool in
+  // that category.
+  const baselineCategories = new Map((baseline.categories ?? []).map((c) => [c.id, c]));
+  const currentCategories = new Map((current.categories ?? []).map((c) => [c.id, c]));
+  new Set([...baselineCategories.keys(), ...currentCategories.keys()]).forEach((categoryId) => {
+    const baselineCategory = baselineCategories.get(categoryId);
+    const currentCategory = currentCategories.get(categoryId);
+    if (JSON.stringify(baselineCategory) === JSON.stringify(currentCategory)) return;
+
+    if (baselineCategory) addCategoryRings(baselineCategory, ringsAffected);
+    if (currentCategory) addCategoryRings(currentCategory, ringsAffected);
   });
+
+  // A config change (school abbreviations, watermark, physical rings, division
+  // labels, ...) alters every printed document, so mark all rings.
+  if (JSON.stringify(baseline.config) !== JSON.stringify(current.config)) {
+    addAllRings(current, ringsAffected);
+  }
+
+  // Category-pool mappings feed the computed physical ring ids; treat any
+  // change as affecting the whole schedule.
+  if (JSON.stringify(baseline.categoryPoolMappings) !== JSON.stringify(current.categoryPoolMappings)) {
+    addAllRings(current, ringsAffected);
+  }
 
   return { participantsAdded, participantsRemoved, participantsModified, ringsAffected };
 }
