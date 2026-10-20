@@ -175,12 +175,15 @@ Toggle between sorting rings by:
 #### Quick Edit
 
 Click any participant's name (shown as a blue link) to open the **Quick Edit modal**:
-- View participant info (age, gender, height)
-- Change forms division, category, and pool
-- Change sparring division, category, pool, and alt ring
-- Toggle "Competing in Forms" or "Competing in Sparring" on/off
-- Adjust rank order within the ring
-- Use "Copy from Forms" to mirror forms settings to sparring
+- Edit biographical data on the left: name, age, gender, height, school, and branch
+- Change forms division, category, and pool on the right
+- Change sparring division, category, pool, and alt ring on the right
+- Toggle "Competing" for Forms or Sparring on/off
+- Use "Use same assignment for both Forms and Sparring" to mirror forms settings to sparring
+- Physical ring assignments are shown for reference (change them in the Ring Map tab)
+- Rank order is read-only here; adjust it from the Ring Overview table
+
+Adding a participant uses the same left/right layout, so the fields line up the same way in both modals.
 
 #### Ring Ordering
 

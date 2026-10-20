@@ -197,7 +197,7 @@ function DataViewer({}: DataViewerProps) {
       if (visibleColumns.name) row.push(p.firstName, p.lastName);
       if (visibleColumns.age) row.push(p.age);
       if (visibleColumns.gender) row.push(p.gender);
-      if (visibleColumns.height) row.push(p.heightFeet || '', p.heightInches || '');
+      if (visibleColumns.height) row.push(p.heightFeet ?? '', p.heightInches ?? '');
       if (visibleColumns.school) row.push(p.school || '');
       if (visibleColumns.branch) row.push(p.branch || '');
       if (visibleColumns.formsDivision) row.push(p.formsDivision || 'Not Participating');

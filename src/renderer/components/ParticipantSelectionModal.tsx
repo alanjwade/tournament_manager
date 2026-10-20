@@ -53,8 +53,11 @@ function ParticipantSelectionModal({
         bottom: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
-        alignItems: 'center',
+        // Anchor the modal to the top rather than centering it. Centering made
+        // the search field jump downward as the result list shrank while typing.
+        alignItems: 'flex-start',
         justifyContent: 'center',
+        paddingTop: '8vh',
         zIndex: 1000,
       }}
       onClick={onClose}

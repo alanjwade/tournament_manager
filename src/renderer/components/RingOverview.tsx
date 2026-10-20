@@ -16,6 +16,14 @@ import { collectChangedRings } from '../utils/changedRingOrder';
 import { sparringMirrorsForms, findDivisionSelectionGaps, shouldMirrorSparringFromForms } from '../utils/participantPoolUtils';
 import ParticipantSelectionModal from './ParticipantSelectionModal';
 import TournamentAssistantDialog from './TournamentAssistantDialog';
+import {
+  participantFieldGrid,
+  participantFieldLabel,
+  participantFieldInput,
+  participantModalCard,
+  participantBioColumn,
+  participantSectionTitle,
+} from './participantFormStyles';
 
 interface RingPair {
   categoryPoolName: string;
@@ -60,6 +68,10 @@ function RingOverview({}: RingOverviewProps) {
   const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
   const [copySparringFromForms, setCopySparringFromForms] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Partial<Participant>>({});
+  // Raw text for the height inputs so a valid 0 (e.g. 5'0") displays as "0"
+  // while an emptied field can stay empty until submit.
+  const [heightFeetText, setHeightFeetText] = useState('');
+  const [heightInchesText, setHeightInchesText] = useState('');
   const [preWithdrawState, setPreWithdrawState] = useState<{ competingForms: boolean; competingSparring: boolean } | null>(null);
   // Message shown in the "must choose a category & pool" popup when a submit is
   // blocked because a division was changed without a matching selection.
@@ -110,6 +122,24 @@ function RingOverview({}: RingOverviewProps) {
   const customOrderRings = useTournamentStore((state) => state.customOrderRings);
   const toggleCustomOrderRing = useTournamentStore((state) => state.toggleCustomOrderRing);
 
+  // Suggestions for the biographical fields in Quick Edit, mirroring the
+  // dropdown options used by Add Participant.
+  const uniqueSchools = useMemo(() => {
+    const schools = new Set(participants.map(p => p.school).filter(Boolean));
+    return Array.from(schools).sort();
+  }, [participants]);
+
+  const uniqueBranches = useMemo(() => {
+    const branches = new Set(participants.map(p => p.branch).filter(Boolean));
+    return Array.from(branches).sort();
+  }, [participants]);
+
+  const uniqueGenders = useMemo(() => {
+    const genders = new Set<string>(['Male', 'Female']);
+    participants.forEach(p => { if (p.gender) genders.add(p.gender); });
+    return Array.from(genders).sort();
+  }, [participants]);
+
   // Open quick-edit modal when triggered from global search
   useEffect(() => {
     if (!openQuickEditParticipantId) return;
@@ -136,11 +166,16 @@ function RingOverview({}: RingOverviewProps) {
       setCopySparringFromForms(sparringMirrorsForms(quickEdit.participant, categories));
       // Reset pending changes
       setPendingChanges({});
+      // Seed the raw height text from the participant so 0" displays as "0".
+      setHeightFeetText(String(quickEdit.participant.heightFeet ?? 0));
+      setHeightInchesText(String(quickEdit.participant.heightInches ?? 0));
       // Reset withdraw state
       setPreWithdrawState(null);
     } else {
       setCopySparringFromForms(false);
       setPendingChanges({});
+      setHeightFeetText('');
+      setHeightInchesText('');
       setPreWithdrawState(null);
     }
     // Intentionally keyed on quickEdit only: this seeds the modal each time it
@@ -750,6 +785,11 @@ function RingOverview({}: RingOverviewProps) {
     const currentSparringPool = pendingChanges.sparringPool !== undefined ? pendingChanges.sparringPool : participant.sparringPool;
     const currentSparringRankOrder = pendingChanges.sparringRankOrder !== undefined ? pendingChanges.sparringRankOrder : participant.sparringRankOrder;
     const currentSparringAltRing = pendingChanges.sparringAltRing !== undefined ? pendingChanges.sparringAltRing : participant.sparringAltRing;
+    const currentAge = pendingChanges.age !== undefined ? pendingChanges.age : participant.age;
+    const currentGender = pendingChanges.gender !== undefined ? pendingChanges.gender : (participant.gender ?? '');
+    const currentSchool = pendingChanges.school !== undefined ? pendingChanges.school : (participant.school ?? '');
+    const currentBranch = pendingChanges.branch !== undefined ? pendingChanges.branch : (participant.branch ?? '');
+    const hasCompleteFormsAssignment = Boolean(currentFormsDivision && currentFormsCategoryId && currentFormsPool);
     
     // Get category info based on current values
     const formsCategory = currentFormsCategoryId ? categories.find(c => c.id === currentFormsCategoryId) : null;
@@ -767,10 +807,95 @@ function RingOverview({}: RingOverviewProps) {
     const sparringPhysicalMapping = sparringPoolName 
       ? physicalRingMappings.find(m => m.categoryPoolName === sparringPoolName)
       : undefined;
+
+    // Categories available in the currently selected divisions.
+    const availableFormsCategories = currentFormsDivision
+      ? categories.filter(c => c.type === 'forms' && c.division === currentFormsDivision)
+      : [];
+    const availableSparringCategories = currentSparringDivision
+      ? categories.filter(c => c.type === 'sparring' && c.division === currentSparringDivision)
+      : [];
+
+    // Only trust a category/pool that still belongs to the selected division.
+    const formsCategoryInDivision = formsCategory && formsCategory.division === currentFormsDivision
+      ? formsCategory
+      : null;
+    const sparringCategoryInDivision = sparringCategory && sparringCategory.division === currentSparringDivision
+      ? sparringCategory
+      : null;
+
+    // Pool options with live Forms/Sparring counts, matching Add Participant.
+    const formsPoolOptions = formsCategoryInDivision && formsCategoryInDivision.numPools
+      ? Array.from({ length: formsCategoryInDivision.numPools }, (_, i) => {
+          const pool = `P${i + 1}`;
+          const matchingSparringCatId = formsCategoryInDivision.id.replace(/^forms-/, 'sparring-');
+          const fCount = participants.filter(p => p.competingForms && p.formsCategoryId === formsCategoryInDivision.id && p.formsPool === pool).length;
+          const sCount = participants.filter(p => p.competingSparring && p.sparringCategoryId === matchingSparringCatId && p.sparringPool === pool).length;
+          return { pool, label: `Pool ${i + 1} (F:${fCount} S:${sCount})` };
+        })
+      : [];
+
+    const sparringPoolOptions = sparringCategoryInDivision && sparringCategoryInDivision.numPools
+      ? Array.from({ length: sparringCategoryInDivision.numPools }, (_, i) => {
+          const pool = `P${i + 1}`;
+          const matchingFormsCatId = sparringCategoryInDivision.id.replace(/^sparring-/, 'forms-');
+          const fCount = participants.filter(p => p.competingForms && p.formsCategoryId === matchingFormsCatId && p.formsPool === pool).length;
+          const sCount = participants.filter(p => p.competingSparring && p.sparringCategoryId === sparringCategoryInDivision.id && p.sparringPool === pool).length;
+          return { pool, label: `Pool ${i + 1} (F:${fCount} S:${sCount})` };
+        })
+      : [];
     
     // Update pending changes
     const updatePending = (updates: Partial<Participant>) => {
       setPendingChanges(prev => ({ ...prev, ...updates }));
+    };
+
+    // Withdraw / Restore controls. These live in the modal header now; the
+    // Forms/Sparring "Competing" checkboxes remain the per-type controls.
+    const isWithdrawn = !currentCompetingForms && !currentCompetingSparring;
+    const handleWithdraw = () => {
+      const wasCompetingForms = currentCompetingForms ?? false;
+      const wasCompetingSparring = currentCompetingSparring ?? false;
+      setPreWithdrawState({ competingForms: wasCompetingForms, competingSparring: wasCompetingSparring });
+      // Persist pre-withdrawal flags on the participant so Restore works after
+      // the modal is closed and reopened.
+      updatePending({
+        competingForms: false,
+        competingSparring: false,
+        lastCompetingForms: wasCompetingForms,
+        lastCompetingSparring: wasCompetingSparring,
+      });
+    };
+    const handleRestoreFromWithdraw = () => {
+      // Prefer same-session preWithdrawState; fall back to values stored on the
+      // participant. Default: restore forms only (never blindly enable sparring
+      // the person wasn't competing in).
+      const restoredForms = preWithdrawState?.competingForms
+        ?? participant.lastCompetingForms
+        ?? true;
+      const restoredSparring = preWithdrawState?.competingSparring
+        ?? participant.lastCompetingSparring
+        ?? false;
+
+      const updates: Partial<Participant> = {
+        competingForms: restoredForms,
+        competingSparring: restoredSparring,
+      };
+
+      // If sparring is being restored but has no assignment, and
+      // copySparringFromForms is active with a valid forms assignment,
+      // auto-populate sparring from forms.
+      if (restoredSparring && copySparringFromForms
+        && currentFormsDivision && currentFormsCategoryId && currentFormsPool
+        && !currentSparringCategoryId) {
+        const sparringCategoryId = currentFormsCategoryId.replace(/^forms-/, 'sparring-');
+        updates.sparringDivision = currentFormsDivision;
+        updates.sparringCategoryId = sparringCategoryId;
+        updates.sparringPool = currentFormsPool;
+      }
+
+      updatePending(updates);
+      setPreWithdrawState(null);
     };
 
     const handleSubmit = () => {
@@ -804,6 +929,43 @@ function RingOverview({}: RingOverviewProps) {
           return;
         }
         updates.lastName = lastName;
+      }
+
+      // Biographical fields now editable from Quick Edit. Validate the final
+      // values (pending change or stored value) before committing.
+      const finalAge = updates.age ?? participant.age;
+      if (!Number.isFinite(finalAge) || finalAge <= 0) {
+        setSubmitError('Please enter a valid age.');
+        return;
+      }
+
+      const finalGender = (updates.gender ?? participant.gender ?? '').trim();
+      if (!finalGender) {
+        setSubmitError('Please select a gender.');
+        return;
+      }
+      if (updates.gender !== undefined) updates.gender = finalGender;
+
+      const finalHeightFeet = updates.heightFeet ?? participant.heightFeet ?? 0;
+      const finalHeightInches = updates.heightInches ?? participant.heightInches ?? 0;
+      if (!Number.isFinite(finalHeightFeet) || finalHeightFeet < 0) {
+        setSubmitError('Please enter a valid height in feet.');
+        return;
+      }
+      if (!Number.isFinite(finalHeightInches) || finalHeightInches < 0 || finalHeightInches > 11) {
+        setSubmitError('Height inches must be between 0 and 11.');
+        return;
+      }
+      if (updates.heightFeet !== undefined || updates.heightInches !== undefined) {
+        updates.totalHeightInches = finalHeightFeet * 12 + finalHeightInches;
+      }
+
+      if (updates.school !== undefined) {
+        updates.school = (updates.school ?? '').trim();
+      }
+      if (updates.branch !== undefined) {
+        const branch = (updates.branch ?? '').trim();
+        updates.branch = branch || undefined;
       }
       
       // If all that's left is empty after removing markers, just close
@@ -1036,181 +1198,233 @@ function RingOverview({}: RingOverviewProps) {
             backgroundColor: 'var(--bg-primary)',
             borderRadius: '8px',
             padding: '20px',
-            minWidth: '900px',
-            maxWidth: '1000px',
+            width: 'min(1180px, 94vw)',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-            // Cap the height so the modal clears the Windows taskbar. At 90vh a
-            // maximised 1080p window left too little bottom margin and the modal
-            // ran under the taskbar; 80vh pulls it in by roughly an inch on a 15"
-            // 1080p screen. The body scrolls when the content is taller.
-            maxHeight: '80vh',
+            // Keep the modal clear of the Windows taskbar while giving the
+            // two-pane editor enough room; the body scrolls if needed.
+            maxHeight: '88vh',
             overflowY: 'auto',
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0, marginBottom: '10px' }}>
-            <h3 style={{ margin: 0, color: 'var(--text-primary)', flexShrink: 0 }}>
-              Quick Edit:
-            </h3>
-            <input
-              type="text"
-              value={currentFirstName}
-              onChange={(e) => updatePending({ firstName: e.target.value })}
-              placeholder="First name"
-              aria-label="First name"
-              style={{
-                width: '180px',
-                padding: '6px 8px',
-                fontSize: '15px',
-                fontWeight: '600',
-                color: 'var(--text-primary)',
-                backgroundColor: 'var(--input-bg)',
-                border: '1px solid var(--input-border)',
-                borderRadius: '4px',
-              }}
-            />
-            <input
-              type="text"
-              value={currentLastName}
-              onChange={(e) => updatePending({ lastName: e.target.value })}
-              placeholder="Last name"
-              aria-label="Last name"
-              style={{
-                width: '180px',
-                padding: '6px 8px',
-                fontSize: '15px',
-                fontWeight: '600',
-                color: 'var(--text-primary)',
-                backgroundColor: 'var(--input-bg)',
-                border: '1px solid var(--input-border)',
-                borderRadius: '4px',
-              }}
-            />
-          </div>
-          
-          {/* Age / Gender / Height on one line, with Withdraw/Restore to the right */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-            <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              <strong>Age:</strong> {participant.age} | <strong>Gender:</strong> {participant.gender}
-              {participant.heightFeet ? (
-                <> | <strong>Height:</strong> {participant.heightFeet}'{participant.heightInches}"</>
-              ) : null}
+          {/* Header: participant context + Withdraw/Restore */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Quick Edit</h3>
+              <div style={{ marginTop: '3px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                {participant.firstName} {participant.lastName}
+                {quickEdit.ringName
+                  ? ` · ${quickEdit.ringType === 'forms' ? 'Forms' : 'Sparring'}: ${quickEdit.ringName}`
+                  : ''}
+              </div>
             </div>
-
-          {/* Withdraw / Restore row */}
-          {(() => {
-            const isWithdrawn = !currentCompetingForms && !currentCompetingSparring;
-            const handleWithdraw = () => {
-              const wasCompetingForms = currentCompetingForms ?? false;
-              const wasCompetingSparring = currentCompetingSparring ?? false;
-              setPreWithdrawState({ competingForms: wasCompetingForms, competingSparring: wasCompetingSparring });
-              // Persist pre-withdrawal flags on the participant so Restore works after modal close/reopen
-              updatePending({
-                competingForms: false,
-                competingSparring: false,
-                lastCompetingForms: wasCompetingForms,
-                lastCompetingSparring: wasCompetingSparring,
-              });
-            };
-            const handleRestoreFromWithdraw = () => {
-              // Prefer same-session preWithdrawState; fall back to values stored on the participant.
-              // Default: restore forms only (never blindly enable sparring the person wasn't competing in).
-              const restoredForms = preWithdrawState?.competingForms
-                ?? participant.lastCompetingForms
-                ?? true;
-              const restoredSparring = preWithdrawState?.competingSparring
-                ?? participant.lastCompetingSparring
-                ?? false;
-
-              const updates: Partial<Participant> = {
-                competingForms: restoredForms,
-                competingSparring: restoredSparring,
-              };
-
-              // If sparring is being restored but has no assignment, and copySparringFromForms
-              // is active with a valid forms assignment, auto-populate sparring from forms.
-              if (restoredSparring && copySparringFromForms
-                && currentFormsDivision && currentFormsCategoryId && currentFormsPool
-                && !currentSparringCategoryId) {
-                const sparringCategoryId = currentFormsCategoryId.replace(/^forms-/, 'sparring-');
-                updates.sparringDivision = currentFormsDivision;
-                updates.sparringCategoryId = sparringCategoryId;
-                updates.sparringPool = currentFormsPool;
-              }
-
-              updatePending(updates);
-              setPreWithdrawState(null);
-            };
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                {isWithdrawn ? (
-                  <>
-                    <div style={{
-                      padding: '6px 14px',
-                      backgroundColor: '#6c1e1e',
-                      border: '2px solid #dc3545',
-                      borderRadius: '6px',
-                      color: '#ff6b6b',
-                      fontWeight: '700',
-                      fontSize: '13px',
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase' as const,
-                    }}>
-                      ⛔ Withdrawn
-                    </div>
-                    <button
-                      onClick={handleRestoreFromWithdraw}
-                      style={{
-                        padding: '6px 16px',
-                        backgroundColor: 'var(--success-bg)',
-                        border: '1px solid var(--success-border)',
-                        borderRadius: '6px',
-                        color: 'var(--success-text, #28a745)',
-                        fontWeight: '600',
-                        fontSize: '13px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ↩ Restore
-                    </button>
-                  </>
-                ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+              {isWithdrawn ? (
+                <>
+                  <div style={{
+                    padding: '6px 14px',
+                    backgroundColor: '#6c1e1e',
+                    border: '2px solid #dc3545',
+                    borderRadius: '6px',
+                    color: '#ff6b6b',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase' as const,
+                  }}>
+                    ⛔ Withdrawn
+                  </div>
                   <button
-                    onClick={handleWithdraw}
+                    onClick={handleRestoreFromWithdraw}
                     style={{
                       padding: '6px 16px',
-                      backgroundColor: 'transparent',
-                      border: '1px solid #dc3545',
+                      backgroundColor: 'var(--success-bg)',
+                      border: '1px solid var(--success-border)',
                       borderRadius: '6px',
-                      color: '#dc3545',
+                      color: 'var(--success-text, #28a745)',
                       fontWeight: '600',
                       fontSize: '13px',
                       cursor: 'pointer',
                     }}
                   >
-                    Withdraw
+                    ↩ Restore
                   </button>
-                )}
-              </div>
-            );
-          })()}
+                </>
+              ) : (
+                <button
+                  onClick={handleWithdraw}
+                  style={{
+                    padding: '6px 16px',
+                    backgroundColor: 'transparent',
+                    border: '1px solid #dc3545',
+                    borderRadius: '6px',
+                    color: '#dc3545',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Withdraw
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Row: "same as Forms" box + a separate Cancel/Submit box */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', marginBottom: '14px' }}>
-            {currentFormsDivision && currentFormsCategoryId && currentFormsPool && (
-            <div style={{
-              marginRight: 'auto',
-              minWidth: 0,
-              padding: '10px 12px',
-              borderRadius: '6px',
-              backgroundColor: copySparringFromForms ? 'var(--info-bg)' : 'var(--bg-secondary)',
-              border: copySparringFromForms ? '1px solid var(--info-border)' : '1px solid var(--border-color)',
-            }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)', gap: '20px', alignItems: 'start' }}>
+            {/* Left: biographical data */}
+            <div style={participantBioColumn}>
+              <h4 style={{ ...participantSectionTitle, color: 'var(--text-primary)', marginBottom: '12px' }}>
+                Participant
+              </h4>
+
+
+              <div style={participantFieldGrid}>
+                <div>
+                  <label style={participantFieldLabel} htmlFor="quick-edit-first-name">First Name</label>
+                  <input
+                    id="quick-edit-first-name"
+                    type="text"
+                    value={currentFirstName}
+                    onChange={(e) => updatePending({ firstName: e.target.value })}
+                    placeholder="First name"
+                    style={participantFieldInput}
+                  />
+                </div>
+                <div>
+                  <label style={participantFieldLabel} htmlFor="quick-edit-last-name">Last Name</label>
+                  <input
+                    id="quick-edit-last-name"
+                    type="text"
+                    value={currentLastName}
+                    onChange={(e) => updatePending({ lastName: e.target.value })}
+                    placeholder="Last name"
+                    style={participantFieldInput}
+                  />
+                </div>
+              </div>
+
+              <div style={participantFieldGrid}>
+                <div>
+                  <label style={participantFieldLabel} htmlFor="quick-edit-age">Age</label>
+                  <input
+                    id="quick-edit-age"
+                    type="number"
+                    min="1"
+                    value={currentAge || ''}
+                    onChange={(e) => updatePending({ age: parseInt(e.target.value) || 0 })}
+                    style={participantFieldInput}
+                  />
+                </div>
+                <div>
+                  <label style={participantFieldLabel} htmlFor="quick-edit-gender">Gender</label>
+                  <select
+                    id="quick-edit-gender"
+                    value={currentGender}
+                    onChange={(e) => updatePending({ gender: e.target.value })}
+                    style={participantFieldInput}
+                  >
+                    <option value="">Select...</option>
+                    {currentGender && !uniqueGenders.includes(currentGender) && (
+                      <option value={currentGender}>{currentGender}</option>
+                    )}
+                    {uniqueGenders.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div style={participantFieldGrid}>
+                <div>
+                  <label style={participantFieldLabel} htmlFor="quick-edit-height-feet">Height (feet)</label>
+                  <input
+                    id="quick-edit-height-feet"
+                    type="number"
+                    min="0"
+                    value={heightFeetText}
+                    onChange={(e) => {
+                      const text = e.target.value;
+                      setHeightFeetText(text);
+                      updatePending({ heightFeet: text === '' ? 0 : parseInt(text) || 0 });
+                    }}
+                    style={participantFieldInput}
+                  />
+                </div>
+                <div>
+                  <label style={participantFieldLabel} htmlFor="quick-edit-height-inches">Height (inches)</label>
+                  <input
+                    id="quick-edit-height-inches"
+                    type="number"
+                    min="0"
+                    max="11"
+                    value={heightInchesText}
+                    onChange={(e) => {
+                      const text = e.target.value;
+                      setHeightInchesText(text);
+                      updatePending({ heightInches: text === '' ? 0 : parseInt(text) || 0 });
+                    }}
+                    style={participantFieldInput}
+                  />
+                </div>
+              </div>
+
+              <div style={participantFieldGrid}>
+                <div>
+                  <label style={participantFieldLabel} htmlFor="quick-edit-school">School</label>
+                  <select
+                    id="quick-edit-school"
+                    value={currentSchool}
+                    onChange={(e) => updatePending({ school: e.target.value })}
+                    style={participantFieldInput}
+                  >
+                    <option value="">Select...</option>
+                    {currentSchool && !uniqueSchools.includes(currentSchool) && (
+                      <option value={currentSchool}>{currentSchool}</option>
+                    )}
+                    {uniqueSchools.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={participantFieldLabel} htmlFor="quick-edit-branch">Branch</label>
+                  <select
+                    id="quick-edit-branch"
+                    value={currentBranch}
+                    onChange={(e) => updatePending({ branch: e.target.value })}
+                    style={participantFieldInput}
+                  >
+                    <option value="">Select...</option>
+                    {currentBranch && !uniqueBranches.includes(currentBranch) && (
+                      <option value={currentBranch}>{currentBranch}</option>
+                    )}
+                    {uniqueBranches.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+                Age, gender and height changes do not re-assign categories automatically — update
+                the division/category on the right if needed.
+              </div>
+            </div>
+
+            {/* Right: Forms and Sparring assignments */}
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                marginBottom: '14px',
+                padding: '10px 12px',
+                borderRadius: '6px',
+                backgroundColor: copySparringFromForms ? 'var(--info-bg)' : 'var(--bg-secondary)',
+                border: copySparringFromForms ? '1px solid var(--info-border)' : '1px solid var(--border-color)',
+                opacity: hasCompleteFormsAssignment ? 1 : 0.65,
+              }}>
               <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
                 <input
                   type="checkbox"
                   checked={copySparringFromForms}
+                  disabled={!hasCompleteFormsAssignment}
                   onChange={(e) => {
                     const isChecked = e.target.checked;
                     console.log('[QuickEdit] ========== COPY FROM FORMS CHECKBOX ==========');
@@ -1256,31 +1470,16 @@ function RingOverview({}: RingOverviewProps) {
                 />
                 {copySparringFromForms ? '✓ Sparring uses same Division, Category & Pool as Forms' : 'Use same assignment for both Forms and Sparring'}
               </label>
-            </div>
-            )}
-            <div style={{ display: 'flex', gap: '10px', flexShrink: 0, padding: '10px 12px', borderRadius: '6px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
-              <button
-                onClick={handleCancel}
-                style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                Submit
-              </button>
-            </div>
-          </div>
+              {!hasCompleteFormsAssignment && (
+                <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Assign a Forms division, category and pool to enable this.
+                </div>
+              )}
+              </div>
 
-          {/* Two-column layout: Forms on left, Sparring on right */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            {/* Forms Section */}
-            <div style={{ 
-              paddingRight: '20px', 
-              borderRight: '1px solid var(--border-color)'
-            }}>
+            {/* Forms / Sparring cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div style={participantModalCard}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px' }}>
               <h4 style={{ margin: 0, color: '#007bff', fontSize: '15px', fontWeight: '600' }}>
                 Forms
@@ -1310,13 +1509,19 @@ function RingOverview({}: RingOverviewProps) {
                 value={currentFormsDivision ?? ''}
                 onChange={(e) => {
                   const value = e.target.value || null;
-                  const updates: Partial<Participant> = { formsDivision: value };
+                  const updates: Partial<Participant> = {
+                    formsDivision: value,
+                    formsCategoryId: undefined,
+                    formsPool: undefined,
+                  };
                   // When sparring mirrors Forms, reflect the new division on the
                   // (disabled/grayed-out) sparring side immediately — before the
                   // user hits Submit. The sparring category & pool are re-mirrored
                   // when a matching Forms category & pool is chosen below.
                   if (shouldMirrorSparringFromForms(copySparringFromForms, !!currentCompetingSparring)) {
                     updates.sparringDivision = value;
+                    updates.sparringCategoryId = undefined;
+                    updates.sparringPool = undefined;
                   }
                   updatePending(updates);
                 }}
@@ -1339,42 +1544,34 @@ function RingOverview({}: RingOverviewProps) {
               </select>
             </div>
 
-            {/* Category/Pool Selector */}
+            {/* Category Selector */}
             {currentFormsDivision && (
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Category & Pool
+                  Category
                 </label>
                 <select
-                  value={currentFormsCategoryId && currentFormsPool ? `${currentFormsCategoryId}|||${currentFormsPool}` : ''}
+                  value={formsCategoryInDivision ? currentFormsCategoryId ?? '' : ''}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    console.log('[QuickEdit] Forms Category/Pool dropdown changed to:', value);
-                    console.log('[QuickEdit] copySparringFromForms state:', copySparringFromForms);
-                    if (value) {
-                      const [categoryId, pool] = value.split('|||');
-                      console.log('[QuickEdit] Parsed categoryId:', categoryId, 'pool:', pool);
-                      const updates: Partial<Participant> = { formsCategoryId: categoryId, formsPool: pool };
-                      
-                      // If copySparringFromForms is checked AND the participant is
-                      // actually competing in sparring, also update sparring.
-                      // (The checkbox is seeded checked for competitors who aren't
-                      // in sparring, so an unguarded copy would re-enable sparring
-                      // whenever a forms pool is changed.)
-                      if (shouldMirrorSparringFromForms(copySparringFromForms, !!currentCompetingSparring)) {
-                        console.log('[QuickEdit] copySparringFromForms is true and competing in sparring, also updating sparring');
-                        // Convert forms category ID to sparring category ID
-                        // Format: "forms-{division}-{gender}-{minAge}-{maxAge}" -> "sparring-{division}-{gender}-{minAge}-{maxAge}"
-                        const sparringCategoryId = categoryId.replace(/^forms-/, 'sparring-');
-                        console.log('[QuickEdit] Converted categoryId from', categoryId, 'to', sparringCategoryId);
-                        updates.sparringCategoryId = sparringCategoryId;
-                        updates.sparringPool = pool;
-                      }
-                      
-                      updatePending(updates);
-                    } else {
-                      updatePending({ formsCategoryId: undefined, formsPool: undefined });
+                    const categoryId = e.target.value || undefined;
+                    const updates: Partial<Participant> = {
+                      formsCategoryId: categoryId,
+                      // Use '' rather than undefined so the division-change
+                      // validation can tell "category picked, pool not yet
+                      // picked" apart from "pool untouched".
+                      formsPool: categoryId ? '' : undefined,
+                    };
+
+                    if (shouldMirrorSparringFromForms(copySparringFromForms, !!currentCompetingSparring)) {
+                      const selectedCat = categories.find(c => c.id === categoryId);
+                      const matchingSparringCat = selectedCat
+                        ? categories.find(c => c.type === 'sparring' && c.division === currentSparringDivision && c.name === selectedCat.name)
+                        : undefined;
+                      updates.sparringCategoryId = matchingSparringCat?.id;
+                      updates.sparringPool = matchingSparringCat ? '' : undefined;
                     }
+
+                    updatePending(updates);
                   }}
                   disabled={!currentCompetingForms}
                   style={{
@@ -1388,29 +1585,54 @@ function RingOverview({}: RingOverviewProps) {
                     cursor: currentCompetingForms ? 'default' : 'not-allowed',
                   }}
                 >
-                  <option value="">Select category & pool...</option>
-                  {categories
-                    .filter(c => c.type === 'forms' && c.division === currentFormsDivision)
-                    .flatMap(c => 
-                      Array.from({ length: c.numPools }, (_, i) => {
-                        const pool = `P${i + 1}`;
-                        const matchingSparringCatId = c.id.replace(/^forms-/, 'sparring-');
-                        const fCount = participants.filter(p => p.competingForms && p.formsCategoryId === c.id && p.formsPool === pool).length;
-                        const sCount = participants.filter(p => p.competingSparring && p.sparringCategoryId === matchingSparringCatId && p.sparringPool === pool).length;
-                        return {
-                          categoryId: c.id,
-                          categoryName: c.name,
-                          pool,
-                          label: `${c.name} - Pool ${i + 1} (F:${fCount} S:${sCount})`
-                        };
-                      })
-                    )
-                    .map(item => (
-                      <option key={`${item.categoryId}|||${item.pool}`} value={`${item.categoryId}|||${item.pool}`}>
-                        {item.label}
-                      </option>
-                    ))
-                  }
+                  <option value="">{availableFormsCategories.length === 0 ? 'No categories' : 'Select...'}</option>
+                  {availableFormsCategories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Pool Selector */}
+            {currentFormsDivision && (
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Pool
+                </label>
+                <select
+                  value={formsCategoryInDivision ? currentFormsPool ?? '' : ''}
+                  onChange={(e) => {
+                    const pool = e.target.value || undefined;
+                    const updates: Partial<Participant> = { formsPool: pool };
+
+                    if (shouldMirrorSparringFromForms(copySparringFromForms, !!currentCompetingSparring) && formsCategoryInDivision) {
+                      const matchingSparringCat = categories.find(c =>
+                        c.type === 'sparring' && c.division === currentSparringDivision && c.name === formsCategoryInDivision.name
+                      );
+                      if (matchingSparringCat) {
+                        updates.sparringCategoryId = matchingSparringCat.id;
+                        updates.sparringPool = pool;
+                      }
+                    }
+
+                    updatePending(updates);
+                  }}
+                  disabled={!currentCompetingForms || !formsCategoryInDivision || formsPoolOptions.length === 0}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '13px',
+                    border: '1px solid var(--input-border)',
+                    borderRadius: '4px',
+                    backgroundColor: (currentCompetingForms && formsCategoryInDivision) ? 'var(--input-bg)' : 'var(--bg-tertiary)',
+                    opacity: (currentCompetingForms && formsCategoryInDivision) ? 1 : 0.6,
+                    cursor: (currentCompetingForms && formsCategoryInDivision) ? 'default' : 'not-allowed',
+                  }}
+                >
+                  <option value="">{formsPoolOptions.length === 0 ? 'Select a category first' : 'Select...'}</option>
+                  {formsPoolOptions.map(opt => (
+                    <option key={opt.pool} value={opt.pool}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
             )}
@@ -1438,39 +1660,16 @@ function RingOverview({}: RingOverviewProps) {
               </div>
             )}
 
-            {/* Rank Order */}
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Rank Order
-              </label>
-              <input
-                type="number"
-                value={currentFormsRankOrder || ''}
-                onChange={(e) => {
-                  const value = e.target.value ? parseInt(e.target.value) : undefined;
-                  updatePending({ formsRankOrder: value });
-                }}
-                disabled={!currentCompetingForms}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  fontSize: '13px',
-                  border: '1px solid var(--input-border)',
-                  borderRadius: '4px',
-                  backgroundColor: currentCompetingForms ? 'var(--input-bg)' : 'var(--bg-tertiary)',
-                  opacity: currentCompetingForms ? 1 : 0.6,
-                  cursor: currentCompetingForms ? 'default' : 'not-allowed',
-                }}
-                placeholder="e.g., 1, 2, 3..."
-              />
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                Use decimals like 1.5 to insert between competitors
+            {/* Rank order is managed from the Ring Overview table */}
+            {currentFormsRankOrder !== undefined && currentFormsRankOrder !== null && (
+              <div style={{ marginBottom: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                Rank order: <strong>#{currentFormsRankOrder}</strong> · adjust in Ring Overview
               </div>
-            </div>
+            )}
             </div>
 
             {/* Sparring Section */}
-            <div style={{ paddingLeft: '0px' }}>
+            <div style={participantModalCard}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px' }}>
               <h4 style={{ margin: 0, color: '#dc3545', fontSize: '15px', fontWeight: '600' }}>
                 Sparring
@@ -1514,7 +1713,11 @@ function RingOverview({}: RingOverviewProps) {
                 value={currentSparringDivision ?? ''}
                 onChange={(e) => {
                   const value = e.target.value || null;
-                  updatePending({ sparringDivision: value });
+                  updatePending({
+                    sparringDivision: value,
+                    sparringCategoryId: undefined,
+                    sparringPool: undefined,
+                  });
                 }}
                 disabled={copySparringFromForms || !currentCompetingSparring}
                 style={{
@@ -1535,22 +1738,20 @@ function RingOverview({}: RingOverviewProps) {
               </select>
             </div>
 
-            {/* Category/Pool Selector */}
+            {/* Category Selector */}
             {currentSparringDivision && (
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Category & Pool {copySparringFromForms && <span style={{ color: 'var(--info-text)', fontSize: '11px', fontWeight: 'normal' }}>• Same as Forms</span>}
+                  Category {copySparringFromForms && <span style={{ color: 'var(--info-text)', fontSize: '11px', fontWeight: 'normal' }}>• Same as Forms</span>}
                 </label>
                 <select
-                  value={currentSparringCategoryId && currentSparringPool ? `${currentSparringCategoryId}|||${currentSparringPool}` : ''}
+                  value={sparringCategoryInDivision ? currentSparringCategoryId ?? '' : ''}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    if (value) {
-                      const [categoryId, pool] = value.split('|||');
-                      updatePending({ sparringCategoryId: categoryId, sparringPool: pool });
-                    } else {
-                      updatePending({ sparringCategoryId: undefined, sparringPool: undefined });
-                    }
+                    const categoryId = e.target.value || undefined;
+                    updatePending({
+                      sparringCategoryId: categoryId,
+                      sparringPool: categoryId ? '' : undefined,
+                    });
                   }}
                   disabled={copySparringFromForms || !currentCompetingSparring}
                   style={{
@@ -1564,29 +1765,10 @@ function RingOverview({}: RingOverviewProps) {
                     cursor: (copySparringFromForms || !currentCompetingSparring) ? 'not-allowed' : 'default',
                   }}
                 >
-                  <option value="">Select category & pool...</option>
-                  {categories
-                    .filter(c => c.type === 'sparring' && c.division === currentSparringDivision)
-                    .flatMap(c => 
-                      Array.from({ length: c.numPools }, (_, i) => {
-                        const pool = `P${i + 1}`;
-                        const matchingFormsCatId = c.id.replace(/^sparring-/, 'forms-');
-                        const fCount = participants.filter(p => p.competingForms && p.formsCategoryId === matchingFormsCatId && p.formsPool === pool).length;
-                        const sCount = participants.filter(p => p.competingSparring && p.sparringCategoryId === c.id && p.sparringPool === pool).length;
-                        return {
-                          categoryId: c.id,
-                          categoryName: c.name,
-                          pool,
-                          label: `${c.name} - Pool ${i + 1} (F:${fCount} S:${sCount})`
-                        };
-                      })
-                    )
-                    .map(item => (
-                      <option key={`${item.categoryId}|||${item.pool}`} value={`${item.categoryId}|||${item.pool}`}>
-                        {item.label}
-                      </option>
-                    ))
-                  }
+                  <option value="">{availableSparringCategories.length === 0 ? 'No categories' : 'Select...'}</option>
+                  {availableSparringCategories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
                 {!copySparringFromForms && (
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
@@ -1598,62 +1780,34 @@ function RingOverview({}: RingOverviewProps) {
               </div>
             )}
 
-            {/* Physical Ring Assignment */}
-            {sparringPhysicalMapping && (
+            {/* Pool Selector */}
+            {currentSparringDivision && (
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Physical Ring
+                  Pool {copySparringFromForms && <span style={{ color: 'var(--info-text)', fontSize: '11px', fontWeight: 'normal' }}>• Same as Forms</span>}
                 </label>
-                <div style={{ 
-                  padding: '8px 10px', 
-                  backgroundColor: copySparringFromForms ? 'var(--bg-tertiary)' : 'var(--bg-tertiary)', 
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-color)',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  color: 'var(--text-primary)',
-                  opacity: copySparringFromForms ? 0.7 : 1,
-                }}>
-                  {sparringPhysicalMapping.physicalRingName}
-                  {copySparringFromForms && formsPhysicalMapping && sparringPhysicalMapping.physicalRingName !== formsPhysicalMapping.physicalRingName && (
-                    <span style={{ fontSize: '11px', marginLeft: '6px', color: 'var(--accent-primary)' }}>ℹ Different from Forms</span>
-                  )}
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                  Change in Ring Map tab
-                </div>
+                <select
+                  value={sparringCategoryInDivision ? currentSparringPool ?? '' : ''}
+                  onChange={(e) => updatePending({ sparringPool: e.target.value || undefined })}
+                  disabled={copySparringFromForms || !currentCompetingSparring || !sparringCategoryInDivision || sparringPoolOptions.length === 0}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '13px',
+                    border: '1px solid var(--input-border)',
+                    borderRadius: '4px',
+                    backgroundColor: (!copySparringFromForms && currentCompetingSparring && sparringCategoryInDivision) ? 'var(--input-bg)' : 'var(--bg-tertiary)',
+                    opacity: (!copySparringFromForms && currentCompetingSparring && sparringCategoryInDivision) ? 1 : 0.6,
+                    cursor: (!copySparringFromForms && currentCompetingSparring && sparringCategoryInDivision) ? 'default' : 'not-allowed',
+                  }}
+                >
+                  <option value="">{sparringPoolOptions.length === 0 ? 'Select a category first' : 'Select...'}</option>
+                  {sparringPoolOptions.map(opt => (
+                    <option key={opt.pool} value={opt.pool}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
             )}
-
-            {/* Rank Order */}
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Rank Order
-              </label>
-              <input
-                type="number"
-                value={currentSparringRankOrder || ''}
-                onChange={(e) => {
-                  const value = e.target.value ? parseInt(e.target.value) : undefined;
-                  updatePending({ sparringRankOrder: value });
-                }}
-                disabled={!currentCompetingSparring}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  fontSize: '13px',
-                  border: '1px solid var(--input-border)',
-                  borderRadius: '4px',
-                  backgroundColor: currentCompetingSparring ? 'var(--input-bg)' : 'var(--bg-tertiary)',
-                  opacity: currentCompetingSparring ? 1 : 0.6,
-                  cursor: currentCompetingSparring ? 'default' : 'not-allowed',
-                }}
-                placeholder="e.g., 1, 2, 3..."
-              />
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                Use decimals like 1.5 to insert between competitors
-              </div>
-            </div>
 
             {/* Alt Ring */}
             <div style={{ marginBottom: '12px' }}>
@@ -1686,10 +1840,67 @@ function RingOverview({}: RingOverviewProps) {
                 Splits pool into two separate brackets
               </div>
             </div>
+
+            {/* Physical Ring Assignment */}
+            {sparringPhysicalMapping && (
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Physical Ring
+                </label>
+                <div style={{
+                  padding: '8px 10px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: 'var(--text-primary)',
+                  opacity: copySparringFromForms ? 0.7 : 1,
+                }}>
+                  {sparringPhysicalMapping.physicalRingName}
+                  {copySparringFromForms && formsPhysicalMapping && sparringPhysicalMapping.physicalRingName !== formsPhysicalMapping.physicalRingName && (
+                    <span style={{ fontSize: '11px', marginLeft: '6px', color: 'var(--accent-primary)' }}>ℹ Different from Forms</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Change in Ring Map tab
+                </div>
+              </div>
+            )}
+
+            {/* Rank order is managed from the Ring Overview table */}
+            {currentSparringRankOrder !== undefined && currentSparringRankOrder !== null && (
+              <div style={{ marginBottom: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                Rank order: <strong>#{currentSparringRankOrder}</strong> · adjust in Ring Overview
+              </div>
+            )}
+            </div>
+          </div>
             </div>
           </div>
 
-          {/* Actions live in the action bar above (same row as the "same as Forms" toggle) */}
+          {/* Footer actions */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '10px',
+            marginTop: '18px',
+            paddingTop: '14px',
+            borderTop: '1px solid var(--border-color)',
+          }}>
+            <button
+              onClick={handleCancel}
+              style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              Submit
+            </button>
+          </div>
         </div>
 
         {/* Submit-validation popup: shown when a division was changed without

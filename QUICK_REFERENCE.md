@@ -106,11 +106,12 @@ Optional columns:
 ## Quick Edit Modal
 
 Click any participant name in the Tournament tab to open:
-- Toggle competing in forms/sparring
+- Edit name, age, gender, height, school, and branch (left side)
+- Toggle competing in forms/sparring (right side)
 - Change division, category, pool
 - Set sparring alt ring (a/b)
-- Adjust rank order
-- "Copy from Forms" checkbox mirrors settings to sparring
+- "Use same assignment for both Forms and Sparring" mirrors settings to sparring
+- Physical rings are shown for reference; rank order is adjusted in Ring Overview
 
 ## History &amp; Baselines
 

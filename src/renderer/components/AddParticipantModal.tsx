@@ -1,6 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useTournamentStore } from '../store/tournamentStore';
 import { Participant } from '../types/tournament';
+import { buildCategoryPoolName } from '../utils/ringNameFormatter';
+import {
+  participantFieldGrid,
+  participantFieldLabel,
+  participantModalCard,
+  participantBioColumn,
+  participantSectionTitle,
+} from './participantFormStyles';
 
 interface AddParticipantModalProps {
   isOpen: boolean;
@@ -11,6 +19,7 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
   const participants = useTournamentStore((state) => state.participants);
   const categories = useTournamentStore((state) => state.categories);
   const config = useTournamentStore((state) => state.config);
+  const physicalRingMappings = useTournamentStore((state) => state.physicalRingMappings);
   const setParticipants = useTournamentStore((state) => state.setParticipants);
 
   const emptyForm = {
@@ -18,8 +27,8 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
     lastName: '',
     age: 0,
     gender: '',
-    heightFeet: 0,
-    heightInches: 0,
+    heightFeet: '' as number | '',
+    heightInches: '' as number | '',
     school: '',
     branch: '',
     formsDivision: null as string | null,
@@ -46,7 +55,8 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
   }, [participants]);
 
   const uniqueGenders = useMemo(() => {
-    const genders = new Set(participants.map(p => p.gender).filter(Boolean));
+    const genders = new Set<string>(['Male', 'Female']);
+    participants.forEach(p => { if (p.gender) genders.add(p.gender); });
     return Array.from(genders).sort();
   }, [participants]);
 
@@ -61,18 +71,53 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
     [categories, formData.sparringDivision]
   );
 
-  // Pool options for selected category (P1, P2, ...)
+  // Pool options for the selected category. Counts mirror Quick Edit so the
+  // user can see Forms and Sparring ring sizes before choosing a pool.
   const formsPoolOptions = useMemo(() => {
     const cat = formsCategories.find(c => c.id === formData.formsCategoryId);
     if (!cat || !cat.numPools) return [];
-    return Array.from({ length: cat.numPools }, (_, i) => `P${i + 1}`);
-  }, [formsCategories, formData.formsCategoryId]);
+    const matchingSparringCatId = cat.id.replace(/^forms-/, 'sparring-');
+    return Array.from({ length: cat.numPools }, (_, i) => {
+      const pool = `P${i + 1}`;
+      const fCount = participants.filter(p => p.competingForms && p.formsCategoryId === cat.id && p.formsPool === pool).length;
+      const sCount = participants.filter(p => p.competingSparring && p.sparringCategoryId === matchingSparringCatId && p.sparringPool === pool).length;
+      return { pool, label: `Pool ${i + 1} (F:${fCount} S:${sCount})` };
+    });
+  }, [formsCategories, formData.formsCategoryId, participants]);
 
   const sparringPoolOptions = useMemo(() => {
     const cat = sparringCategories.find(c => c.id === formData.sparringCategoryId);
     if (!cat || !cat.numPools) return [];
-    return Array.from({ length: cat.numPools }, (_, i) => `P${i + 1}`);
-  }, [sparringCategories, formData.sparringCategoryId]);
+    const matchingFormsCatId = cat.id.replace(/^sparring-/, 'forms-');
+    return Array.from({ length: cat.numPools }, (_, i) => {
+      const pool = `P${i + 1}`;
+      const fCount = participants.filter(p => p.competingForms && p.formsCategoryId === matchingFormsCatId && p.formsPool === pool).length;
+      const sCount = participants.filter(p => p.competingSparring && p.sparringCategoryId === cat.id && p.sparringPool === pool).length;
+      return { pool, label: `Pool ${i + 1} (F:${fCount} S:${sCount})` };
+    });
+  }, [sparringCategories, formData.sparringCategoryId, participants]);
+
+  // Physical ring is a mapping from category/pool -> ring. It is read-only in
+  // this modal; it appears once a pool has been chosen.
+  const selectedFormsCategory = formData.formsCategoryId
+    ? categories.find(c => c.id === formData.formsCategoryId)
+    : null;
+  const formsPoolName = selectedFormsCategory && formData.formsPool
+    ? buildCategoryPoolName(selectedFormsCategory.division, selectedFormsCategory.name, formData.formsPool)
+    : null;
+  const formsPhysicalRing = formsPoolName
+    ? physicalRingMappings.find(m => m.categoryPoolName === formsPoolName)?.physicalRingName
+    : undefined;
+
+  const selectedSparringCategory = formData.sparringCategoryId
+    ? categories.find(c => c.id === formData.sparringCategoryId)
+    : null;
+  const sparringPoolName = selectedSparringCategory && formData.sparringPool
+    ? buildCategoryPoolName(selectedSparringCategory.division, selectedSparringCategory.name, formData.sparringPool)
+    : null;
+  const sparringPhysicalRing = sparringPoolName
+    ? physicalRingMappings.find(m => m.categoryPoolName === sparringPoolName)?.physicalRingName
+    : undefined;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,8 +145,8 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
       lastName: formData.lastName.trim(),
       age: formData.age,
       gender: formData.gender,
-      heightFeet: formData.heightFeet,
-      heightInches: formData.heightInches,
+      heightFeet: Number(formData.heightFeet) || 0,
+      heightInches: Number(formData.heightInches) || 0,
       school: formData.school,
       branch: formData.branch || undefined,
       formsDivision: formData.formsDivision,
@@ -151,11 +196,10 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
       <div
         style={{
           backgroundColor: 'var(--bg-primary)',
-          padding: '30px',
+          padding: '20px',
           borderRadius: '8px',
-          width: '90%',
-          maxWidth: '600px',
-          maxHeight: '90vh',
+          width: 'min(1180px, 94vw)',
+          maxHeight: '88vh',
           overflow: 'auto',
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
         }}
@@ -164,10 +208,17 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
         <h2 style={{ marginTop: 0, color: 'var(--text-primary)' }}>Add New Participant</h2>
 
         <form onSubmit={handleSubmit}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)', gap: '20px', alignItems: 'start' }}>
+            {/* Left: biographical data */}
+            <div style={participantBioColumn}>
+              <h4 style={{ ...participantSectionTitle, color: 'var(--text-primary)', marginBottom: '12px' }}>
+                Participant
+              </h4>
+
           {/* Name Fields */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+          <div style={participantFieldGrid}>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <label style={participantFieldLabel}>
                 First Name *
               </label>
               <input
@@ -187,7 +238,7 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <label style={participantFieldLabel}>
                 Last Name *
               </label>
               <input
@@ -209,9 +260,9 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
           </div>
 
           {/* Age and Gender */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+          <div style={participantFieldGrid}>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <label style={participantFieldLabel}>
                 Age *
               </label>
               <input
@@ -232,7 +283,7 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <label style={participantFieldLabel}>
                 Gender
               </label>
               <select
@@ -257,15 +308,15 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
           </div>
 
           {/* Height */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+          <div style={participantFieldGrid}>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <label style={participantFieldLabel}>
                 Height (Feet)
               </label>
               <input
                 type="number"
-                value={formData.heightFeet || ''}
-                onChange={(e) => setFormData({ ...formData, heightFeet: parseInt(e.target.value) || 0 })}
+                value={formData.heightFeet}
+                onChange={(e) => setFormData({ ...formData, heightFeet: e.target.value === '' ? '' : parseInt(e.target.value) || 0 })}
                 min="0"
                 style={{
                   width: '100%',
@@ -279,13 +330,13 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <label style={participantFieldLabel}>
                 Height (Inches)
               </label>
               <input
                 type="number"
-                value={formData.heightInches || ''}
-                onChange={(e) => setFormData({ ...formData, heightInches: parseInt(e.target.value) || 0 })}
+                value={formData.heightInches}
+                onChange={(e) => setFormData({ ...formData, heightInches: e.target.value === '' ? '' : parseInt(e.target.value) || 0 })}
                 min="0"
                 max="11"
                 style={{
@@ -302,9 +353,9 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
           </div>
 
           {/* School and Branch */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+          <div style={participantFieldGrid}>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <label style={participantFieldLabel}>
                 School
               </label>
               <select
@@ -327,7 +378,7 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <label style={participantFieldLabel}>
                 Branch
               </label>
               <select
@@ -351,9 +402,43 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
             </div>
           </div>
 
-          {/* Forms Section */}
-          <div style={{ marginBottom: '20px', padding: '12px', border: '1px solid #007bff', borderRadius: '6px' }}>
-            <h4 style={{ margin: '0 0 10px 0', color: '#007bff', fontSize: '14px' }}>Forms</h4>
+            </div>
+
+            {/* Right: Forms and Sparring assignments */}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ marginBottom: '14px', padding: '10px 12px', borderRadius: '6px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    id="useFormsForSparring"
+                    checked={formData.useFormsForSparring}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      if (checked) {
+                        const div = formData.formsDivision;
+                        const sparCats = categories.filter(c => c.type === 'sparring' && c.division === div);
+                        const autoSparCatId = sparCats.length === 1 ? sparCats[0].id : null;
+                        setFormData({
+                          ...formData,
+                          useFormsForSparring: true,
+                          sparringDivision: div,
+                          sparringCategoryId: autoSparCatId,
+                          sparringPool: formData.formsPool,
+                        });
+                      } else {
+                        setFormData({ ...formData, useFormsForSparring: false });
+                      }
+                    }}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  Use same assignment for both Forms and Sparring
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                {/* Forms Section */}
+                <div style={participantModalCard}>
+                  <h4 style={{ ...participantSectionTitle, color: '#007bff', marginBottom: '12px' }}>Forms</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Division</label>
@@ -424,47 +509,39 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
                   style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: (!formData.formsCategoryId || formsPoolOptions.length === 0) ? 0.5 : 1 }}
                 >
                   <option value="">{formsPoolOptions.length === 0 ? 'No pools' : 'Select...'}</option>
-                  {formsPoolOptions.map(p => (
-                    <option key={p} value={p}>{p.replace(/^P(\d+)$/, 'Pool $1')}</option>
+                  {formsPoolOptions.map(opt => (
+                    <option key={opt.pool} value={opt.pool}>{opt.label}</option>
                   ))}
                 </select>
               </div>
             </div>
-          </div>
 
-          {/* Use forms for sparring checkbox */}
-          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              type="checkbox"
-              id="useFormsForSparring"
-              checked={formData.useFormsForSparring}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                if (checked) {
-                  const div = formData.formsDivision;
-                  const sparCats = categories.filter(c => c.type === 'sparring' && c.division === div);
-                  const autoSparCatId = sparCats.length === 1 ? sparCats[0].id : null;
-                  setFormData({
-                    ...formData,
-                    useFormsForSparring: true,
-                    sparringDivision: div,
-                    sparringCategoryId: autoSparCatId,
-                    sparringPool: formData.formsPool,
-                  });
-                } else {
-                  setFormData({ ...formData, useFormsForSparring: false });
-                }
-              }}
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-            />
-            <label htmlFor="useFormsForSparring" style={{ fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-              Use forms settings for sparring
-            </label>
-          </div>
+                  {formsPhysicalRing && (
+                    <div style={{ marginTop: '12px' }}>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 600, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        Physical Ring
+                      </label>
+                      <div style={{
+                        padding: '8px 10px',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border-color)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        color: 'var(--text-primary)',
+                      }}>
+                        {formsPhysicalRing}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                        Change in Ring Map tab
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-          {/* Sparring Section */}
-          <div style={{ marginBottom: '20px', padding: '12px', border: '1px solid #dc3545', borderRadius: '6px' }}>
-            <h4 style={{ margin: '0 0 10px 0', color: '#dc3545', fontSize: '14px' }}>Sparring</h4>
+                {/* Sparring Section */}
+                <div style={participantModalCard}>
+                  <h4 style={{ ...participantSectionTitle, color: '#dc3545', marginBottom: '12px' }}>Sparring</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '13px', color: 'var(--text-secondary)' }}>Division</label>
@@ -503,8 +580,8 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
                   style={{ width: '100%', padding: '8px', fontSize: '13px', border: '1px solid var(--input-border)', borderRadius: '4px', backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', opacity: (formData.useFormsForSparring || !formData.sparringCategoryId || sparringPoolOptions.length === 0) ? 0.5 : 1 }}
                 >
                   <option value="">{sparringPoolOptions.length === 0 ? 'No pools' : 'Select...'}</option>
-                  {sparringPoolOptions.map(p => (
-                    <option key={p} value={p}>{p.replace(/^P(\d+)$/, 'Pool $1')}</option>
+                  {sparringPoolOptions.map(opt => (
+                    <option key={opt.pool} value={opt.pool}>{opt.label}</option>
                   ))}
                 </select>
               </div>
@@ -522,10 +599,39 @@ function AddParticipantModal({ isOpen, onClose }: AddParticipantModalProps) {
                 </select>
               </div>
             </div>
+
+                  {sparringPhysicalRing && (
+                    <div style={{ marginTop: '12px' }}>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 600, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        Physical Ring
+                      </label>
+                      <div style={{
+                        padding: '8px 10px',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border-color)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        color: 'var(--text-primary)',
+                        opacity: formData.useFormsForSparring ? 0.7 : 1,
+                      }}>
+                        {sparringPhysicalRing}
+                        {formData.useFormsForSparring && formsPhysicalRing && sparringPhysicalRing !== formsPhysicalRing && (
+                          <span style={{ fontSize: '11px', marginLeft: '6px', color: 'var(--accent-primary)' }}>ℹ Different from Forms</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                        Change in Ring Map tab
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Buttons */}
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '18px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
             <button
               type="button"
               onClick={handleCancel}

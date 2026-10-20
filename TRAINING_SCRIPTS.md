@@ -400,7 +400,7 @@ Three-part training series covering the complete Tournament Manager workflow.
 
 **[DEMO: Find a participant in a ring. Click their name.]**
 
-> The **Quick Edit** modal opens. At the top you see their name, age, gender, and height.
+> The **Quick Edit** modal opens. Biographical details — name, age, gender, height, school, and branch — are on the left and can be edited directly. Assignments are on the right.
 
 **[DEMO: Show the Quick Edit modal.]**
 
